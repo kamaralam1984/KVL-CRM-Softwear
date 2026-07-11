@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FreedomWithAI CRM — Business Proposal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #fff;
+    color: #1e293b;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    width: 100%; height: 100vh;
+    background: linear-gradient(150deg, #0f172a 0%, #0f2744 40%, #1a1040 100%);
+    display: flex; flex-direction: column;
+    align-items: flex-start; justify-content: center;
+    padding: 0 80px;
+    page-break-after: always;
+    position: relative; overflow: hidden;
+  }
+  .cover::after {
+    content: '';
+    position: absolute; right: -100px; top: -100px;
+    width: 600px; height: 600px;
+    background: radial-gradient(ellipse, rgba(59,130,246,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cover::before {
+    content: '';
+    position: absolute; right: 80px; bottom: 80px;
+    width: 400px; height: 400px;
+    background: radial-gradient(ellipse, rgba(139,92,246,0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cover-tag {
+    display: inline-block;
+    background: rgba(59,130,246,0.2);
+    border: 1px solid rgba(59,130,246,0.4);
+    color: #93c5fd;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    padding: 6px 16px; border-radius: 100px;
+    margin-bottom: 28px;
+    position: relative; z-index: 1;
+  }
+  .cover h1 {
+    font-size: 52px; font-weight: 800; color: #fff;
+    letter-spacing: -2px; line-height: 1.1;
+    margin-bottom: 16px;
+    position: relative; z-index: 1;
+  }
+  .cover h1 span {
+    background: linear-gradient(90deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .cover-sub {
+    font-size: 18px; color: rgba(255,255,255,0.55);
+    max-width: 520px; line-height: 1.5;
+    margin-bottom: 48px;
+    position: relative; z-index: 1;
+  }
+  .cover-divider {
+    width: 60px; height: 3px;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+    border-radius: 2px; margin-bottom: 40px;
+    position: relative; z-index: 1;
+  }
+  .cover-meta-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px; max-width: 480px;
+    position: relative; z-index: 1;
+  }
+  .cover-meta-item label {
+    font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
+    text-transform: uppercase; color: rgba(255,255,255,0.3);
+    display: block; margin-bottom: 4px;
+  }
+  .cover-meta-item span {
+    font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.8);
+  }
+  .cover-logo {
+    position: absolute; top: 40px; right: 56px;
+    width: 56px; height: 56px;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    z-index: 2;
+  }
+
+  /* ── Pages ── */
+  .page { padding: 52px 64px; max-width: 920px; margin: 0 auto; }
+  .page-break { page-break-before: always; }
+
+  /* ── Section Headers ── */
+  .sec {
+    margin-bottom: 32px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .sec-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: #3b82f6;
+    margin-bottom: 6px;
+  }
+  .sec-title { font-size: 26px; font-weight: 700; color: #0f172a; }
+  .sec-sub { font-size: 14px; color: #64748b; margin-top: 4px; }
+
+  h3 { font-size: 16px; font-weight: 600; color: #0f172a; margin: 22px 0 10px; }
+  h4 { font-size: 14px; font-weight: 600; color: #334155; margin: 14px 0 6px; }
+  p { color: #475569; margin-bottom: 10px; }
+
+  /* ── Highlight Card ── */
+  .highlight {
+    background: linear-gradient(135deg, #eff6ff, #f5f3ff);
+    border: 1px solid #c7d2fe;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 16px 0;
+  }
+  .highlight p { color: #3730a3; margin: 0; font-size: 15px; font-weight: 500; line-height: 1.5; }
+
+  /* ── Stats Row ── */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 14px; margin: 18px 0;
+  }
+  .stat-card {
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 10px; padding: 16px;
+    text-align: center;
+  }
+  .stat-value { font-size: 24px; font-weight: 800; color: #0f172a; }
+  .stat-label { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  .stat-trend { font-size: 12px; font-weight: 600; color: #16a34a; margin-top: 4px; }
+
+  /* ── Feature List ── */
+  .feature-list { list-style: none; margin: 10px 0 20px; }
+  .feature-list li {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .feature-list li:last-child { border-bottom: none; }
+  .feature-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .feature-text strong { font-size: 13px; font-weight: 600; color: #1e293b; display: block; }
+  .feature-text span { font-size: 12px; color: #64748b; }
+
+  /* ── 2-col grid ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .col-card {
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 10px; padding: 16px 18px;
+  }
+  .col-card h4 { margin-top: 0; font-size: 13px; }
+  .col-card p { font-size: 12px; color: #64748b; margin: 0; }
+
+  /* ── Pricing ── */
+  .pricing-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin: 16px 0; }
+  .price-card {
+    border: 2px solid #e2e8f0; border-radius: 12px;
+    padding: 20px; text-align: center; position: relative;
+  }
+  .price-card.featured {
+    border-color: #3b82f6;
+    background: linear-gradient(180deg, #eff6ff 0%, #fff 100%);
+  }
+  .price-card.featured::before {
+    content: 'RECOMMENDED';
+    position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+    background: #3b82f6; color: #fff;
+    font-size: 9px; font-weight: 700; letter-spacing: 1.5px;
+    padding: 3px 12px; border-radius: 100px;
+  }
+  .price-name { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+  .price-amount { font-size: 30px; font-weight: 800; color: #0f172a; }
+  .price-amount span { font-size: 13px; font-weight: 400; color: #94a3b8; }
+  .price-desc { font-size: 11px; color: #64748b; margin: 8px 0 14px; }
+  .price-features { list-style: none; text-align: left; }
+  .price-features li {
+    font-size: 11px; color: #475569; padding: 3px 0;
+    display: flex; gap: 6px;
+  }
+  .price-features li::before { content: '✓'; color: #16a34a; font-weight: 700; }
+
+  /* ── Timeline ── */
+  .timeline { position: relative; padding-left: 28px; margin: 12px 0; }
+  .timeline::before {
+    content: ''; position: absolute; left: 9px; top: 4px; bottom: 4px;
+    width: 2px; background: #e2e8f0;
+  }
+  .tl-item { position: relative; margin-bottom: 18px; }
+  .tl-item::before {
+    content: ''; position: absolute; left: -24px; top: 5px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #e2e8f0;
+  }
+  .tl-phase { font-size: 11px; font-weight: 600; color: #3b82f6; margin-bottom: 2px; }
+  .tl-title { font-size: 13px; font-weight: 600; color: #1e293b; }
+  .tl-desc { font-size: 12px; color: #64748b; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 12px; }
+  th { background: #f1f5f9; text-align: left; padding: 10px 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #475569; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Signature ── */
+  .sig-box {
+    border: 2px solid #e2e8f0; border-radius: 12px;
+    padding: 28px 32px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+    margin: 20px 0;
+  }
+  .sig-field label {
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: #94a3b8; display: block; margin-bottom: 8px;
+  }
+  .sig-line {
+    border-bottom: 1px solid #cbd5e1;
+    height: 36px; margin-bottom: 6px;
+  }
+  .sig-name { font-size: 12px; color: #475569; }
+
+  .cta-box {
+    background: linear-gradient(135deg, #1e3a5f, #2d1b5e);
+    border-radius: 12px; padding: 28px 32px;
+    text-align: center; color: #fff; margin: 20px 0;
+  }
+  .cta-box h3 { color: #fff; margin: 0 0 8px; font-size: 20px; }
+  .cta-box p { color: rgba(255,255,255,0.65); margin: 0 0 16px; }
+  .cta-btn {
+    display: inline-block;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+    color: #fff; padding: 10px 28px;
+    border-radius: 100px; font-size: 13px; font-weight: 600;
+    text-decoration: none;
+  }
+
+  /* Footer */
+  .footer {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 36px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 64px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 11px; color: #94a3b8;
+    background: #fff;
+  }
+
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 100px; font-size: 11px; font-weight: 600;
+  }
+  .badge-blue { background: #dbeafe; color: #1d4ed8; }
+  .badge-green { background: #dcfce7; color: #15803d; }
+  .badge-violet { background: #ede9fe; color: #7c3aed; }
+</style>
+</head>
+<body>
+
+<!-- ══ COVER ══ -->
+<div class="cover">
+  <div class="cover-logo">✦</div>
+  <div class="cover-tag">Business Proposal</div>
+  <h1>FreedomWithAI<br><span>CRM Platform</span></h1>
+  <div class="cover-sub">AI-powered Customer Relationship Management system jo aapki sales team ko supercharge kare aur revenue growth accelerate kare.</div>
+  <div class="cover-divider"></div>
+  <div class="cover-meta-grid">
+    <div class="cover-meta-item">
+      <label>Prepared By</label>
+      <span>Animesh</span>
+    </div>
+    <div class="cover-meta-item">
+      <label>Organization</label>
+      <span>FreedomWithAI</span>
+    </div>
+    <div class="cover-meta-item">
+      <label>Date</label>
+      <span>May 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EXECUTIVE SUMMARY ══ -->
+<div class="page">
+  <div class="sec">
+    <div class="sec-eyebrow">01 — Overview</div>
+    <div class="sec-title">Executive Summary</div>
+    <div class="sec-sub">Yeh proposal kya hai aur kyun zaroori hai</div>
+  </div>
+
+  <div class="highlight">
+    <p>FreedomWithAI CRM ek AI-powered, all-in-one customer relationship management platform hai jo small-to-enterprise businesses ko unke sales pipeline, customer data, team performance, aur marketing operations ek hi jagah manage karne ki capability deta hai.</p>
+  </div>
+
+  <h3>Problem Statement</h3>
+  <p>Aaj ki competitive market mein, most businesses multiple disconnected tools use karte hain — ek Excel sheet leads ke liye, alag tool emails ke liye, WhatsApp pe manually follow-ups, aur spreadsheets mein invoices. Yeh approach:</p>
+  <ul style="list-style:none; padding:0; margin:0 0 16px;">
+    <li style="padding:6px 0; border-bottom:1px solid #f1f5f9; color:#475569; display:flex; gap:10px; align-items:center;"><span style="color:#dc2626; font-size:16px;">✗</span> Data silos create karta hai — koi unified view nahi hoti</li>
+    <li style="padding:6px 0; border-bottom:1px solid #f1f5f9; color:#475569; display:flex; gap:10px; align-items:center;"><span style="color:#dc2626; font-size:16px;">✗</span> Leads miss ho jaate hain manual tracking ki wajah se</li>
+    <li style="padding:6px 0; border-bottom:1px solid #f1f5f9; color:#475569; display:flex; gap:10px; align-items:center;"><span style="color:#dc2626; font-size:16px;">✗</span> Team performance accurately measure nahi hoti</li>
+    <li style="padding:6px 0; border-bottom:1px solid #f1f5f9; color:#475569; display:flex; gap:10px; align-items:center;"><span style="color:#dc2626; font-size:16px;">✗</span> Follow-ups delayed ho jaate hain, deals lose hoti hain</li>
+    <li style="padding:6px 0; color:#475569; display:flex; gap:10px; align-items:center;"><span style="color:#dc2626; font-size:16px;">✗</span> Reporting manual aur time-consuming hoti hai</li>
+  </ul>
+
+  <h3>Our Solution</h3>
+  <p>FreedomWithAI CRM ye sab kuch ek single, beautifully designed platform par solve karta hai — real-time data, AI insights, aur seamless integrations ke saath.</p>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value">15</div>
+      <div class="stat-label">Integrated Modules</div>
+      <div class="stat-trend">All-in-one</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">40%</div>
+      <div class="stat-label">Sales Productivity ↑</div>
+      <div class="stat-trend">Average increase</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">3×</div>
+      <div class="stat-label">Faster Reporting</div>
+      <div class="stat-trend">vs manual methods</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">28%</div>
+      <div class="stat-label">Higher Conversion</div>
+      <div class="stat-trend">With AI insights</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PRODUCT OVERVIEW ══ -->
+<div class="page page-break">
+  <div class="sec">
+    <div class="sec-eyebrow">02 — Product</div>
+    <div class="sec-title">Platform Overview</div>
+    <div class="sec-sub">15 powerful modules — ek seamless experience</div>
+  </div>
+
+  <h3>Core Modules</h3>
+  <ul class="feature-list">
+    <li>
+      <div class="feature-icon" style="background:#eff6ff;">📊</div>
+      <div class="feature-text">
+        <strong>Dashboard</strong>
+        <span>Real-time KPIs, revenue charts, lead funnel, team performance — ek hi screen par poori business ka snapshot.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#fdf4ff;">👥</div>
+      <div class="feature-text">
+        <strong>Leads Management</strong>
+        <span>AI-scored leads, hot/warm/cold classification, stage tracking (Discovery → Proposal → Closed), owner assignment.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#f0fdf4;">🏢</div>
+      <div class="feature-text">
+        <strong>Customer Intelligence</strong>
+        <span>Health scores, renewal tracking, segment-wise analysis, at-risk detection with automated alerts.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#fefce8;">🔀</div>
+      <div class="feature-text">
+        <strong>Visual Sales Pipeline</strong>
+        <span>Kanban board with 5 stages, probability tracking, per-stage revenue totals, one-click deal addition.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#fff7ed;">💬</div>
+      <div class="feature-text">
+        <strong>WhatsApp CRM Integration</strong>
+        <span>Direct messaging, broadcast campaigns, message templates — sab CRM ke andar. WhatsApp switch nahi karna.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#eff6ff;">📧</div>
+      <div class="feature-text">
+        <strong>Email Marketing</strong>
+        <span>Campaign builder, open/click rate tracking, 6 ready templates, subscriber management.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#f0fdf4;">⚡</div>
+      <div class="feature-text">
+        <strong>Workflow Automation</strong>
+        <span>Trigger-based automations, pause/resume workflows, run count tracking — manual work eliminate karo.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#fdf4ff;">🤖</div>
+      <div class="feature-text">
+        <strong>AI Insights &amp; Assistant</strong>
+        <span>ML-powered predictions, churn risk detection, deal win probability, suggested actions, conversational AI assistant.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#f8fafc;">💰</div>
+      <div class="feature-text">
+        <strong>Finance &amp; Invoicing</strong>
+        <span>Invoice creation, status tracking (paid/pending/overdue), MRR/ARR metrics, one-click export.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#eff6ff;">📈</div>
+      <div class="feature-text">
+        <strong>Reports &amp; Analytics</strong>
+        <span>Revenue trends, category breakdown, team comparison, lead conversion funnel — 3M/6M/1Y time filters.</span>
+      </div>
+    </li>
+  </ul>
+</div>
+
+<!-- ══ KEY FEATURES ══ -->
+<div class="page page-break">
+  <div class="sec">
+    <div class="sec-eyebrow">03 — Differentiators</div>
+    <div class="sec-title">Why FreedomWithAI CRM?</div>
+    <div class="sec-sub">Competitors se hum alag kyun hain</div>
+  </div>
+
+  <div class="two-col">
+    <div class="col-card">
+      <h4>🎨 Modern Dark UI Design</h4>
+      <p>Glass morphism design language, smooth Framer Motion animations, aur dark mode — eye strain kam hota hai aur productivity badhti hai.</p>
+    </div>
+    <div class="col-card">
+      <h4>🤖 AI-First Approach</h4>
+      <p>AI har module mein integrated hai — lead scoring se le ke churn prediction tak. Separate AI tool ki zaroorat nahi.</p>
+    </div>
+    <div class="col-card">
+      <h4>📱 Real-Time Everything</h4>
+      <p>Koi page refresh nahi. Data instantly update hota hai — stats, charts, lists — sab live state mein.</p>
+    </div>
+    <div class="col-card">
+      <h4>💬 WhatsApp Native</h4>
+      <p>WhatsApp CRM directly integrated hai — alag app switch karne ki zaroorat nahi. Conversations aur data ek jagah.</p>
+    </div>
+    <div class="col-card">
+      <h4>⚡ Automation Engine</h4>
+      <p>Repetitive tasks automate karo — lead assignment, follow-up reminders, invoice alerts — zero manual work.</p>
+    </div>
+    <div class="col-card">
+      <h4>🔒 Secure by Design</h4>
+      <p>API key management, 2FA support, role-based access, data retention controls — enterprise-grade security.</p>
+    </div>
+    <div class="col-card">
+      <h4>📊 Unified Analytics</h4>
+      <p>Sab data ek hi place par — sales, finance, team, email — cross-functional insights jo alag tools se nahi milte.</p>
+    </div>
+    <div class="col-card">
+      <h4>🔌 Integration Ready</h4>
+      <p>Slack, Gmail, WhatsApp, Stripe — sab connected. Future mein 50+ integrations roadmap par hain.</p>
+    </div>
+  </div>
+
+  <h3>Competitive Comparison</h3>
+  <table>
+    <tr>
+      <th>Feature</th>
+      <th>FreedomWithAI CRM</th>
+      <th>Salesforce</th>
+      <th>HubSpot Free</th>
+    </tr>
+    <tr>
+      <td>WhatsApp Native Integration</td>
+      <td><span class="badge badge-green">✓ Built-in</span></td>
+      <td>3rd-party app</td>
+      <td>Not available</td>
+    </tr>
+    <tr>
+      <td>AI Insights &amp; Assistant</td>
+      <td><span class="badge badge-green">✓ Included</span></td>
+      <td>Paid add-on ($$$)</td>
+      <td>Limited</td>
+    </tr>
+    <tr>
+      <td>Modern UI / Dark Mode</td>
+      <td><span class="badge badge-green">✓ Native</span></td>
+      <td>Limited</td>
+      <td>Light only</td>
+    </tr>
+    <tr>
+      <td>Setup Time</td>
+      <td><span class="badge badge-green">Same day</span></td>
+      <td>Weeks + consultants</td>
+      <td>2–3 days</td>
+    </tr>
+    <tr>
+      <td>Automation Engine</td>
+      <td><span class="badge badge-green">✓ Visual</span></td>
+      <td>Complex setup</td>
+      <td>Very limited</td>
+    </tr>
+    <tr>
+      <td>Custom Branding</td>
+      <td><span class="badge badge-green">✓ Full</span></td>
+      <td>Enterprise only</td>
+      <td>Paid plan</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ══ TARGET AUDIENCE ══ -->
+<div class="page page-break">
+  <div class="sec">
+    <div class="sec-eyebrow">04 — Market</div>
+    <div class="sec-title">Target Audience &amp; Use Cases</div>
+    <div class="sec-sub">Yeh CRM kisके liye best hai</div>
+  </div>
+
+  <h3>Ideal Customer Profile</h3>
+  <ul class="feature-list">
+    <li>
+      <div class="feature-icon" style="background:#eff6ff;">🏢</div>
+      <div class="feature-text">
+        <strong>B2B Companies (5–500 employees)</strong>
+        <span>SMBs jinhein enterprise-grade CRM chahiye bina enterprise price ke. Sales team 2 se 50 members tak.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#fdf4ff;">🚀</div>
+      <div class="feature-text">
+        <strong>SaaS Startups</strong>
+        <span>Fast-growing companies jo leads, trials, conversions aur churn ek jagah track karna chahte hain.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#fff7ed;">🎨</div>
+      <div class="feature-text">
+        <strong>Agencies &amp; Consultancies</strong>
+        <span>Client management, project pipeline, invoice tracking — yeh sab CRM mein available hai.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#f0fdf4;">📦</div>
+      <div class="feature-text">
+        <strong>E-commerce &amp; D2C Brands</strong>
+        <span>Customer health tracking, re-engagement campaigns, WhatsApp broadcasts — repeat purchases badhao.</span>
+      </div>
+    </li>
+    <li>
+      <div class="feature-icon" style="background:#fefce8;">🏗️</div>
+      <div class="feature-text">
+        <strong>Real Estate, Education, Healthcare</strong>
+        <span>Any industry jahan lead nurturing, follow-ups, aur long sales cycles manage karne hote hain.</span>
+      </div>
+    </li>
+  </ul>
+
+  <h3>Use Case Scenarios</h3>
+  <div class="two-col">
+    <div class="col-card">
+      <h4>Scenario 1: Lead Convert Karna</h4>
+      <p>Marketing ne 50 leads generate kiye → CRM mein auto-scored → Hot leads ko sales rep assign → WhatsApp follow-up → Deal Pipeline mein → Closed. Sab ek jagah.</p>
+    </div>
+    <div class="col-card">
+      <h4>Scenario 2: Churn Prevent Karna</h4>
+      <p>AI detects customer health score girte hua → Automatic alert trigger → Account manager ko task assign → Renewal call calendar mein → Issue resolve → Customer retain.</p>
+    </div>
+    <div class="col-card">
+      <h4>Scenario 3: Monthly Invoicing</h4>
+      <p>Month end → Finance section mein jaao → Har client ke liye invoice create karo → Status track karo → Overdue hone par auto-reminder → Export for accounting.</p>
+    </div>
+    <div class="col-card">
+      <h4>Scenario 4: Team Performance Review</h4>
+      <p>Monday morning → Team section kholo → Leaderboard dekho → Kaunsa member behind hai → Goals adjust karo → Reports mein trend dekho → Weekly standup ready.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PRICING ══ -->
+<div class="page page-break">
+  <div class="sec">
+    <div class="sec-eyebrow">05 — Investment</div>
+    <div class="sec-title">Pricing Plans</div>
+    <div class="sec-sub">Simple, transparent pricing — koi hidden fees nahi</div>
+  </div>
+
+  <div class="pricing-grid">
+    <div class="price-card">
+      <div class="price-name">Starter</div>
+      <div class="price-amount">$49<span>/mo</span></div>
+      <div class="price-desc">Small teams ke liye perfect</div>
+      <ul class="price-features">
+        <li>Up to 3 users</li>
+        <li>1,000 leads/contacts</li>
+        <li>Basic pipeline</li>
+        <li>Email campaigns</li>
+        <li>Standard reports</li>
+        <li>Email support</li>
+        <li style="color:#cbd5e1;">AI Insights ✗</li>
+        <li style="color:#cbd5e1;">WhatsApp CRM ✗</li>
+      </ul>
+    </div>
+
+    <div class="price-card featured">
+      <div class="price-name">Pro</div>
+      <div class="price-amount">$149<span>/mo</span></div>
+      <div class="price-desc">Growing businesses ke liye</div>
+      <ul class="price-features">
+        <li>Up to 10 users</li>
+        <li>Unlimited contacts</li>
+        <li>Full pipeline + automation</li>
+        <li>WhatsApp CRM</li>
+        <li>Email marketing</li>
+        <li>AI Insights &amp; Assistant</li>
+        <li>Advanced reports</li>
+        <li>Finance &amp; invoicing</li>
+        <li>Priority support</li>
+        <li>Custom branding</li>
+      </ul>
+    </div>
+
+    <div class="price-card">
+      <div class="price-name">Enterprise</div>
+      <div class="price-amount">Custom</div>
+      <div class="price-desc">Large organizations ke liye</div>
+      <ul class="price-features">
+        <li>Unlimited users</li>
+        <li>Unlimited everything</li>
+        <li>Custom integrations</li>
+        <li>Dedicated AI model</li>
+        <li>SSO / SAML</li>
+        <li>SLA guarantee</li>
+        <li>Onboarding support</li>
+        <li>24/7 dedicated support</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Implementation &amp; Setup</h3>
+  <table>
+    <tr><th>Service</th><th>Description</th><th>Price</th></tr>
+    <tr><td>Basic Setup</td><td>Account setup, data import (up to 5,000 records), 1 training session</td><td>$299 one-time</td></tr>
+    <tr><td>Full Onboarding</td><td>Complete setup, data migration, team training (3 sessions), workflow config</td><td>$999 one-time</td></tr>
+    <tr><td>Custom Development</td><td>Custom features, API integrations, white-labeling</td><td>Quote basis</td></tr>
+    <tr><td>Ongoing Support</td><td>Monthly check-ins, health audits, feature training</td><td>$199/mo</td></tr>
+  </table>
+
+  <div class="highlight">
+    <p>💡 <strong>Annual Plan par 20% discount:</strong> Pro plan annually = $1,430/year (save $358 vs monthly). Enterprise annual contracts par custom discounts available hain.</p>
+  </div>
+</div>
+
+<!-- ══ IMPLEMENTATION TIMELINE ══ -->
+<div class="page page-break">
+  <div class="sec">
+    <div class="sec-eyebrow">06 — Roadmap</div>
+    <div class="sec-title">Implementation Timeline</div>
+    <div class="sec-sub">Aap kitni jaldi live ho sakte hain</div>
+  </div>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-phase">Week 1</div>
+      <div class="tl-title">Kickoff &amp; Setup</div>
+      <div class="tl-desc">Account creation, team invites, basic configuration, branding setup. Estimated: 2–3 working days.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-phase">Week 1–2</div>
+      <div class="tl-title">Data Migration</div>
+      <div class="tl-desc">Existing contacts, leads, aur deals import karo. CSV upload ya API ke through. Data validation included.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-phase">Week 2</div>
+      <div class="tl-title">Team Training</div>
+      <div class="tl-desc">1–2 hour training session. Har team member ke liye role-specific walkthrough. Video recordings provided.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-phase">Week 3</div>
+      <div class="tl-title">Integration Setup</div>
+      <div class="tl-desc">WhatsApp, Gmail, Slack, Stripe connect karo. Automations configure karo. Email templates customize karo.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-phase">Week 4</div>
+      <div class="tl-title">Go Live &amp; Optimization</div>
+      <div class="tl-desc">Full production use shuru. 30-day post-launch support. Performance review aur adjustments.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-phase">Month 2+</div>
+      <div class="tl-title">Growth &amp; Scale</div>
+      <div class="tl-desc">Advanced features unlock, AI insights tune karo, custom workflows add karo, quarterly business reviews.</div>
+    </div>
+  </div>
+
+  <h3>ROI Projection (First Year)</h3>
+  <table>
+    <tr><th>Metric</th><th>Before CRM</th><th>After CRM (Est.)</th><th>Improvement</th></tr>
+    <tr><td>Lead Response Time</td><td>4–8 hours</td><td>&lt; 30 minutes</td><td>10× faster</td></tr>
+    <tr><td>Lead-to-Deal Conversion</td><td>12%</td><td>18–22%</td><td>+50%</td></tr>
+    <tr><td>Sales Cycle Length</td><td>45 days</td><td>32 days</td><td>–29%</td></tr>
+    <tr><td>Admin/Reporting Time</td><td>8 hrs/week</td><td>2 hrs/week</td><td>–75%</td></tr>
+    <tr><td>Customer Churn Rate</td><td>8%</td><td>4–5%</td><td>–50%</td></tr>
+    <tr><td>Revenue per Rep</td><td>$80K/yr</td><td>$110K+/yr</td><td>+35%</td></tr>
+  </table>
+</div>
+
+<!-- ══ TERMS + SIGNATURE ══ -->
+<div class="page page-break">
+  <div class="sec">
+    <div class="sec-eyebrow">07 — Next Steps</div>
+    <div class="sec-title">Terms &amp; Agreement</div>
+    <div class="sec-sub">Aage kaise badhein</div>
+  </div>
+
+  <h3>Terms of Service (Summary)</h3>
+  <table>
+    <tr><th>Term</th><th>Details</th></tr>
+    <tr><td>Contract Length</td><td>Monthly (cancel anytime) ya Annual (20% discount)</td></tr>
+    <tr><td>Data Ownership</td><td>Aapka data aapka hai. Export kab bhi kar sakte hain.</td></tr>
+    <tr><td>Uptime SLA</td><td>99.9% uptime guarantee (Pro aur Enterprise plans)</td></tr>
+    <tr><td>Data Security</td><td>AES-256 encryption, GDPR compliant, SOC 2 Type II</td></tr>
+    <tr><td>Support</td><td>Starter: Email (48hr) · Pro: Priority (4hr) · Enterprise: 24/7</td></tr>
+    <tr><td>Free Trial</td><td>14-day full-feature trial, no credit card required</td></tr>
+    <tr><td>Refund Policy</td><td>Pro-rated refund available within 30 days</td></tr>
+    <tr><td>Integrations</td><td>WhatsApp, Gmail, Slack, Stripe (more coming)</td></tr>
+  </table>
+
+  <h3>What Happens Next</h3>
+  <ol style="list-style:decimal; padding-left:20px; color:#475569;">
+    <li style="padding:5px 0;">Is proposal ko review karo aur koi sawaal ho toh humse poochho.</li>
+    <li style="padding:5px 0;"><strong>14-day free trial</strong> shuru karo — koi commitment nahi.</li>
+    <li style="padding:5px 0;">Onboarding call schedule karo — hum setup mein help karenge.</li>
+    <li style="padding:5px 0;">Plan select karo aur payment complete karo.</li>
+    <li style="padding:5px 0;">Ek hafte mein fully live ho jao!</li>
+  </ol>
+
+  <div class="cta-box">
+    <h3>Ready to Transform Your Sales?</h3>
+    <p>Aaj hi 14-day free trial shuru karo — koi credit card nahi chahiye.</p>
+    <a href="#" class="cta-btn">Start Free Trial →</a>
+  </div>
+
+  <h3>Agreement &amp; Acceptance</h3>
+  <div class="sig-box">
+    <div class="sig-field">
+      <label>FreedomWithAI — Authorized Signatory</label>
+      <div class="sig-line"></div>
+      <div class="sig-name">Animesh &nbsp;|&nbsp; Founder, FreedomWithAI</div>
+      <div class="sig-name" style="margin-top:6px;">Date: ___________________</div>
+    </div>
+    <div class="sig-field">
+      <label>Client — Authorized Signatory</label>
+      <div class="sig-line"></div>
+      <div class="sig-name">Name: ___________________</div>
+      <div class="sig-name" style="margin-top:6px;">Date: ___________________</div>
+    </div>
+  </div>
+
+  <p style="font-size:11px; color:#94a3b8; text-align:center; margin-top:20px;">
+    FreedomWithAI · animesh@freedomwithai.com · This proposal is valid for 30 days from the date of issue.<br>
+    All prices in USD. Taxes applicable as per local laws.
+  </p>
+</div>
+
+<div class="footer">
+  <span>FreedomWithAI CRM — Business Proposal · Confidential</span>
+  <span>© 2026 FreedomWithAI · animesh@freedomwithai.com</span>
+</div>
+
+</body>
+</html>

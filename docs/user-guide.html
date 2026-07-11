@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FreedomWithAI CRM — User Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #fff;
+    color: #1e293b;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* ── Cover Page ── */
+  .cover {
+    width: 100%;
+    height: 100vh;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 60% 40%, rgba(59,130,246,0.2) 0%, transparent 60%),
+                radial-gradient(ellipse at 30% 70%, rgba(139,92,246,0.15) 0%, transparent 50%);
+  }
+  .cover-logo {
+    width: 80px; height: 80px;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border-radius: 24px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+    margin-bottom: 28px;
+    box-shadow: 0 0 40px rgba(59,130,246,0.5);
+    position: relative; z-index: 1;
+  }
+  .cover h1 {
+    font-size: 42px; font-weight: 800;
+    color: #fff;
+    letter-spacing: -1px;
+    margin-bottom: 12px;
+    position: relative; z-index: 1;
+  }
+  .cover h2 {
+    font-size: 18px; font-weight: 400;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 40px;
+    position: relative; z-index: 1;
+  }
+  .cover-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(59,130,246,0.15);
+    border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 100px;
+    padding: 8px 20px;
+    color: #93c5fd;
+    font-size: 13px; font-weight: 500;
+    position: relative; z-index: 1;
+  }
+  .cover-meta {
+    position: absolute; bottom: 40px;
+    color: rgba(255,255,255,0.3);
+    font-size: 12px;
+    z-index: 1;
+  }
+
+  /* ── Page Layout ── */
+  .page {
+    padding: 48px 56px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .page-break { page-break-before: always; }
+
+  /* ── Section Headers ── */
+  .section-header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .section-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .section-title { font-size: 22px; font-weight: 700; color: #0f172a; }
+  .section-subtitle { font-size: 13px; color: #64748b; margin-top: 2px; }
+
+  /* ── TOC ── */
+  .toc { margin: 0 0 32px; }
+  .toc-title { font-size: 28px; font-weight: 700; color: #0f172a; margin-bottom: 24px; }
+  .toc-group { margin-bottom: 20px; }
+  .toc-group-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: #94a3b8;
+    margin-bottom: 8px;
+  }
+  .toc-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    cursor: pointer;
+  }
+  .toc-item:nth-child(odd) { background: #f8fafc; }
+  .toc-item-left { display: flex; align-items: center; gap: 10px; }
+  .toc-emoji { font-size: 16px; }
+  .toc-name { font-size: 13px; font-weight: 500; color: #1e293b; }
+  .toc-page { font-size: 12px; color: #94a3b8; }
+
+  /* ── Content Blocks ── */
+  h3 { font-size: 16px; font-weight: 600; color: #0f172a; margin: 20px 0 10px; }
+  h4 { font-size: 14px; font-weight: 600; color: #334155; margin: 14px 0 6px; }
+  p { color: #475569; margin-bottom: 10px; }
+
+  .steps { counter-reset: step; list-style: none; }
+  .steps li {
+    counter-increment: step;
+    display: flex; gap: 14px;
+    margin-bottom: 14px;
+    align-items: flex-start;
+  }
+  .steps li::before {
+    content: counter(step);
+    min-width: 28px; height: 28px;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    color: #fff;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .steps li p { margin: 0; font-size: 13px; color: #475569; }
+  .steps li strong { color: #1e293b; }
+
+  .tip-box {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-left: 4px solid #3b82f6;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 13px; color: #1d4ed8;
+  }
+  .tip-box strong { color: #1e40af; }
+
+  .warning-box {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid #f97316;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 13px; color: #9a3412;
+  }
+
+  .feature-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px; margin: 12px 0 20px;
+  }
+  .feature-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .feature-card-title {
+    font-size: 13px; font-weight: 600; color: #1e293b;
+    margin-bottom: 4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .feature-card p { font-size: 12px; color: #64748b; margin: 0; }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 12px 0 20px; font-size: 12px;
+  }
+  th {
+    background: #f1f5f9; text-align: left;
+    padding: 10px 12px; font-weight: 600;
+    color: #374151; border-bottom: 2px solid #e2e8f0;
+  }
+  td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #475569; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 100px; font-size: 11px; font-weight: 600;
+  }
+  .badge-blue { background: #dbeafe; color: #1d4ed8; }
+  .badge-green { background: #dcfce7; color: #15803d; }
+  .badge-amber { background: #fef3c7; color: #d97706; }
+  .badge-red { background: #fee2e2; color: #dc2626; }
+  .badge-violet { background: #ede9fe; color: #7c3aed; }
+
+  .shortcut {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: monospace; font-size: 11px;
+    background: #f1f5f9; border: 1px solid #cbd5e1;
+    border-radius: 4px; padding: 2px 6px; color: #475569;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 36px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 56px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 11px; color: #94a3b8;
+    background: #fff;
+  }
+
+  @media print {
+    .footer { position: fixed; }
+    .page { padding: 40px 56px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ COVER PAGE ══════════════ -->
+<div class="cover">
+  <div class="cover-logo">✦</div>
+  <h1>FreedomWithAI CRM</h1>
+  <h2>Complete User Guide — Har Feature Ki Step-by-Step Guide</h2>
+  <div class="cover-badge">📘 Version 1.0 &nbsp;·&nbsp; May 2026 &nbsp;·&nbsp; FreedomWithAI</div>
+  <div class="cover-meta">Confidential · Internal Document · animesh@freedomwithai.com</div>
+</div>
+
+<!-- ══════════════ TABLE OF CONTENTS ══════════════ -->
+<div class="page">
+  <div class="toc">
+    <div class="toc-title">Table of Contents</div>
+
+    <div class="toc-group">
+      <div class="toc-group-label">Getting Started</div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">🖥️</span><span class="toc-name">App Overview &amp; Navigation</span></div><span class="toc-page">3</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">📊</span><span class="toc-name">Dashboard</span></div><span class="toc-page">4</span></div>
+    </div>
+
+    <div class="toc-group">
+      <div class="toc-group-label">Main Sections</div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">👥</span><span class="toc-name">Leads Management</span></div><span class="toc-page">5</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">🏢</span><span class="toc-name">Customers</span></div><span class="toc-page">6</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">💼</span><span class="toc-name">Deals</span></div><span class="toc-page">7</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">✅</span><span class="toc-name">Tasks</span></div><span class="toc-page">7</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">📅</span><span class="toc-name">Calendar</span></div><span class="toc-page">8</span></div>
+    </div>
+
+    <div class="toc-group">
+      <div class="toc-group-label">Sales Tools</div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">🔀</span><span class="toc-name">Sales Pipeline (Kanban)</span></div><span class="toc-page">9</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">💬</span><span class="toc-name">WhatsApp CRM</span></div><span class="toc-page">9</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">📧</span><span class="toc-name">Email Marketing</span></div><span class="toc-page">10</span></div>
+    </div>
+
+    <div class="toc-group">
+      <div class="toc-group-label">Insights &amp; Operations</div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">👨‍💼</span><span class="toc-name">Team Management</span></div><span class="toc-page">11</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">📈</span><span class="toc-name">Reports &amp; Analytics</span></div><span class="toc-page">12</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">💰</span><span class="toc-name">Finance &amp; Invoices</span></div><span class="toc-page">12</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">⚡</span><span class="toc-name">Automation</span></div><span class="toc-page">13</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">🤖</span><span class="toc-name">AI Insights</span></div><span class="toc-page">13</span></div>
+      <div class="toc-item"><div class="toc-item-left"><span class="toc-emoji">⚙️</span><span class="toc-name">Settings</span></div><span class="toc-page">14</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ NAVIGATION ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#eff6ff;">🖥️</div>
+    <div><div class="section-title">App Overview &amp; Navigation</div>
+    <div class="section-subtitle">CRM ka basic layout aur kaise navigate karein</div></div>
+  </div>
+
+  <h3>Layout Structure</h3>
+  <p>App teen main parts mein divided hai:</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-title">◀ Left Sidebar</div>
+      <p>Navigation menu jisme sab sections hain. Collapse kar sakte hain (sirf icons dikhenge). 4 groups: Main, Sales, Insights, System.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title">▲ Top Navigation Bar</div>
+      <p>Current section ka naam, search bar, dark/light mode toggle, aur AI Assistant button.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title">▶ Main Content Area</div>
+      <p>Jo bhi section select karo woh yahan dikhega. Smooth animation ke saath switch hota hai.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title">✦ AI Assistant Panel</div>
+      <p>Top-right ke AI button se open hota hai. Right side se slide in karta hai.</p>
+    </div>
+  </div>
+
+  <h3>Sidebar Navigation Groups</h3>
+  <table>
+    <tr><th>Group</th><th>Sections</th><th>Purpose</th></tr>
+    <tr><td><strong>Main</strong></td><td>Dashboard, Leads, Customers, Deals, Tasks, Calendar</td><td>Roz ka kaam</td></tr>
+    <tr><td><strong>Sales</strong></td><td>Pipeline, WhatsApp CRM, Email Marketing</td><td>Sales tools</td></tr>
+    <tr><td><strong>Insights</strong></td><td>Team, Reports, Finance, Automation, AI Insights</td><td>Data &amp; analytics</td></tr>
+    <tr><td><strong>System</strong></td><td>Settings</td><td>App configuration</td></tr>
+  </table>
+
+  <h3>Sidebar Collapse</h3>
+  <ol class="steps">
+    <li><p>Sidebar ke right edge par <strong>small arrow button</strong> hai.</p></li>
+    <li><p>Click karo — sidebar sirf icons tak simat jaata hai (72px wide).</p></li>
+    <li><p>Icons par hover karne se label tooltip dikhayi deta hai.</p></li>
+    <li><p>Dobara click karo — full sidebar wapas aata hai (256px wide).</p></li>
+  </ol>
+
+  <div class="tip-box"><strong>💡 Tip:</strong> Badges (jaise "12" Leads par, "5" Tasks par) unread ya pending items ka count dikhate hain.</div>
+</div>
+
+<!-- ══════════════ DASHBOARD ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#eff6ff;">📊</div>
+    <div><div class="section-title">Dashboard</div>
+    <div class="section-subtitle">Business ka complete snapshot ek jagah</div></div>
+  </div>
+
+  <h3>Kya Dikhta Hai Dashboard Par</h3>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-title">📈 KPI Cards (Top Row)</div>
+      <p>Total Revenue, Active Leads, Deals Closed, Conversion Rate — animated counters ke saath.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title">📉 Revenue Chart</div>
+      <p>12-month revenue trend — area chart. Hover karne par exact values dikhte hain.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title">🥧 Leads Funnel</div>
+      <p>Converted, Qualified, In Progress, Cold — pie chart mein lead distribution.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title">👥 Team Performance</div>
+      <p>Har team member ki deals aur revenue — bar chart comparison.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title">🕐 Recent Activity</div>
+      <p>Latest actions (calls, emails, deals) time ke saath.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title">💼 Top Deals</div>
+      <p>Highest value active deals with stage aur probability.</p>
+    </div>
+  </div>
+
+  <div class="tip-box"><strong>💡 Tip:</strong> Dashboard automatically load hone par KPI numbers 0 se actual value tak animate hote hain. Isko "animated counter" kehte hain.</div>
+
+  <h3>Dashboard Se Kya Samjhein</h3>
+  <ol class="steps">
+    <li><p><strong>KPI cards</strong> dekh kar overall health samjhein — Revenue up hai ya down?</p></li>
+    <li><p><strong>Revenue chart</strong> mein monthly trend dekho — kaunsa mahina strongest tha?</p></li>
+    <li><p><strong>Leads funnel</strong> mein conversion rate check karo — zyada leads cold toh koi masla hai.</p></li>
+    <li><p><strong>Top deals</strong> mein priority deals note karo aur unpar action lo.</p></li>
+  </ol>
+</div>
+
+<!-- ══════════════ LEADS ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#eff6ff;">👥</div>
+    <div><div class="section-title">Leads Management</div>
+    <div class="section-subtitle">Potential customers ko track aur manage karo</div></div>
+  </div>
+
+  <h3>Lead Status Types</h3>
+  <table>
+    <tr><th>Status</th><th>Matlab</th><th>Action</th></tr>
+    <tr><td><span class="badge badge-red">🔥 Hot</span></td><td>Highly interested, ready to buy</td><td>Turant follow-up karo</td></tr>
+    <tr><td><span class="badge badge-amber">🌤 Warm</span></td><td>Interested but needs nurturing</td><td>Regular touchpoints</td></tr>
+    <tr><td><span class="badge badge-blue">❄️ Cold</span></td><td>Low interest or inactive</td><td>Re-engagement campaign</td></tr>
+  </table>
+
+  <h3>Lead Stages (Sales Funnel)</h3>
+  <p>Discovery → Qualified → Proposal → Negotiation → Closed</p>
+
+  <h3>Naya Lead Add Karna</h3>
+  <ol class="steps">
+    <li><p>Upar right corner mein <strong>"+ Add Lead"</strong> button click karo.</p></li>
+    <li><p><strong>Name</strong> aur <strong>Company</strong> (required) fill karo.</p></li>
+    <li><p>Email, Phone, Expected Value fill karo.</p></li>
+    <li><p><strong>Stage</strong> select karo (Discovery/Qualified/etc.)</p></li>
+    <li><p><strong>Status</strong> set karo (Hot/Warm/Cold).</p></li>
+    <li><p><strong>"Add Lead"</strong> button press karo — lead list mein add ho jayega.</p></li>
+  </ol>
+
+  <h3>Leads Filter Karna</h3>
+  <ol class="steps">
+    <li><p>Top bar mein status buttons hain: <strong>All / Hot / Warm / Cold</strong></p></li>
+    <li><p>Click karne par sirf woh leads dikhenge.</p></li>
+    <li><p>Stats cards automatically update ho jaate hain filtered data ke basis par.</p></li>
+  </ol>
+
+  <div class="tip-box"><strong>💡 Tip:</strong> Lead Score (0-100) lead ki quality dikhata hai. 80+ = High priority. Score jitna zyada, utna jaldi contact karo.</div>
+
+  <h3>Lead Card Mein Kya Dekho</h3>
+  <div class="feature-grid">
+    <div class="feature-card"><div class="feature-card-title">Score Bar</div><p>Blue progress bar — lead ki conversion probability</p></div>
+    <div class="feature-card"><div class="feature-card-title">Last Contact</div><p>"2h ago", "1d ago" — kab aakhri baar contacted tha</p></div>
+    <div class="feature-card"><div class="feature-card-title">Tags</div><p>Industry/type labels jaise "Enterprise", "SaaS"</p></div>
+    <div class="feature-card"><div class="feature-card-title">Value</div><p>Expected deal value in dollars</p></div>
+  </div>
+</div>
+
+<!-- ══════════════ CUSTOMERS + DEALS ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f0fdf4;">🏢</div>
+    <div><div class="section-title">Customers</div>
+    <div class="section-subtitle">Existing clients ko manage karo</div></div>
+  </div>
+
+  <h3>Customer Health Score</h3>
+  <table>
+    <tr><th>Score Range</th><th>Color</th><th>Matlab</th></tr>
+    <tr><td>90–100</td><td><span class="badge badge-green">Green</span></td><td>Champion / Very happy</td></tr>
+    <tr><td>70–89</td><td><span class="badge badge-blue">Blue</span></td><td>Active, satisfied</td></tr>
+    <tr><td>50–69</td><td><span class="badge badge-amber">Amber</span></td><td>At-risk, needs attention</td></tr>
+    <tr><td>0–49</td><td><span class="badge badge-red">Red</span></td><td>Churn risk — urgent action</td></tr>
+  </table>
+
+  <h3>Naya Customer Add Karna</h3>
+  <ol class="steps">
+    <li><p><strong>"+ Add Customer"</strong> button click karo.</p></li>
+    <li><p>Company Name aur Contact Person (required) bharo.</p></li>
+    <li><p>Email, Phone, Value, Segment fill karo.</p></li>
+    <li><p>Status set karo: Active / At-Risk / Churned.</p></li>
+    <li><p>Save — customer grid mein appear ho jaayega.</p></li>
+  </ol>
+
+  <h3>Segments</h3>
+  <p>Customers ko 4 types mein filter kar sakte ho: <span class="badge badge-violet">Enterprise</span> <span class="badge badge-blue">SMB</span> <span class="badge badge-green">Agency</span> <span class="badge badge-amber">Startup</span></p>
+
+  <div style="margin-top:32px;">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fdf4ff;">💼</div>
+    <div><div class="section-title">Deals</div>
+    <div class="section-subtitle">Active negotiations track karo</div></div>
+  </div>
+
+  <h3>Deal Table Columns</h3>
+  <table>
+    <tr><th>Column</th><th>Kya Hai</th></tr>
+    <tr><td>Deal Name</td><td>Deal ka naam aur company</td></tr>
+    <tr><td>Value</td><td>Deal ki dollar value</td></tr>
+    <tr><td>Stage</td><td>Current pipeline stage</td></tr>
+    <tr><td>Probability</td><td>% chance of closing (color coded)</td></tr>
+    <tr><td>Owner</td><td>Konsa team member handle kar raha hai</td></tr>
+    <tr><td>Expected Close</td><td>Expected closing date</td></tr>
+  </table>
+
+  <ol class="steps">
+    <li><p><strong>"+ Add Deal"</strong> button click karo.</p></li>
+    <li><p>Deal Name aur Company (required) bharo.</p></li>
+    <li><p>Value, Owner, Stage, Probability set karo.</p></li>
+    <li><p>Deal list mein add ho jaayega aur stats update ho jaayenge.</p></li>
+  </ol>
+  </div>
+</div>
+
+<!-- ══════════════ TASKS + CALENDAR ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fefce8;">✅</div>
+    <div><div class="section-title">Tasks</div>
+    <div class="section-subtitle">Team ke kaam track karo</div></div>
+  </div>
+
+  <h3>Priority Levels</h3>
+  <table>
+    <tr><th>Priority</th><th>Color</th><th>Kab Use Karo</th></tr>
+    <tr><td><span class="badge badge-red">High</span></td><td>Red</td><td>Aaj hi karna hai</td></tr>
+    <tr><td><span class="badge badge-amber">Medium</span></td><td>Amber</td><td>Is hafte mein</td></tr>
+    <tr><td><span class="badge badge-blue">Low</span></td><td>Blue</td><td>Jab time mile</td></tr>
+  </table>
+
+  <h3>Naya Task Add Karna</h3>
+  <ol class="steps">
+    <li><p><strong>"+ Add Task"</strong> click karo.</p></li>
+    <li><p><strong>Task Title</strong> (required) aur Priority set karo.</p></li>
+    <li><p>Due Date, Assignee (team member), Company name bharo.</p></li>
+    <li><p>Save — task list mein appear ho jaayega.</p></li>
+  </ol>
+
+  <h3>Task Complete Karna</h3>
+  <ol class="steps">
+    <li><p>Task ke left side par <strong>checkbox</strong> click karo.</p></li>
+    <li><p>Task "completed" status mein aa jaayega (strikethrough text).</p></li>
+  </ol>
+
+  <div class="tip-box"><strong>💡 Tip:</strong> Filter buttons use karo: All / Pending / In Progress / Completed — taaki focus bana raho.</div>
+
+  <div style="margin-top:32px;">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fff7ed;">📅</div>
+    <div><div class="section-title">Calendar</div>
+    <div class="section-subtitle">Meetings aur events schedule karo</div></div>
+  </div>
+
+  <h3>Calendar Use Karna</h3>
+  <ol class="steps">
+    <li><p>Left side par <strong>monthly grid</strong> dikhai deta hai. Blue dot wale days mein events hain.</p></li>
+    <li><p>Right side par <strong>current month ke events</strong> listed hain.</p></li>
+    <li><p>Month change karne ke liye <strong>◀ ▶ arrows</strong> use karo (year bhi change hota hai automatically).</p></li>
+    <li><p>Naya event add karne ke liye <strong>"+ Event"</strong> button click karo.</p></li>
+    <li><p>Title, Day number, Time, Type (Meeting/Call/Team), Color select karo.</p></li>
+    <li><p>Save — event calendar par appear ho jaayega.</p></li>
+  </ol>
+
+  <h3>Event Types</h3>
+  <table>
+    <tr><th>Type</th><th>Icon</th><th>Use Case</th></tr>
+    <tr><td>Meeting</td><td>📹 Video</td><td>Video calls, presentations</td></tr>
+    <tr><td>Call</td><td>📞 Phone</td><td>Sales calls, follow-ups</td></tr>
+    <tr><td>Team</td><td>👥 Users</td><td>Internal team meetings</td></tr>
+  </table>
+  </div>
+</div>
+
+<!-- ══════════════ PIPELINE + WHATSAPP ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fdf4ff;">🔀</div>
+    <div><div class="section-title">Sales Pipeline</div>
+    <div class="section-subtitle">Kanban board — deal stages visual track karo</div></div>
+  </div>
+
+  <h3>5 Pipeline Stages</h3>
+  <table>
+    <tr><th>Stage</th><th>Probability</th><th>Matlab</th></tr>
+    <tr><td>Prospect</td><td>10%</td><td>Naya potential lead</td></tr>
+    <tr><td>Qualified</td><td>25%</td><td>Interest confirm ho gayi</td></tr>
+    <tr><td>Proposal</td><td>50%</td><td>Proposal/demo diya</td></tr>
+    <tr><td>Negotiation</td><td>75%</td><td>Price/terms discuss ho rahi hain</td></tr>
+    <tr><td>Closed Won</td><td>95%</td><td>Deal almost confirmed</td></tr>
+  </table>
+
+  <h3>Pipeline Use Karna</h3>
+  <ol class="steps">
+    <li><p>Har column ek stage represent karta hai. Deals unke stage mein cards ke roop mein dikhai deti hain.</p></li>
+    <li><p>Column ke neeche <strong>"+ Add Deal"</strong> click karo — us stage ke liye deal add ho jaayegi.</p></li>
+    <li><p>Total pipeline value har column ke header mein dikh rahi hoti hai.</p></li>
+    <li><p>Deal cards par company name, value, aur owner dikh raha hota hai.</p></li>
+  </ol>
+
+  <div class="tip-box"><strong>💡 Tip:</strong> Prospect column mein zyada deals ka matlab hai team naye leads generate kar rahi hai. Negotiation column heavy hona chahiye — woh close hone ke qareeb hain.</div>
+
+  <div style="margin-top:32px;">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f0fdf4;">💬</div>
+    <div><div class="section-title">WhatsApp CRM</div>
+    <div class="section-subtitle">Clients ko WhatsApp se directly message karo</div></div>
+  </div>
+
+  <h3>WhatsApp Section Features</h3>
+  <div class="feature-grid">
+    <div class="feature-card"><div class="feature-card-title">📋 Contact List</div><p>Left side par saare WhatsApp contacts. Last message preview aur unread count.</p></div>
+    <div class="feature-card"><div class="feature-card-title">💬 Chat View</div><p>Right side par selected contact ki conversation — chat bubbles format mein.</p></div>
+    <div class="feature-card"><div class="feature-card-title">📢 Broadcast</div><p>Second tab — multiple contacts ko ek saath message bhejo.</p></div>
+    <div class="feature-card"><div class="feature-card-title">📝 Templates</div><p>Pre-written messages jo quickly send kar sako.</p></div>
+  </div>
+
+  <ol class="steps">
+    <li><p>Left panel mein <strong>contact select</strong> karo.</p></li>
+    <li><p>Right panel mein conversation history dikhegi.</p></li>
+    <li><p>Neeche text box mein message type karo aur <strong>Send</strong> karo.</p></li>
+  </ol>
+  </div>
+</div>
+
+<!-- ══════════════ EMAIL ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#eff6ff;">📧</div>
+    <div><div class="section-title">Email Marketing</div>
+    <div class="section-subtitle">Email campaigns create aur track karo</div></div>
+  </div>
+
+  <h3>Email Stats (Top Cards)</h3>
+  <table>
+    <tr><th>Metric</th><th>Kya Hai</th><th>Achha Range</th></tr>
+    <tr><td>Campaigns Sent</td><td>Is mahine kitne campaigns gaye</td><td>—</td></tr>
+    <tr><td>Avg Open Rate</td><td>Kitne % logon ne email khola</td><td>30–50%+</td></tr>
+    <tr><td>Avg Click Rate</td><td>Email mein link par kitne % ne click kiya</td><td>5–15%+</td></tr>
+    <tr><td>Subscribers</td><td>Total email list size</td><td>Growing ↑</td></tr>
+  </table>
+
+  <h3>Naya Campaign Banana</h3>
+  <ol class="steps">
+    <li><p><strong>"+ New Campaign"</strong> button click karo.</p></li>
+    <li><p><strong>Campaign Name</strong> (required) enter karo.</p></li>
+    <li><p>Status select karo: Draft / Scheduled / Sent.</p></li>
+    <li><p>Date enter karo (optional).</p></li>
+    <li><p><strong>"Create Campaign"</strong> — campaign list mein add ho jaayega.</p></li>
+  </ol>
+
+  <h3>Quick Templates Use Karna</h3>
+  <ol class="steps">
+    <li><p>Neeche "Quick Templates" section mein koi template click karo.</p></li>
+    <li><p><strong>Preview popup</strong> open hogi — template ka content dikh jaayega.</p></li>
+    <li><p><strong>"Use Template"</strong> click karo — campaign name pre-fill ho jaayega.</p></li>
+    <li><p>New Campaign modal khulegi — customize kar ke save karo.</p></li>
+  </ol>
+
+  <h3>Available Templates</h3>
+  <p>Welcome Email · Follow-up Series · Deal Closed · Re-engagement · Product Update · Event Invite</p>
+
+  <h3>Campaign Status Meanings</h3>
+  <table>
+    <tr><th>Status</th><th>Matlab</th></tr>
+    <tr><td><span class="badge badge-green">Sent</span></td><td>Campaign ja chuka hai</td></tr>
+    <tr><td><span class="badge badge-blue">Scheduled</span></td><td>Future date par scheduled hai</td></tr>
+    <tr><td><span class="badge badge-amber">Draft</span></td><td>Work in progress, abhi send nahi hua</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════ TEAM + REPORTS ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f0fdf4;">👨‍💼</div>
+    <div><div class="section-title">Team Management</div>
+    <div class="section-subtitle">Sales team ko monitor aur manage karo</div></div>
+  </div>
+
+  <h3>Team Dashboard Stats</h3>
+  <div class="feature-grid">
+    <div class="feature-card"><div class="feature-card-title">Team Size</div><p>Total team members ka count</p></div>
+    <div class="feature-card"><div class="feature-card-title">Online Now</div><p>Abhi active members</p></div>
+    <div class="feature-card"><div class="feature-card-title">Avg Performance</div><p>Team ka average performance %</p></div>
+    <div class="feature-card"><div class="feature-card-title">Total Revenue</div><p>Poori team ka combined revenue</p></div>
+  </div>
+
+  <h3>Leaderboard</h3>
+  <p>Left panel mein revenue ke basis par top performers ranked hain. 🥇 Gold #1, Silver #2, Bronze #3.</p>
+
+  <h3>Member Card Features</h3>
+  <ol class="steps">
+    <li><p>Har card par <strong>avatar, status dot</strong> (green=online, amber=away, gray=offline) dikhta hai.</p></li>
+    <li><p><strong>Crown icon</strong> (👑) top performer par hota hai.</p></li>
+    <li><p>Card par <strong>hover karo</strong> — Phone aur Mail action buttons appear hote hain.</p></li>
+    <li><p><strong>Performance bar</strong> target ke against actual performance dikhati hai.</p></li>
+  </ol>
+
+  <h3>Naya Member Add Karna</h3>
+  <ol class="steps">
+    <li><p>Grid ke last card par <strong>"+ Add Member"</strong> click karo.</p></li>
+    <li><p>Full Name (required), Email, Role (select from list), Status bharo.</p></li>
+    <li><p>Save — member grid mein appear ho jaayega.</p></li>
+  </ol>
+
+  <div class="tip-box"><strong>💡 Tip:</strong> Performance 100%+ = target exceed kar liya. Green color = overachiever, Blue = on track, Amber = needs support.</div>
+
+  <div style="margin-top:28px;">
+  <div class="section-header">
+    <div class="section-icon" style="background:#eff6ff;">📈</div>
+    <div><div class="section-title">Reports &amp; Analytics</div>
+    <div class="section-subtitle">Business performance data deep-dive</div></div>
+  </div>
+
+  <h3>Time Period Filter</h3>
+  <p>Top-right mein <strong>3M / 6M / 1Y</strong> buttons hain — chart sirf us period ka data dikhata hai.</p>
+
+  <h3>Available Charts</h3>
+  <table>
+    <tr><th>Chart</th><th>Data</th></tr>
+    <tr><td>Revenue Trend</td><td>Monthly revenue line chart</td></tr>
+    <tr><td>Revenue by Category</td><td>Enterprise/SMB/Startup breakdown</td></tr>
+    <tr><td>Team Performance</td><td>Member-wise deal comparison</td></tr>
+    <tr><td>Lead Conversion</td><td>Funnel conversion rates</td></tr>
+  </table>
+  </div>
+</div>
+
+<!-- ══════════════ FINANCE + AUTOMATION ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f0fdf4;">💰</div>
+    <div><div class="section-title">Finance &amp; Invoices</div>
+    <div class="section-subtitle">Invoicing aur revenue track karo</div></div>
+  </div>
+
+  <h3>Invoice Status</h3>
+  <table>
+    <tr><th>Status</th><th>Matlab</th><th>Action Needed</th></tr>
+    <tr><td><span class="badge badge-green">Paid</span></td><td>Payment receive ho gayi</td><td>Koi action nahi</td></tr>
+    <tr><td><span class="badge badge-blue">Pending</span></td><td>Invoice bheji, payment awaited</td><td>Follow up karo</td></tr>
+    <tr><td><span class="badge badge-red">Overdue</span></td><td>Due date guzar gayi</td><td>Urgent follow up</td></tr>
+  </table>
+
+  <h3>Naya Invoice Create Karna</h3>
+  <ol class="steps">
+    <li><p><strong>"+ New Invoice"</strong> button click karo.</p></li>
+    <li><p>Client Name (required) aur Amount ($) (required) bharo.</p></li>
+    <li><p>Due Date aur Status set karo.</p></li>
+    <li><p>Save — invoice list mein INV-001, INV-002 format mein add hoga.</p></li>
+  </ol>
+
+  <h3>Finance KPIs</h3>
+  <div class="feature-grid">
+    <div class="feature-card"><div class="feature-card-title">MRR</div><p>Monthly Recurring Revenue — har mahine guaranteed income</p></div>
+    <div class="feature-card"><div class="feature-card-title">ARR</div><p>Annual Recurring Revenue — saalana income</p></div>
+    <div class="feature-card"><div class="feature-card-title">Churn Rate</div><p>% customers jo chhor rahe hain. 2% se neeche = healthy</p></div>
+    <div class="feature-card"><div class="feature-card-title">Overdue Amount</div><p>Kitna paisa collect karna baki hai</p></div>
+  </div>
+
+  <div style="margin-top:28px;">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fefce8;">⚡</div>
+    <div><div class="section-title">Automation</div>
+    <div class="section-subtitle">Workflows automate karo</div></div>
+  </div>
+
+  <h3>Workflow Card Features</h3>
+  <ol class="steps">
+    <li><p>Har card par <strong>workflow name</strong>, trigger type, aur run count dikh raha hota hai.</p></li>
+    <li><p><strong>Play button (green)</strong> = workflow active hai. Click karne par pause ho jaata hai.</p></li>
+    <li><p><strong>Pause button (red)</strong> = workflow paused. Click karne par active ho jaata hai.</p></li>
+    <li><p>Stats cards mein active workflows ki count auto-update hoti hai.</p></li>
+  </ol>
+
+  <h3>Naya Workflow Banana</h3>
+  <ol class="steps">
+    <li><p><strong>"+ New Workflow"</strong> click karo.</p></li>
+    <li><p>Workflow Name aur Trigger (jaise "New Lead", "Invoice Overdue") bharo.</p></li>
+    <li><p>Color select karo.</p></li>
+    <li><p>Save — workflow list mein add ho jaayega.</p></li>
+  </ol>
+  </div>
+</div>
+
+<!-- ══════════════ AI INSIGHTS + SETTINGS ══════════════ -->
+<div class="page page-break">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fdf4ff;">🤖</div>
+    <div><div class="section-title">AI Insights</div>
+    <div class="section-subtitle">AI-powered recommendations aur predictions</div></div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card"><div class="feature-card-title">💡 AI Insights</div><p>Business ke baare mein automated observations jaise "Revenue up 28% this quarter"</p></div>
+    <div class="feature-card"><div class="feature-card-title">🔮 Predictions</div><p>Confidence % ke saath future predictions: churn risk, deal win probability</p></div>
+    <div class="feature-card"><div class="feature-card-title">✅ Suggested Actions</div><p>Next best action recommendations AI ki taraf se</p></div>
+    <div class="feature-card"><div class="feature-card-title">📊 Model Performance</div><p>AI model ki accuracy metrics aur last training date</p></div>
+  </div>
+
+  <div class="tip-box"><strong>💡 Tip:</strong> AI Assistant (top-right button) ek floating panel hai jahan aap CRM se related sawaal pooch sakte hain.</div>
+
+  <div style="margin-top:28px;">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f1f5f9;">⚙️</div>
+    <div><div class="section-title">Settings</div>
+    <div class="section-subtitle">Account, workspace aur integrations configure karo</div></div>
+  </div>
+
+  <h3>Settings Sections</h3>
+  <table>
+    <tr><th>Section</th><th>Kya Hai</th></tr>
+    <tr><td>Profile Settings</td><td>Name, email, phone, role edit karo</td></tr>
+    <tr><td>Security</td><td>2FA status, password change</td></tr>
+    <tr><td>API Keys</td><td>API key dekho/copy karo (show/hide toggle)</td></tr>
+    <tr><td>Workspace Settings</td><td>Company name, plan, member count</td></tr>
+    <tr><td>Notifications</td><td>5 toggle switches — kaunse alerts chahiye</td></tr>
+    <tr><td>Appearance</td><td>Dark mode / Light mode toggle</td></tr>
+    <tr><td>Integrations</td><td>Slack, Gmail, WhatsApp, Stripe connect/disconnect</td></tr>
+    <tr><td>Data &amp; Privacy</td><td>Data export, account deletion</td></tr>
+  </table>
+
+  <h3>Profile Edit Karna</h3>
+  <ol class="steps">
+    <li><p>Profile card mein <strong>"Edit Profile"</strong> button ya Profile Settings expand karke <strong>"Edit Profile →"</strong> click karo.</p></li>
+    <li><p>Name, Role, Email, Phone edit karo.</p></li>
+    <li><p><strong>"Save Changes"</strong> — changes turant profile card mein reflect hote hain.</p></li>
+  </ol>
+
+  <h3>Settings Items Expand Karna</h3>
+  <ol class="steps">
+    <li><p>Koi bhi settings item click karo (jaise "Notifications").</p></li>
+    <li><p>Smooth animation se <strong>detail view expand</strong> ho jaata hai.</p></li>
+    <li><p>Doosra item click karo — pehla automatically collapse ho jaata hai.</p></li>
+  </ol>
+
+  <div class="warning-box"><strong>⚠️ Note:</strong> Light mode abhi "Coming Soon" hai. Dark mode hi use karo. API key kabhi publicly share mat karo.</div>
+</div>
+
+<div class="footer">
+  <span>FreedomWithAI CRM — User Guide v1.0</span>
+  <span>© 2026 FreedomWithAI · animesh@freedomwithai.com</span>
+</div>
+
+</body>
+</html>

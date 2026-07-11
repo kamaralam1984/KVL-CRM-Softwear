@@ -1,26 +1,174 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-crm-bg: #080c14;
+  --color-crm-surface: #0d1424;
+  --color-crm-card: #0f1729;
+  --color-crm-border: #1e2d45;
+  --color-crm-blue: #3b82f6;
+  --color-crm-purple: #8b5cf6;
+  --color-crm-cyan: #06b6d4;
+  --color-crm-emerald: #10b981;
+  --color-crm-amber: #f59e0b;
+  --color-crm-rose: #f43f5e;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Dark Theme (default) ── */
+.dark {
+  --bg:           #080c14;
+  --surface:      #0d1424;
+  --sidebar-bg:   rgba(8, 12, 20, 0.97);
+  --nav-bg:       rgba(8, 12, 20, 0.98);
+  --card-bg:      rgba(13, 20, 36, 0.82);
+  --border-col:   rgba(30, 45, 69, 0.65);
+  --glass-bg:     rgba(15, 23, 41, 0.65);
+  --glass-border: rgba(30, 45, 69, 0.7);
+  --text-head:    #f1f5f9;
+  --text-sub:     #94a3b8;
+  --text-muted:   #475569;
+  --row-hover:    rgba(255,255,255,0.04);
+  --input-bg:     rgba(255,255,255,0.03);
+  --tooltip-bg:   #0f1729;
+  --scrollbar:    #1e2d45;
 }
+
+/* ── Light Theme ── */
+.light {
+  --bg:           #F8F6F1;
+  --surface:      #FAFAF7;
+  --sidebar-bg:   rgba(255, 255, 255, 0.99);
+  --nav-bg:       rgba(248, 246, 241, 0.99);
+  --card-bg:      rgba(255, 255, 255, 0.95);
+  --border-col:   rgba(0, 0, 0, 0.07);
+  --glass-bg:     rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(0, 0, 0, 0.07);
+  --text-head:    #0A0A0A;
+  --text-sub:     #333333;
+  --text-muted:   #666666;
+  --row-hover:    rgba(220, 20, 60, 0.04);
+  --input-bg:     rgba(0, 0, 0, 0.03);
+  --tooltip-bg:   #ffffff;
+  --scrollbar:    #d0cdc8;
+}
+
+/* ── Light-mode Tailwind text overrides ── */
+.light .text-slate-100,
+.light .text-slate-200 { color: #0f172a !important; }
+.light .text-slate-300  { color: #1e293b !important; }
+.light .text-slate-400  { color: #334155 !important; }
+.light .text-slate-500  { color: #475569 !important; }
+.light .text-slate-600  { color: #64748b !important; }
+.light .text-white      { color: #ffffff !important; }
+
+/* Light border overrides */
+.light .border-crm-border { border-color: var(--border-col) !important; }
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(212,175,55,0.35); }
+  50%       { box-shadow: 0 0 28px rgba(0,132,61,0.45); }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
+}
+@keyframes shimmer-slide {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+:root { --background: #080c14; --foreground: #f1f5f9; }
+
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar, #1e2d45) transparent; }
+*::-webkit-scrollbar       { width: 5px; height: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--scrollbar, #1e2d45); border-radius: 3px; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg, #080c14);
+  color: var(--text-head, #f1f5f9);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  overflow: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
 }
+
+/* ── Utility classes ── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.glass-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-col);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+/* Light mode card shadow */
+.light .glass-card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+}
+.light .glass {
+  box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #006B3C, #00843D);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-bg  { background: linear-gradient(135deg, #D4AF37, #F5C842); }
+.green-grad   { background: linear-gradient(135deg, #006B3C, #00843D); }
+
+.neon-blue    { box-shadow: 0 0 16px rgba(212,175,55,0.35); }
+.neon-purple  { box-shadow: 0 0 16px rgba(0,132,61,0.35); }
+.neon-cyan    { box-shadow: 0 0 16px rgba(212,175,55,0.25); }
+.neon-emerald { box-shadow: 0 0 16px rgba(0,132,61,0.35); }
+.light .neon-blue   { box-shadow: 0 0 12px rgba(212,175,55,0.25); }
+.light .neon-purple { box-shadow: 0 0 12px rgba(0,132,61,0.25); }
+
+.glow-animate  { animation: glow-pulse 3s ease-in-out infinite; }
+.float-animate { animation: float-y 3s ease-in-out infinite; }
+
+.shimmer-bg {
+  background: linear-gradient(90deg,rgba(255,255,255,0.03)25%,rgba(255,255,255,0.08)50%,rgba(255,255,255,0.03)75%);
+  background-size: 200% 100%;
+  animation: shimmer-slide 2s linear infinite;
+}
+
+.sidebar-item { transition: all 0.18s ease; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
+.sidebar-item:hover { background: rgba(212,175,55,0.09); }
+.sidebar-item.active {
+  background: linear-gradient(135deg,rgba(212,175,55,0.18),rgba(212,175,55,0.08));
+  border-color: rgba(212,175,55,0.3);
+}
+.light .sidebar-item:hover  { background: rgba(212,175,55,0.06); }
+.light .sidebar-item.active { background: linear-gradient(135deg,rgba(212,175,55,0.1),rgba(212,175,55,0.04)); }
+
+.metric-card { transition: all 0.2s ease; cursor: default; }
+.metric-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(212,175,55,0.3);
+  box-shadow: 0 12px 32px rgba(212,175,55,0.1);
+}
+
+.table-row { transition: background 0.15s ease; }
+.table-row:hover { background: var(--row-hover); }
+
+.btn-primary { background: linear-gradient(135deg,#D4AF37,#F5C842); border:none; color:white; transition: all 0.2s ease; }
+.btn-primary:hover { opacity:0.9; transform:translateY(-1px); box-shadow:0 6px 20px rgba(212,175,55,0.4); }
+
+.badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; }
+
+.card-hover { transition: all 0.2s ease; }
+.card-hover:hover { transform: translateY(-2px); }
