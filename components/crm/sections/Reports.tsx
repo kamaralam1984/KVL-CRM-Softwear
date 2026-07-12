@@ -199,7 +199,7 @@ export default function Reports() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="grid grid-cols-5 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 table-row items-center"
+              className="grid grid-cols-5 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 items-center"
             >
               <div className="col-span-2 flex items-center gap-2">
                 <div className="w-7 h-7 rounded-full gradient-bg flex items-center justify-center text-[10px] font-bold text-white">

@@ -108,7 +108,7 @@ export default function Email() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.06 }}
-                className="grid grid-cols-7 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 table-row hover:bg-white/[0.02] transition-colors cursor-pointer"
+                className="grid grid-cols-7 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer"
               >
                 <div className="col-span-2 flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center flex-shrink-0">

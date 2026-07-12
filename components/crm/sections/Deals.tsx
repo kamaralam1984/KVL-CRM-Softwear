@@ -113,7 +113,7 @@ export default function Deals() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.04 }}
-                className="grid grid-cols-6 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 table-row items-center hover:bg-white/[0.02] transition-colors cursor-pointer"
+                className="grid grid-cols-6 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 items-center hover:bg-white/[0.02] transition-colors cursor-pointer"
               >
                 <div className="col-span-2 flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">

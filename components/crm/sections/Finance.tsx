@@ -116,7 +116,7 @@ export default function Finance() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.05 }}
-                className="grid grid-cols-5 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 table-row items-center hover:bg-white/[0.02] transition-colors cursor-pointer"
+                className="grid grid-cols-5 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 items-center hover:bg-white/[0.02] transition-colors cursor-pointer"
               >
                 <div className="text-xs font-mono text-slate-400">{inv.id}</div>
                 <div className="text-xs font-medium text-slate-200">{inv.client}</div>
