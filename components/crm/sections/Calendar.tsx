@@ -35,8 +35,8 @@ const emptyForm: EventForm = { title: "", day: "", time: "", type: "meeting", co
 
 export default function Calendar() {
   const now = new Date();
-  const [year, setYear] = useState(2025);
-  const [month, setMonth] = useState(11);
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
   const [events, setEvents] = useState<CalEvent[]>(initialEvents);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<EventForm>(emptyForm);

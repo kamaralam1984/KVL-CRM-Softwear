@@ -255,7 +255,7 @@ export default function SuperAdminPanel() {
             {[
               { label: "Total Clients", val: allUsers.length, icon: Users, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
               { label: "Active Plans",  val: Object.keys(cfg.userPlans).length, icon: Star, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
-              { label: "Modules Active", val: `${totalEnabled}/15`, icon: Zap, color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
+              { label: "Modules Active", val: `${totalEnabled}/${ALL_FEATURES.length}`, icon: Zap, color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
               { label: "System Status", val: cfg.globalEnabled ? "Online" : "Offline", icon: Globe, color: cfg.globalEnabled ? "text-emerald-400" : "text-red-400", bg: cfg.globalEnabled ? "bg-emerald-500/10 border-emerald-500/20" : "bg-red-500/10 border-red-500/20", text: true },
             ].map(s => { const Icon = s.icon; return (
               <div key={s.label} className={cn("rounded-xl border p-4", s.bg)}>
@@ -449,7 +449,7 @@ export default function SuperAdminPanel() {
 
                         {/* Features count */}
                         <td className="px-4 py-3 text-center text-slate-400 hidden md:table-cell">
-                          <span className="font-bold text-slate-200">{enabledCount}</span>/15
+                          <span className="font-bold text-slate-200">{enabledCount}</span>/{ALL_FEATURES.length}
                         </td>
 
                         {/* Overrides */}
@@ -769,7 +769,7 @@ export default function SuperAdminPanel() {
             <div className="space-y-2 text-xs">
               {[
                 { label: "Login Email",    val: "kamaralam137@gmail.com" },
-                { label: "Password",       val: "K12345678" },
+                { label: "Password",       val: "••••••••••" },
                 { label: "Role",           val: "Super Admin" },
                 { label: "Plan",           val: "Enterprise (all features)" },
               ].map(r => (
@@ -778,18 +778,21 @@ export default function SuperAdminPanel() {
                   <span className="text-slate-200 font-mono font-semibold">{r.val}</span>
                 </div>
               ))}
+              <p className="text-[10px] text-slate-600 pt-1">
+                Passwords are hidden for security. Manage them from the Users tab in the Admin Panel.
+              </p>
             </div>
           </Card>
 
-          <Card title="Demo Client Accounts" icon={Users}>
+          <Card title="Client Accounts" icon={Users}>
             <div className="space-y-2 text-xs">
               {[
-                { email: "animesh@freedomwithai.com", pass: "demo123", plan: "Enterprise" },
-                { email: "sarah@aicrmpro.com",        pass: "demo123", plan: "Growth" },
-                { email: "demo@crm.com",              pass: "demo",    plan: "Starter" },
+                { email: "animesh@freedomwithai.com", plan: "Enterprise" },
+                { email: "sarah@aicrmpro.com",        plan: "Growth" },
+                { email: "demo@crm.com",              plan: "Starter" },
               ].map(r => (
                 <div key={r.email} className="flex items-center justify-between py-2 border-b border-white/[0.05]">
-                  <span className="font-mono text-slate-400">{r.email} / {r.pass}</span>
+                  <span className="font-mono text-slate-400">{r.email}</span>
                   <span className="font-bold text-slate-300">{r.plan}</span>
                 </div>
               ))}

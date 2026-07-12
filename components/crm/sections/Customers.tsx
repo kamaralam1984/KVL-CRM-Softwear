@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Phone, Mail, MoreHorizontal, Shield,
@@ -9,6 +9,7 @@ import {
   Flag, Award, ThumbsUp, ThumbsDown, Minus,
 } from "lucide-react";
 import { customers as initialCustomers } from "@/lib/data";
+import { getCustomers, createCustomer } from "@/lib/actions/customers";
 import { cn, formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -535,6 +536,11 @@ export default function Customers() {
   const [form,     setForm]     = useState<CustForm>(emptyForm);
   const [activeTab,setActiveTab]= useState<TabId>("overview");
 
+  // Load from Supabase on mount; falls back to seed data in demo mode
+  useEffect(() => {
+    getCustomers().then((rows) => { if (rows?.length) setCustList(rows); }).catch(() => {});
+  }, []);
+
   const set = (k: keyof CustForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
@@ -545,23 +551,24 @@ export default function Customers() {
   const addCustomer = () => {
     if (!form.name.trim() || !form.contact.trim()) return;
     const avatar = form.name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
-    setCustList((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        name: form.name,
-        contact: form.contact,
-        email: form.email,
-        phone: form.phone,
-        value: parseInt(form.value) || 0,
-        segment: form.segment,
-        health: 75,
-        since: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
-        status: form.status as "active" | "at-risk" | "champion",
-        avatar,
-        nextRenewal: "Dec 2026",
-      },
-    ]);
+    const newCustomer = {
+      id: Date.now(),
+      name: form.name,
+      contact: form.contact,
+      email: form.email,
+      phone: form.phone,
+      value: parseInt(form.value) || 0,
+      segment: form.segment,
+      health: 75,
+      since: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+      status: form.status as "active" | "at-risk" | "champion",
+      avatar,
+      nextRenewal: "Dec 2026",
+    };
+    setCustList((prev) => [...prev, newCustomer]);
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    const { id: _id, ...customerData } = newCustomer;
+    createCustomer(customerData).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
   };

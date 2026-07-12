@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Plus, CheckCircle2, Circle, Clock, Sparkles, Flag } from "lucide-react";
 import { tasks as initialTasks } from "@/lib/data";
+import { getTasks, createTask, updateTask } from "@/lib/actions/tasks";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -24,30 +25,40 @@ export default function Tasks() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<TaskForm>(emptyForm);
 
+  // Load from Supabase on mount; falls back to seed data in demo mode
+  useEffect(() => {
+    getTasks().then((rows) => { if (rows?.length) setTaskList(rows); }).catch(() => {});
+  }, []);
+
   const set = (k: keyof TaskForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
   const toggleTask = (id: number) => {
+    const target = taskList.find((t) => t.id === id);
+    const newStatus = target?.status === "completed" ? "pending" : "completed";
     setTaskList((prev) =>
       prev.map((t) => t.id === id ? { ...t, status: t.status === "completed" ? "pending" : "completed" } : t)
     );
+    // Persist to Supabase when configured; demo mode throws → ignored
+    updateTask(id, { status: newStatus }).catch(() => {});
   };
 
   const addTask = () => {
     if (!form.title.trim()) return;
-    setTaskList((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        title: form.title,
-        priority: form.priority as "high" | "medium" | "low",
-        due: form.due || "No due date",
-        assignee: form.assignee || "Unassigned",
-        status: "pending" as const,
-        tags: [],
-        company: form.company || "Internal",
-      },
-    ]);
+    const newTask = {
+      id: Date.now(),
+      title: form.title,
+      priority: form.priority as "high" | "medium" | "low",
+      due: form.due || "No due date",
+      assignee: form.assignee || "Unassigned",
+      status: "pending" as const,
+      tags: [],
+      company: form.company || "Internal",
+    };
+    setTaskList((prev) => [...prev, newTask]);
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    const { id: _id, ...taskData } = newTask;
+    createTask(taskData).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
   };

@@ -1,14 +1,17 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Download, TrendingUp, FileText, Filter } from "lucide-react";
-import { salesChartData, teamPerformanceData } from "@/lib/data";
+import { salesChartData, teamPerformanceData, deals as seedDeals } from "@/lib/data";
+import { getDeals } from "@/lib/actions/deals";
 import { cn, formatCurrency } from "@/lib/utils";
 import { downloadCSV } from "@/lib/export";
+
+type TeamRow = { name: string; deals: number; revenue: number; target: number };
 
 const CustomTooltipStyle = { backgroundColor: "#0f1729", border: "1px solid #1e2d45", borderRadius: "10px", color: "#e2e8f0", fontSize: 12, padding: "8px 12px" };
 
@@ -23,6 +26,38 @@ const periodSlice: Record<string, number> = { "3M": 3, "6M": 6, "1Y": 12 };
 
 export default function Reports() {
   const [period, setPeriod] = useState("1Y");
+  const [deals, setDeals] = useState(seedDeals);
+  useEffect(() => {
+    getDeals().then((rows) => { if (rows?.length) setDeals(rows); }).catch(() => {});
+  }, []);
+
+  // Derive KPIs from real deals
+  const totalRevenue = deals.reduce((s, d) => s + (Number(d.value) || 0), 0);
+  const totalDeals   = deals.length;
+  const avgDeal      = totalDeals ? Math.round(totalRevenue / totalDeals) : 0;
+  const wonDeals     = deals.filter((d) => /won|closed/i.test(String(d.stage))).length;
+  const winRate      = totalDeals ? Math.round((wonDeals / totalDeals) * 1000) / 10 : 0;
+  const kpiCards = [
+    { label: "Total Revenue", value: formatCurrency(totalRevenue), change: "+28.5%", color: "blue" },
+    { label: "Total Deals",   value: String(totalDeals),          change: "+22%",   color: "violet" },
+    { label: "Avg Deal Size", value: formatCurrency(avgDeal),     change: "+8%",    color: "cyan" },
+    { label: "Win Rate",      value: `${winRate}%`,               change: "+5.3%",  color: "emerald" },
+  ];
+
+  // Derive team performance by grouping real deals by owner; target = peer average
+  const byOwner: Record<string, TeamRow> = {};
+  for (const d of deals) {
+    const o = String(d.owner || "Unassigned");
+    byOwner[o] ??= { name: o, deals: 0, revenue: 0, target: 0 };
+    byOwner[o].deals += 1;
+    byOwner[o].revenue += Number(d.value) || 0;
+  }
+  const teamRowsRaw = Object.values(byOwner);
+  const avgRev = teamRowsRaw.length ? teamRowsRaw.reduce((s, r) => s + r.revenue, 0) / teamRowsRaw.length : 0;
+  const teamRows: TeamRow[] = teamRowsRaw
+    .map((r) => ({ ...r, target: Math.max(Math.round(avgRev), 1) }))
+    .sort((a, b) => b.revenue - a.revenue);
+  const teamTable = teamRows.length ? teamRows : (teamPerformanceData as TeamRow[]);
 
   const chartData = salesChartData.slice(-periodSlice[period]);
 
@@ -39,7 +74,7 @@ export default function Reports() {
   };
 
   const exportTeamCSV = () => {
-    downloadCSV("team-performance.csv", teamPerformanceData.map(r => ({
+    downloadCSV("team-performance.csv", teamTable.map(r => ({
       Rep: r.name, Deals: r.deals, Revenue: r.revenue, Target: r.target,
       "vs Target %": Math.round((r.revenue / r.target) * 100),
     })));
@@ -63,12 +98,7 @@ export default function Reports() {
       </div>
 
       <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: "Total Revenue", value: "$1.41M", change: "+28.5%", color: "blue" },
-          { label: "Total Deals", value: "283", change: "+22%", color: "violet" },
-          { label: "Avg Deal Size", value: "$4,982", change: "+8%", color: "cyan" },
-          { label: "Win Rate", value: "68.5%", change: "+5.3%", color: "emerald" },
-        ].map((kpi) => (
+        {kpiCards.map((kpi) => (
           <div key={kpi.label} className="glass-card rounded-xl border border-crm-border p-4">
             <p className="text-xs text-slate-500 mb-1">{kpi.label}</p>
             <p className="text-xl font-bold text-slate-100">{kpi.value}</p>
@@ -161,7 +191,7 @@ export default function Reports() {
           <div className="text-center">Revenue</div>
           <div className="text-center">vs Target</div>
         </div>
-        {teamPerformanceData.map((rep, i) => {
+        {teamTable.map((rep, i) => {
           const pct = Math.round((rep.revenue / rep.target) * 100);
           return (
             <motion.div

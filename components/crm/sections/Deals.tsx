@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, TrendingUp, MoreHorizontal } from "lucide-react";
+import { Plus, Search, TrendingUp, MoreHorizontal } from "lucide-react";
 import { deals as initialDeals } from "@/lib/data";
+import { getDeals, createDeal } from "@/lib/actions/deals";
 import { cn, formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -22,29 +23,40 @@ const emptyForm: DealForm = { name: "", company: "", value: "", stage: "Discover
 
 export default function Deals() {
   const [dealList, setDealList] = useState(initialDeals);
+  const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<DealForm>(emptyForm);
+
+  // Load from Supabase on mount; falls back to seed data in demo mode
+  useEffect(() => {
+    getDeals().then((rows) => { if (rows?.length) setDealList(rows); }).catch(() => {});
+  }, []);
 
   const set = (k: keyof DealForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
+  const filtered = dealList.filter((d) =>
+    d.name.toLowerCase().includes(search.toLowerCase()) || d.company.toLowerCase().includes(search.toLowerCase())
+  );
+
   const addDeal = () => {
     if (!form.name.trim() || !form.company.trim()) return;
     const avatar = form.company.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
-    setDealList((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        name: form.name,
-        company: form.company,
-        value: parseInt(form.value) || 0,
-        probability: parseInt(form.probability) || 50,
-        stage: form.stage,
-        owner: form.owner || "Unassigned",
-        daysInStage: 0,
-        avatar,
-      },
-    ]);
+    const newDeal = {
+      id: Date.now(),
+      name: form.name,
+      company: form.company,
+      value: parseInt(form.value) || 0,
+      probability: parseInt(form.probability) || 50,
+      stage: form.stage,
+      owner: form.owner || "Unassigned",
+      daysInStage: 0,
+      avatar,
+    };
+    setDealList((prev) => [...prev, newDeal]);
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    const { id: _id, ...dealData } = newDeal;
+    createDeal(dealData).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
   };
@@ -66,8 +78,17 @@ export default function Deals() {
           ))}
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-slate-200">All Deals</h3>
+          <div className="flex items-center gap-2 px-3 h-9 rounded-xl border border-crm-border bg-white/[0.03] flex-1 max-w-xs ml-auto">
+            <Search size={13} className="text-slate-500" />
+            <input
+              placeholder="Search deals..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent text-xs text-slate-200 placeholder-slate-600 outline-none flex-1"
+            />
+          </div>
           <button
             onClick={() => setShowModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg gradient-bg text-white text-xs"
@@ -84,7 +105,7 @@ export default function Deals() {
             <div className="text-center">Probability</div>
             <div className="text-center">Owner</div>
           </div>
-          {dealList.map((deal, i) => {
+          {filtered.map((deal, i) => {
             const sc = stageColors[deal.stage] || stageColors.Discovery;
             return (
               <motion.div

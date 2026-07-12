@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Plus, MoreHorizontal, TrendingUp, Clock } from "lucide-react";
 import { deals as initialDeals } from "@/lib/data";
+import { getDeals as fetchDeals, createDeal } from "@/lib/actions/deals";
 import { cn, formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -25,6 +26,11 @@ export default function Pipeline() {
   const [modalStage, setModalStage] = useState<string | null>(null);
   const [form, setForm] = useState<DealForm>(emptyForm);
 
+  // Load from Supabase on mount; falls back to seed data in demo mode
+  useEffect(() => {
+    fetchDeals().then((rows) => { if (rows?.length) setDealList(rows); }).catch(() => {});
+  }, []);
+
   const set = (k: keyof DealForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
@@ -40,20 +46,21 @@ export default function Pipeline() {
   const addDeal = () => {
     if (!form.name.trim() || !form.company.trim() || !modalStage) return;
     const avatar = form.company.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
-    setDealList((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        name: form.name,
-        company: form.company,
-        value: parseInt(form.value) || 0,
-        probability: parseInt(form.probability) || 50,
-        stage: modalStage,
-        owner: form.owner || "Unassigned",
-        daysInStage: 0,
-        avatar,
-      },
-    ]);
+    const newDeal = {
+      id: Date.now(),
+      name: form.name,
+      company: form.company,
+      value: parseInt(form.value) || 0,
+      probability: parseInt(form.probability) || 50,
+      stage: modalStage,
+      owner: form.owner || "Unassigned",
+      daysInStage: 0,
+      avatar,
+    };
+    setDealList((prev) => [...prev, newDeal]);
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    const { id: _id, ...dealData } = newDeal;
+    createDeal(dealData).catch(() => {});
     setModalStage(null);
     setForm(emptyForm);
   };
@@ -153,6 +160,12 @@ export default function Pipeline() {
                       )}
                     </motion.div>
                   ))}
+
+                  {stageDeals.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-crm-border/60 py-6 text-center text-[11px] text-slate-600">
+                      No deals
+                    </div>
+                  )}
 
                   <button
                     onClick={() => openModal(stage.id)}

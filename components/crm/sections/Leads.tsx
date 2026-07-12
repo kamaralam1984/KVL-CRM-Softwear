@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, Filter, Plus, MoreHorizontal, Star, Phone, Mail, Brain } from "lucide-react";
 import { leads as initialLeads } from "@/lib/data";
+import { getLeads, createLead } from "@/lib/actions/leads";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -29,39 +30,48 @@ export default function Leads() {
   const [leadList, setLeadList] = useState(initialLeads);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
+  const [sortByScore, setSortByScore] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<LeadForm>(emptyForm);
+
+  // Load from Supabase on mount; falls back to seed data in demo mode
+  useEffect(() => {
+    getLeads().then((rows) => { if (rows?.length) setLeadList(rows); }).catch(() => {});
+  }, []);
 
   const set = (k: keyof LeadForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
-  const filtered = leadList.filter((l) => {
-    const matchSearch = l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "All" || l.status === filter.toLowerCase();
-    return matchSearch && matchFilter;
-  });
+  const filtered = leadList
+    .filter((l) => {
+      const matchSearch = l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase());
+      const matchFilter = filter === "All" || l.status === filter.toLowerCase();
+      return matchSearch && matchFilter;
+    })
+    .sort((a, b) => (sortByScore ? b.score - a.score : 0));
 
   const addLead = () => {
     if (!form.name.trim() || !form.company.trim()) return;
     const avatar = form.name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
-    setLeadList((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        name: form.name,
-        company: form.company,
-        email: form.email,
-        phone: form.phone,
-        value: parseInt(form.value) || 0,
-        stage: form.stage,
-        status: form.status as "hot" | "warm" | "cold",
-        score: Math.floor(Math.random() * 25) + 60,
-        lastContact: "Just now",
-        tags: [] as string[],
-        avatar,
-        owner: "Unassigned",
-      },
-    ]);
+    const newLead = {
+      id: Date.now(),
+      name: form.name,
+      company: form.company,
+      email: form.email,
+      phone: form.phone,
+      value: parseInt(form.value) || 0,
+      stage: form.stage,
+      status: form.status as "hot" | "warm" | "cold",
+      score: Math.floor(Math.random() * 25) + 60,
+      lastContact: "Just now",
+      tags: [] as string[],
+      avatar,
+      owner: "Unassigned",
+    };
+    setLeadList((prev) => [...prev, newLead]);
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    const { id: _id, ...leadData } = newLead;
+    createLead(leadData).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
   };
@@ -106,8 +116,11 @@ export default function Leads() {
               </button>
             ))}
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04]">
-            <Filter size={12} /> Filter
+          <button
+            onClick={() => setSortByScore((s) => !s)}
+            className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs hover:bg-white/[0.04]", sortByScore ? "border-blue-500/40 text-blue-400" : "border-crm-border text-slate-400")}
+          >
+            <Filter size={12} /> {sortByScore ? "Score ↓" : "Filter"}
           </button>
           <button
             onClick={() => setShowModal(true)}

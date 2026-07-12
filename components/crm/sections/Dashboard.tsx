@@ -12,9 +12,13 @@ import {
   ChevronRight, Clock, Phone, Activity, Rocket, Shield,
   BarChart3, Globe, Heart,
 } from "lucide-react";
-import { salesChartData, revenueByCategory, activityFeed, teamMembers } from "@/lib/data";
+import { salesChartData, revenueByCategory, activityFeed, teamMembers, leads as seedLeads, deals as seedDeals, tasks as seedTasks } from "@/lib/data";
 import { getActivityFeed } from "@/lib/actions/activity";
+import { getLeads } from "@/lib/actions/leads";
+import { getDeals } from "@/lib/actions/deals";
+import { getTasks } from "@/lib/actions/tasks";
 import { cn, formatCurrency } from "@/lib/utils";
+import GenerateLeadsButton from "@/components/crm/GenerateLeadsButton";
 
 /* ── Animated Counter ── */
 function AnimatedCounter({ target, prefix = "", suffix = "", decimals = 0 }: { target: number; prefix?: string; suffix?: string; decimals?: number }) {
@@ -135,11 +139,29 @@ const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "
 
 export default function Dashboard() {
   const [period, setPeriod] = useState("1Y");
-  // Load activity feed from Supabase on mount; falls back to seed data in demo mode
+  // Load real data from Supabase on mount; falls back to seed data in demo mode
   const [activity, setActivity] = useState(activityFeed);
+  const [leads, setLeads] = useState(seedLeads);
+  const [deals, setDeals] = useState(seedDeals);
+  const [tasks, setTasks] = useState(seedTasks);
   useEffect(() => {
     getActivityFeed().then((rows) => { if (rows?.length) setActivity(rows); }).catch(() => {});
+    getLeads().then((rows) => { if (rows?.length) setLeads(rows); }).catch(() => {});
+    getDeals().then((rows) => { if (rows?.length) setDeals(rows); }).catch(() => {});
+    getTasks().then((rows) => { if (rows?.length) setTasks(rows); }).catch(() => {});
   }, []);
+
+  // Derive live KPI numbers from real data (reconcile with loaded leads/deals/tasks)
+  const totalRevenue    = deals.reduce((s, d) => s + (Number(d.value) || 0), 0);
+  const activeLeads     = leads.length;
+  const wonDeals        = deals.filter((d) => /won|closed/i.test(String(d.stage))).length;
+  const winRate         = deals.length ? Math.round((wonDeals / deals.length) * 1000) / 10 : 0;
+  const tasksCompleted  = tasks.filter((t) => t.status === "completed").length;
+  const hotLeads        = leads.filter((l) => l.status === "hot").length;
+  const tasksDue        = tasks.filter((t) => t.status === "pending").length;
+  const liveKpiValues   = [totalRevenue, activeLeads, winRate, tasksCompleted];
+  const liveKpis        = kpis.map((k, i) => ({ ...k, value: liveKpiValues[i] ?? k.value }));
+
   const chartData = salesChartData.slice(-periodSlice[period]);
   const topPerformer = [...teamMembers].filter(m => m.performance > 0).sort((a,b) => b.revenue - a.revenue).slice(0, 3);
 
@@ -187,15 +209,17 @@ export default function Dashboard() {
               </div>
               <h2 className="text-xl font-bold text-white">{getGreeting()}, Animesh! 👋</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                <span className="text-amber-400 font-semibold">3 hot leads</span> need immediate follow-up ·
-                <span className="text-blue-400 font-semibold"> 5 tasks</span> due today ·
-                <span className="text-emerald-400 font-semibold"> $850K</span> in closed deals this week
+                <span className="text-amber-400 font-semibold">{hotLeads} hot lead{hotLeads === 1 ? "" : "s"}</span> need immediate follow-up ·
+                <span className="text-blue-400 font-semibold"> {tasksDue} task{tasksDue === 1 ? "" : "s"}</span> pending ·
+                <span className="text-emerald-400 font-semibold"> {formatCurrency(totalRevenue)}</span> in open pipeline
               </p>
             </div>
           </div>
 
-          {/* Hero quick stats */}
-          <div className="flex items-center gap-3 flex-wrap">
+          {/* Hero quick stats + action */}
+          <div className="flex flex-col items-end gap-3">
+            <GenerateLeadsButton />
+            <div className="flex items-center gap-3 flex-wrap">
             {[
               { icon: Rocket,    label: "Pipeline",   value: "$2.98M",  color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-500/20" },
               { icon: TrendingUp,label: "Growth",     value: "+28.5%",  color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
@@ -214,6 +238,7 @@ export default function Dashboard() {
                 </motion.div>
               );
             })}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -222,7 +247,7 @@ export default function Dashboard() {
           KPI CARDS — with circle progress
       ══════════════════════════════════════ */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        {kpis.map((m, i) => {
+        {liveKpis.map((m, i) => {
           const Icon = m.icon;
           const isPos = m.change > 0;
           return (

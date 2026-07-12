@@ -77,7 +77,7 @@ export default function WhatsApp() {
   const [newTrigger, setNewTrigger]   = useState("");
   const [newResponse, setNewResponse] = useState("");
 
-  const conv    = whatsappConversations.find((c) => c.id === activeConv);
+  const conv    = convos.find((c) => c.id === activeConv);
   const messages = localMsgs[activeConv] || [];
 
   const sendMsg = () => {
@@ -141,7 +141,7 @@ export default function WhatsApp() {
               <input placeholder="Search chats..." className="bg-transparent text-xs text-slate-200 placeholder-slate-600 outline-none flex-1" />
             </div>
             <div className="flex-1 space-y-1 overflow-y-auto">
-              {whatsappConversations.map((c) => (
+              {convos.map((c) => (
                 <button key={c.id} onClick={() => setActiveConv(c.id)}
                   className={cn("w-full flex items-start gap-3 px-3 py-2.5 rounded-xl transition-all text-left", activeConv === c.id ? "bg-white/[0.07] border border-blue-500/20" : "hover:bg-white/[0.04]")}
                 >
