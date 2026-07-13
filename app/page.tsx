@@ -33,6 +33,8 @@ import KVlMail from "@/components/crm/sections/KVlMail";
 import KVlHelpdesk from "@/components/crm/sections/KVlHelpdesk";
 import KVlCommerce from "@/components/crm/sections/KVlCommerce";
 import KVlPages from "@/components/crm/sections/KVlPages";
+import WebsiteAnalyzer from "@/components/crm/sections/WebsiteAnalyzer";
+import OpportunityFinder from "@/components/crm/sections/OpportunityFinder";
 import PlanGate from "@/components/crm/PlanGate";
 import { loadSAConfig, getEffectiveFeatures, type FeatureKey } from "@/lib/superAdmin";
 
@@ -54,6 +56,8 @@ const sectionMap: Record<string, React.ComponentType> = {
   marketing:   Marketing,
   social:      Social,
   seo:         SEO,
+  analyzer:    WebsiteAnalyzer,
+  opportunity: OpportunityFinder,
   settings:    Settings,
   admin:       AdminPanel,
   superadmin:  SuperAdminPanel,
