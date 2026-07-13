@@ -648,7 +648,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           {/* Logo */}
           <div className="flex items-center gap-3 flex-shrink-0">
-            <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-10 w-auto object-contain" />
+            <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-12 w-auto object-contain" />
           </div>
 
           <div className="hidden md:flex items-center gap-1 ml-8">
@@ -1569,7 +1569,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-9 w-auto object-contain" />
+              <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-11 w-auto object-contain" />
             </div>
             <div className="flex flex-wrap justify-center gap-6 text-xs">
               {([["Features","/features"],["Pricing","/pricing"],["Privacy","/privacy"],["Terms","/terms"],["Contact","/contact"]] as [string,string][]).map(([l,h]) => (

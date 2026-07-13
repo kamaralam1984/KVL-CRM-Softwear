@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Search, Filter, Plus, MoreHorizontal, Star, Phone, Mail, Brain } from "lucide-react";
 import { leads as initialLeads } from "@/lib/data";
 import { getLeads, createLead } from "@/lib/actions/leads";
+import { triggerLeadCreated } from "@/lib/automation/engine";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -72,6 +73,9 @@ export default function Leads() {
     // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...leadData } = newLead;
     createLead(leadData).catch(() => {});
+    // Fire the Lead Nurture automation — creates a follow-up task + activity,
+    // and logs the run so it shows live on the Automation page.
+    triggerLeadCreated(newLead);
     setShowModal(false);
     setForm(emptyForm);
   };

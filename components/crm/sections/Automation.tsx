@@ -1,14 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap, Plus, Play, Pause, Filter, Mail, MessageSquare,
   CheckSquare, UserCheck, Bell, Edit3, ChevronRight,
   ArrowDown, Layers, Settings, FlaskConical, Save,
   ToggleRight, Tag, TrendingDown, CreditCard, Trophy,
-  Users, DollarSign, X, ChevronDown,
+  Users, DollarSign, X, ChevronDown, Activity, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WORKFLOWS as AUTO_WORKFLOWS, runWorkflowTest } from "@/lib/automation/engine";
+import { getRuns, isActive, setActive, timeAgo, AUTOMATION_EVENT, type WorkflowRun } from "@/lib/automation/store";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -790,10 +792,121 @@ function BuilderView({ onBack }: { onBack: () => void }) {
   );
 }
 
+// ─── Executions (REAL run log) ────────────────────────────────────────────────
+
+function ExecutionsView() {
+  const [runs, setRuns] = useState<WorkflowRun[]>([]);
+  const [active, setActiveState] = useState<Record<string, boolean>>({});
+
+  const refresh = () => setRuns(getRuns());
+  useEffect(() => {
+    refresh();
+    setActiveState(Object.fromEntries(AUTO_WORKFLOWS.map((w) => [w.id, isActive(w.id)])));
+    const onRun = () => refresh();
+    window.addEventListener(AUTOMATION_EVENT, onRun);
+    return () => window.removeEventListener(AUTOMATION_EVENT, onRun);
+  }, []);
+
+  const total = runs.length;
+  const okCount = runs.filter((r) => r.ok).length;
+  const successRate = total ? Math.round((okCount / total) * 1000) / 10 : 100;
+  const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+  const today = runs.filter((r) => r.at >= startOfDay.getTime()).length;
+
+  const toggleActive = (id: string) => {
+    const next = !active[id];
+    setActive(id, next);
+    setActiveState((m) => ({ ...m, [id]: next }));
+  };
+  const test = (def: typeof AUTO_WORKFLOWS[number]) => { runWorkflowTest(def); refresh(); };
+
+  const stats = [
+    { label: "Total runs", value: String(total), color: "#c9a84c" },
+    { label: "Runs today", value: String(today), color: "#3b82f6" },
+    { label: "Success rate", value: `${successRate}%`, color: "#10b981" },
+  ];
+
+  return (
+    <div className="h-full overflow-y-auto p-4 grid grid-cols-1 xl:grid-cols-3 gap-4">
+      {/* Left: workflows + controls */}
+      <div className="xl:col-span-1 space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          {stats.map((s) => (
+            <div key={s.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+              <p className="text-lg font-black" style={{ color: s.color }}>{s.value}</p>
+              <p className="text-[9px] text-slate-500 mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </div>
+        {AUTO_WORKFLOWS.map((w) => (
+          <div key={w.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-bold text-slate-200">{w.name}</p>
+              <button
+                onClick={() => toggleActive(w.id)}
+                className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full border",
+                  active[w.id] ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" : "bg-slate-500/10 text-slate-500 border-white/10")}
+              >
+                {active[w.id] ? "● Active" : "○ Off"}
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500 mb-2">Trigger: {w.trigger}</p>
+            <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">{w.description}</p>
+            <button
+              onClick={() => test(w)}
+              className="flex items-center gap-1.5 text-[10px] font-semibold text-[#c9a84c] hover:text-[#e0c266] transition-colors"
+            >
+              <FlaskConical size={11} /> Test run
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Right: live execution log */}
+      <div className="xl:col-span-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col min-h-0">
+        <div className="flex items-center justify-between mb-3 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Activity size={13} className="text-[#c9a84c]" />
+            <p className="text-xs font-bold text-slate-200">Live Execution Log</p>
+          </div>
+          <span className="flex items-center gap-1 text-[9px] text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
+          </span>
+        </div>
+        {runs.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
+            <Zap size={26} className="text-slate-700 mb-2" />
+            <p className="text-xs text-slate-500">No executions yet.</p>
+            <p className="text-[10px] text-slate-600 mt-1">Add a lead (Leads → Add Lead) or hit “Test run” to fire a workflow.</p>
+          </div>
+        ) : (
+          <div className="space-y-2 overflow-y-auto">
+            {runs.map((r) => (
+              <div key={r.id} className="rounded-lg border border-white/[0.05] bg-white/[0.015] p-2.5">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[11px] font-semibold text-slate-200 truncate">{r.trigger}</p>
+                  <span className="text-[9px] text-slate-600 flex-shrink-0 ml-2">{timeAgo(r.at)}</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {r.steps.map((s, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400/90 border border-emerald-500/15">
+                      <CheckCircle2 size={8} /> {s.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Root Component ───────────────────────────────────────────────────────────
 
 export default function Automation() {
-  const [view, setView] = useState<"list" | "builder">("list");
+  const [view, setView] = useState<"list" | "builder" | "executions">("list");
   const [workflows, setWorkflows] = useState<Workflow[]>(WORKFLOWS);
 
   const toggle = (id: number) => {
@@ -804,7 +917,7 @@ export default function Automation() {
     <div className="h-full flex flex-col bg-[#080c14] overflow-hidden">
       {/* view tabs */}
       <div className="flex items-center gap-0.5 px-4 pt-4 pb-0 flex-shrink-0">
-        {(["list", "builder"] as const).map((v) => (
+        {(["list", "executions", "builder"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -817,6 +930,8 @@ export default function Automation() {
           >
             {v === "list" ? (
               <span className="flex items-center gap-1.5"><Layers size={10} /> My Workflows</span>
+            ) : v === "executions" ? (
+              <span className="flex items-center gap-1.5"><Activity size={10} /> Executions</span>
             ) : (
               <span className="flex items-center gap-1.5"><Zap size={10} /> Builder</span>
             )}
@@ -848,6 +963,17 @@ export default function Automation() {
                 onNew={() => setView("builder")}
                 onEdit={() => setView("builder")}
               />
+            </motion.div>
+          ) : view === "executions" ? (
+            <motion.div
+              key="executions"
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 12 }}
+              transition={{ duration: 0.18 }}
+              className="h-full"
+            >
+              <ExecutionsView />
             </motion.div>
           ) : (
             <motion.div
