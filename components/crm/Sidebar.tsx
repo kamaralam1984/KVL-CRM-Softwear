@@ -107,12 +107,7 @@ export default function Sidebar({ activeSection, onSectionChange, collapsed, onT
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-crm-border">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 glow-animate flex-shrink-0"
-          style={{ background: "linear-gradient(135deg,#006B3C,#00843D)", boxShadow: "0 4px 16px rgba(0,132,61,0.4)" }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-          </svg>
-        </div>
+        <img src="/kvl-icon.png" alt="KVL CRM" className="w-9 h-9 rounded-xl flex-shrink-0 object-contain glow-animate" />
         <AnimatePresence>
           {!collapsed && (
             <motion.div initial={{ opacity:0, x:-10 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-10 }} transition={{ duration:0.15 }} className="overflow-hidden">

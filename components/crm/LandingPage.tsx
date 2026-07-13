@@ -648,15 +648,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           {/* Logo */}
           <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg" style={{ background: greenGrad }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-black tracking-wide" style={{ background: greenGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>KVl CRM</p>
-              <p className="text-[9px] -mt-0.5 uppercase tracking-widest" style={{ color: T.text3 }}>Premium Sales Suite</p>
-            </div>
+            <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-10 w-auto object-contain" />
           </div>
 
           <div className="hidden md:flex items-center gap-1 ml-8">
@@ -1577,12 +1569,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: goldGrad }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
-              </div>
-              <span className="font-black text-sm" style={{ background: goldGrad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>KVl CRM</span>
+              <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-9 w-auto object-contain" />
             </div>
             <div className="flex flex-wrap justify-center gap-6 text-xs">
               {([["Features","/features"],["Pricing","/pricing"],["Privacy","/privacy"],["Terms","/terms"],["Contact","/contact"]] as [string,string][]).map(([l,h]) => (

@@ -457,7 +457,7 @@ function CompetitorAnalysis() {
               <tr className="text-xs text-slate-600 border-b" style={{ borderColor: BORDER }}>
                 <th className="text-left pb-2 font-medium">Metric</th>
                 <th className="text-center pb-2 font-medium" style={{ color: EMERALD }}>You</th>
-                {competitors.map(c => (
+                {competitors.slice(0, 2).map(c => (
                   <th key={c.domain} className="text-center pb-2 font-medium text-slate-500">{c.domain}</th>
                 ))}
               </tr>

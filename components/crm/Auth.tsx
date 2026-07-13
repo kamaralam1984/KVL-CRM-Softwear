@@ -226,19 +226,9 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
         {/* Logo */}
         <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.5 }}
           className="text-center mb-8">
-          <div className="relative inline-block mb-4">
-            <motion.div whileHover={{ rotate:10, scale:1.1 }}
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto shadow-2xl"
-              style={{ background: greenGrad, boxShadow:"0 8px 32px rgba(0,132,61,0.4)" }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
-            </motion.div>
-            <motion.span animate={{ scale:[1,1.3,1] }} transition={{ duration:2, repeat:Infinity }}
-              className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2"
-              style={{ borderColor: bg }} />
-          </div>
-          <h1 className="text-2xl font-black tracking-tight" style={{ color: text1 }}>KVl CRM</h1>
+          <motion.div whileHover={{ scale:1.03 }} className="relative inline-block mb-3">
+            <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-20 w-auto mx-auto object-contain" style={{ filter: "drop-shadow(0 6px 24px rgba(212,175,55,0.25))" }} />
+          </motion.div>
           <p className="text-sm mt-1" style={{ color: text2 }}>Premium Sales Intelligence Platform</p>
         </motion.div>
 
