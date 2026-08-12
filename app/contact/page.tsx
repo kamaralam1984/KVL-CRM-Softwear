@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { kvlAnalytics } from "@/lib/tracking/sdk/client";
 
 const subjects = [
   "General Inquiry",
@@ -46,10 +47,19 @@ export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", company: "", subject: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const formStarted = useRef(false);
+
+  const trackFormStart = () => {
+    if (formStarted.current) return;
+    formStarted.current = true;
+    kvlAnalytics.track("form_start", { form: "contact" });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    kvlAnalytics.track("form_submit", { form: "contact", subject: form.subject });
+    kvlAnalytics.identify({ name: form.name, email: form.email });
     setTimeout(() => { setLoading(false); setSubmitted(true); }, 1200);
   };
 
@@ -134,6 +144,7 @@ export default function ContactPage() {
                       type="text"
                       placeholder="John Smith"
                       value={form.name}
+                      onFocus={trackFormStart}
                       onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                       className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.06] transition-colors"
                     />

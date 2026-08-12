@@ -8,6 +8,10 @@ import {
 import { Download, TrendingUp, FileText, Filter } from "lucide-react";
 import { salesChartData, teamPerformanceData, deals as seedDeals } from "@/lib/data";
 import { getDeals } from "@/lib/actions/deals";
+import { getCampaigns } from "@/lib/actions/campaigns";
+import { getLeads, type Lead } from "@/lib/actions/leads";
+import { computeCampaignRoi } from "@/lib/attribution/roi";
+import type { Campaign } from "@/lib/attribution/types";
 import { cn, formatCurrency } from "@/lib/utils";
 import { downloadCSV } from "@/lib/export";
 
@@ -27,9 +31,28 @@ const periodSlice: Record<string, number> = { "3M": 3, "6M": 6, "1Y": 12 };
 export default function Reports() {
   const [period, setPeriod] = useState("1Y");
   const [deals, setDeals] = useState(seedDeals);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   useEffect(() => {
     getDeals().then((rows) => { if (rows?.length) setDeals(rows); }).catch(() => {});
+    getCampaigns().then(setCampaigns).catch(() => {});
+    getLeads().then(setLeads).catch(() => {});
   }, []);
+
+  // Phase 17 — Lead Intelligence & Acquisition Engine, Wave 7 (Campaign ROI + Admin Controls)
+  const campaignRois = campaigns.map((c) => ({ campaign: c, roi: computeCampaignRoi(c, leads) }));
+  const totalSpend = campaigns.reduce((s, c) => s + (c.spend || 0), 0);
+  const totalAttributedRevenue = campaignRois.reduce((s, r) => s + r.roi.revenue, 0);
+  const blendedRoas = totalSpend > 0 ? totalAttributedRevenue / totalSpend : null;
+  const acquisitionLeadCount = leads.filter((l) => l.visitor_id).length;
+
+  const exportAcquisitionCSV = () => {
+    downloadCSV("campaign-roi-report.csv", campaignRois.map(({ campaign: c, roi }) => ({
+      Campaign: c.name, Source: c.source, Medium: c.medium, Spend: c.spend,
+      Leads: roi.leadCount, Closed: roi.closedCount, "Revenue (first-touch)": roi.revenue,
+      ROAS: roi.roas !== null ? roi.roas.toFixed(2) : "",
+    })));
+  };
 
   // Derive KPIs from real deals
   const totalRevenue = deals.reduce((s, d) => s + (Number(d.value) || 0), 0);
@@ -219,6 +242,37 @@ export default function Reports() {
             </motion.div>
           );
         })}
+      </div>
+
+      {/* Acquisition — Campaign ROI (first-touch attribution; see docs/ACQUISITION_ENGINE_ROADMAP.md) */}
+      <div className="glass-card rounded-2xl border border-crm-border overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-200">Acquisition — Campaign ROI</h3>
+            <p className="text-xs text-slate-500">Revenue = value of Closed leads sourced from each campaign (first-touch)</p>
+          </div>
+          <button onClick={exportAcquisitionCSV} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+            <FileText size={11} /> Export CSV
+          </button>
+        </div>
+        <div className="grid grid-cols-4 gap-3 p-4">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Total Campaign Spend</p>
+            <p className="text-lg font-bold text-slate-100">{formatCurrency(totalSpend)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Attributed Revenue</p>
+            <p className="text-lg font-bold text-slate-100">{formatCurrency(totalAttributedRevenue)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Blended ROAS</p>
+            <p className="text-lg font-bold text-slate-100">{blendedRoas !== null ? `${blendedRoas.toFixed(1)}x` : "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Leads from Acquisition Engine</p>
+            <p className="text-lg font-bold text-slate-100">{acquisitionLeadCount}</p>
+          </div>
+        </div>
       </div>
     </div>
   );

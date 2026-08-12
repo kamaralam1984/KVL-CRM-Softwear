@@ -6,7 +6,7 @@ import {
   AlertTriangle, Settings, Save, RefreshCw, Trash2, Plus, Edit2,
   X, Activity, Lock, Package, DollarSign, Eye, EyeOff, Search,
   LayoutDashboard, FileText, BarChart3, LogIn, LogOut, FilePlus,
-  Pencil, Download, Cpu, Filter, ChevronDown,
+  Pencil, Download, Cpu, Filter, ChevronDown, Radar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -14,6 +14,23 @@ import {
   loadConfig, saveConfig, loadUsers, saveUsers, loadPermissions, savePermissions,
   loadLogs, clearLogs, ALL_SECTIONS,
 } from "@/lib/appConfig";
+import { getAcquisitionSettings, updateAcquisitionSetting } from "@/lib/actions/acquisitionSettings";
+import { getIntentRules, updateIntentRule, type IntentRuleRow } from "@/lib/actions/intentRules";
+import { logAudit, getAuditLog, type AuditEntry } from "@/lib/security/audit";
+
+const ACQUISITION_AUDIT_RESOURCES = new Set(["acquisition_settings", "intent_scoring_rules"]);
+
+/** Reads the same "crm_user" localStorage key app/page.tsx uses for session restore. */
+function currentActor(): string {
+  try {
+    const raw = localStorage.getItem("crm_user");
+    if (!raw) return "unknown";
+    const user = JSON.parse(raw);
+    return user?.name || user?.email || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 
 /* ───────────── helpers ───────────── */
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
@@ -175,6 +192,147 @@ function PasswordModal({ user, onSave, onClose }: { user: ManagedUser; onSave: (
   );
 }
 
+/* Phase 17 — Lead Intelligence & Acquisition Engine, Wave 7 (Campaign ROI + Admin Controls) */
+function AcquisitionSettingsCard() {
+  const [settings, setSettings] = useState<Record<string, string>>({
+    tracking_enabled: "true",
+    default_consent_mode: "granted",
+    retention_days: "365",
+  });
+  const [rules, setRules] = useState<IntentRuleRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+
+  function refreshAuditEntries() {
+    setAuditEntries(getAuditLog(50).filter((e) => ACQUISITION_AUDIT_RESOURCES.has(e.resource)).slice(0, 10));
+  }
+
+  useEffect(() => {
+    Promise.all([getAcquisitionSettings(), getIntentRules()])
+      .then(([s, r]) => {
+        setSettings(s);
+        setRules(r);
+      })
+      .finally(() => setLoading(false));
+    refreshAuditEntries();
+  }, []);
+
+  async function saveSetting(key: string, value: string) {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    try {
+      await updateAcquisitionSetting(key, value);
+      logAudit({ actor: currentActor(), action: "acquisition_settings.update", resource: "acquisition_settings", detail: `${key} → ${value}` });
+      refreshAuditEntries();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch {
+      /* optimistic UI stays; persistence best-effort in demo mode */
+    }
+  }
+
+  async function saveRule(rule: IntentRuleRow, points: number) {
+    setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, points } : r)));
+    try {
+      await updateIntentRule(rule.rule_key, points);
+      logAudit({ actor: currentActor(), action: "intent_scoring_rules.update", resource: "intent_scoring_rules", detail: `${rule.rule_key}: ${rule.points} → ${points}` });
+      refreshAuditEntries();
+    } catch {
+      /* optimistic UI stays */
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <Card title="Tracking Controls" icon={Radar}>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-slate-200">Tracking Enabled</p>
+              <p className="text-xs text-slate-500">Master kill switch — the SDK checks this once per browser session (on first load) across the marketing site.</p>
+            </div>
+            <Toggle on={settings.tracking_enabled !== "false"} onChange={(v) => saveSetting("tracking_enabled", v ? "true" : "false")} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1.5 block">Default Consent Mode</label>
+            <select
+              value={settings.default_consent_mode}
+              onChange={(e) => saveSetting("default_consent_mode", e.target.value)}
+              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/50"
+            >
+              <option value="granted">Granted (anonymous analytics by default)</option>
+              <option value="denied">Denied (opt-in required)</option>
+            </select>
+            <p className="text-[11px] text-slate-600 mt-1">Stored and editable — not yet enforced beyond the SDK&apos;s existing opt-out behavior.</p>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1.5 block">Data Retention (days)</label>
+            <input
+              type="number"
+              min={1}
+              value={settings.retention_days}
+              onChange={(e) => saveSetting("retention_days", e.target.value)}
+              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/50"
+            />
+            <p className="text-[11px] text-slate-600 mt-1">Stored and editable — no scheduled purge job exists yet to enforce it.</p>
+          </div>
+          {saved && (
+            <p className="text-xs text-emerald-400 flex items-center gap-1.5">
+              <Check size={12} /> Saved
+            </p>
+          )}
+        </div>
+      </Card>
+
+      <Card title="Lead Intent Scoring Rules" icon={Activity}>
+        {loading ? (
+          <p className="text-xs text-slate-500">Loading…</p>
+        ) : rules.length === 0 ? (
+          <p className="text-xs text-slate-500">No rules found — run the Supabase migration to seed the default point values.</p>
+        ) : (
+          <div className="space-y-1">
+            {rules.map((rule) => (
+              <div key={rule.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0 gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-mono text-slate-300">{rule.rule_key}</p>
+                  <p className="text-[11px] text-slate-600 truncate">{rule.description}</p>
+                </div>
+                <input
+                  type="number"
+                  defaultValue={rule.points}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v) && v !== rule.points) saveRule(rule, v);
+                  }}
+                  className="w-20 flex-shrink-0 bg-white/[0.05] border border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-blue-500/50"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card title="Recent Changes" icon={FileText}>
+        {auditEntries.length === 0 ? (
+          <p className="text-xs text-slate-500">No changes logged yet — edit a setting or scoring rule above.</p>
+        ) : (
+          <div className="space-y-1">
+            {auditEntries.map((e, i) => (
+              <div key={`${e.time}-${i}`} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0 gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-300 truncate">{e.detail}</p>
+                  <p className="text-[10px] text-slate-600">{e.actor} · {e.resource}</p>
+                </div>
+                <span className="text-[10px] text-slate-600 flex-shrink-0">{new Date(e.time).toLocaleTimeString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════
    MAIN ADMIN PANEL
 ═══════════════════════════════════════════ */
@@ -184,7 +342,7 @@ export default function AdminPanel() {
   const [perms, setPerms]     = useState<RolePermissions>(() => loadPermissions());
   const [logs, setLogs]       = useState<ActivityEntry[]>(() => loadLogs());
   const [saved, setSaved]     = useState(false);
-  const [tab, setTab]         = useState<"overview"|"users"|"roles"|"logs"|"features"|"plans"|"system">("overview");
+  const [tab, setTab]         = useState<"overview"|"users"|"roles"|"logs"|"features"|"plans"|"acquisition"|"system">("overview");
 
   /* user modal state */
   const [userModal, setUserModal] = useState<{ mode: "create"|"edit"; user: Partial<ManagedUser>|null }|null>(null);
@@ -214,6 +372,7 @@ export default function AdminPanel() {
     { id: "logs",      label: "Activity Log",    icon: FileText },
     { id: "features",  label: "Features",         icon: Zap },
     { id: "plans",     label: "SaaS Plans",       icon: Package },
+    { id: "acquisition", label: "Acquisition Engine", icon: Radar },
     { id: "system",    label: "System",           icon: Settings },
   ] as const;
 
@@ -683,6 +842,8 @@ export default function AdminPanel() {
           )}
 
           {/* ══════════════ SYSTEM ══════════════ */}
+          {tab === "acquisition" && <AcquisitionSettingsCard />}
+
           {tab === "system" && (
             <div className="space-y-5">
               <Card title="System Identity" icon={Settings}>

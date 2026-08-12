@@ -40,7 +40,7 @@ export async function scoreLeads(
       value: v?.value ?? 15000,
       owner: "Unassigned",
       avatar: initials(lead.company || lead.name),
-      lastContact: "just now",
+      last_contact: "just now",
       tags: v?.tags ?? (lead.category ? [lead.category] : []),
       source: lead.source,
       reason: v?.reason,

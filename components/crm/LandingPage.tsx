@@ -15,6 +15,9 @@ import { cn } from "@/lib/utils";
 import { loadConfig, type AppMode } from "@/lib/appConfig";
 import ModuleDetailModal from "@/components/crm/ModuleDetailModal";
 import { MODULE_CONTENT, type ModuleContent } from "@/lib/moduleContent";
+import AnalyticsTracker from "@/lib/tracking/sdk/AnalyticsTracker";
+import ConsentBanner from "@/lib/tracking/sdk/ConsentBanner";
+import { kvlAnalytics } from "@/lib/tracking/sdk/client";
 
 /* ══════════════════════════════════════════════
    THEME
@@ -639,6 +642,8 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
   return (
     <div style={{ background: T.bg, color: T.text1 }} className="min-h-screen overflow-x-hidden transition-colors duration-300">
+      <AnalyticsTracker />
+      <ConsentBanner />
 
       {/* ── NAVBAR ──────────────────────────────────────────── */}
       <motion.nav initial={{ y: -60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6 }}
@@ -760,14 +765,14 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.8, delay:0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
             <motion.button whileHover={{ scale:1.06, boxShadow:"0 0 40px rgba(212,175,55,0.5)" }} whileTap={{ scale:0.97 }}
-              onClick={onGetStarted}
+              onClick={() => { kvlAnalytics.track("cta_click", { location: "hero", cta: "Start Free — No Card Needed" }); onGetStarted(); }}
               className="group flex items-center gap-2.5 px-9 py-4 rounded-2xl text-base font-bold text-black"
               style={{ background: goldGrad, boxShadow: goldShadow }}>
               Start Free — No Card Needed
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </motion.button>
             <motion.button whileHover={{ scale:1.03, boxShadow:"0 0 28px rgba(0,168,107,0.3)" }} whileTap={{ scale:0.97 }}
-              onClick={() => setDemoOpen(true)}
+              onClick={() => { kvlAnalytics.track("demo_click", { location: "hero" }); setDemoOpen(true); }}
               className="flex items-center gap-3 px-7 py-4 rounded-2xl border text-base font-medium transition-all"
               style={{ borderColor:"rgba(0,168,107,0.35)", background:"rgba(0,168,107,0.08)", color: T.ctaSecText }}>
               <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background:"rgba(0,168,107,0.15)", border:"1px solid rgba(0,168,107,0.3)" }}>
@@ -1682,7 +1687,12 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                     </select>
                   </div>
                   <motion.button whileHover={{ scale:1.03 }} whileTap={{ scale:0.97 }}
-                    onClick={() => { if (demoForm.name && demoForm.email) setDemoSent(true); }}
+                    onClick={() => {
+                      if (!demoForm.name || !demoForm.email) return;
+                      kvlAnalytics.track("form_submit", { form: "demo" });
+                      kvlAnalytics.identify({ name: demoForm.name, email: demoForm.email });
+                      setDemoSent(true);
+                    }}
                     className="w-full mt-5 py-3.5 rounded-xl text-sm font-black text-black"
                     style={{ background:"linear-gradient(135deg,#00843D,#00A86B)", boxShadow:"0 4px 20px rgba(0,168,107,0.3)" }}>
                     Confirm Demo Booking

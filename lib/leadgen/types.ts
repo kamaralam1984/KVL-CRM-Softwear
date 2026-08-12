@@ -74,7 +74,7 @@ export type ScoredLead = {
   value: number;             // estimated deal value (AI guess)
   owner: string;
   avatar: string;            // initials
-  lastContact: string;
+  last_contact: string;
   tags: string[];
   source: LeadSource;
   reason?: string;           // AI's one-line justification for the score

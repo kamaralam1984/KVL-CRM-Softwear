@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { loadPricing, type PricingConfig, DEFAULT_PRICING } from "@/lib/superAdmin";
+import { kvlAnalytics } from "@/lib/tracking/sdk/client";
 
 const faqs = [
   { q: "Is there a free trial?", a: "Yes. Every plan comes with a full-featured free trial. No credit card is required to start." },
@@ -31,6 +32,10 @@ export default function PricingPage() {
     };
     window.addEventListener("pricing-updated", handler);
     return () => window.removeEventListener("pricing-updated", handler);
+  }, []);
+
+  useEffect(() => {
+    kvlAnalytics.track("pricing_view");
   }, []);
 
   const handleToggle = () => {

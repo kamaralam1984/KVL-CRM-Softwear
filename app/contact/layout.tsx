@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import AnalyticsTracker from "@/lib/tracking/sdk/AnalyticsTracker";
+import ConsentBanner from "@/lib/tracking/sdk/ConsentBanner";
 
 export const metadata: Metadata = {
   title: "Contact Us — KVl CRM | Sales, Support & Partnerships",
@@ -7,5 +9,11 @@ export const metadata: Metadata = {
 };
 
 export default function ContactLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return (
+    <>
+      <AnalyticsTracker />
+      {children}
+      <ConsentBanner />
+    </>
+  );
 }

@@ -64,10 +64,13 @@ export default function Leads() {
       stage: form.stage,
       status: form.status as "hot" | "warm" | "cold",
       score: Math.floor(Math.random() * 25) + 60,
-      lastContact: "Just now",
+      last_contact: "Just now",
       tags: [] as string[],
       avatar,
       owner: "Unassigned",
+      source: "",
+      campaign: "",
+      visitor_id: null as string | null,
     };
     setLeadList((prev) => [...prev, newLead]);
     // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
@@ -89,7 +92,7 @@ export default function Leads() {
             { label: "Total Leads", value: leadList.length.toLocaleString(), color: "text-blue-400" },
             { label: "Hot Leads", value: leadList.filter((l) => l.status === "hot").length, color: "text-rose-400" },
             { label: "Warm Leads", value: leadList.filter((l) => l.status === "warm").length, color: "text-amber-400" },
-            { label: "This Week", value: `+${leadList.filter((l) => l.lastContact === "Just now").length + 48}`, color: "text-emerald-400" },
+            { label: "This Week", value: `+${leadList.filter((l) => l.last_contact === "Just now").length + 48}`, color: "text-emerald-400" },
           ].map((s) => (
             <div key={s.label} className="glass-card rounded-xl border border-crm-border p-3 text-center">
               <p className={cn("text-xl font-bold", s.color)}>{s.value}</p>
@@ -183,7 +186,7 @@ export default function Leads() {
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-slate-500">Last Contact</p>
-                    <p className="text-xs text-slate-300">{lead.lastContact}</p>
+                    <p className="text-xs text-slate-300">{lead.last_contact}</p>
                   </div>
                 </div>
 
@@ -211,6 +214,11 @@ export default function Leads() {
                   {lead.tags.map((tag) => (
                     <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.06] border border-crm-border text-slate-500">{tag}</span>
                   ))}
+                  {lead.source && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                      {lead.source}{lead.campaign ? ` · ${lead.campaign}` : ""}
+                    </span>
+                  )}
                   <div className="ml-auto flex gap-1.5">
                     <button className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center hover:bg-blue-500/25 transition-colors">
                       <Phone size={10} className="text-blue-400" />

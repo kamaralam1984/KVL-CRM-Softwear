@@ -59,7 +59,7 @@ export async function getExecutiveMetrics(): Promise<ExecutiveMetrics> {
 
     // "Today" activity.
     const todaysLeads = leads.filter(
-      (l) => isToday((l as { lastContact?: unknown }).lastContact),
+      (l) => isToday((l as { last_contact?: unknown }).last_contact),
     ).length;
     const meetingsToday = tasks.filter((t) => {
       const status = String((t as { status?: unknown }).status ?? "").toLowerCase();

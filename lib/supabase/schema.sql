@@ -187,6 +187,245 @@ create table if not exists activity_feed (
 alter table activity_feed enable row level security;
 create policy "Authenticated users can CRUD activity_feed" on activity_feed for all using (auth.role() = 'authenticated');
 
+-- ── Visitors (Phase 17 — Lead Intelligence & Acquisition Engine, Wave 1) ────
+-- Anonymous, first-party visitor identity. Never store PII here — PII only
+-- arrives voluntarily via /api/analytics/identify once a visitor self-identifies.
+create table if not exists visitors (
+  id                    bigserial primary key,
+  visitor_id            text unique not null,
+  first_seen_at         timestamptz not null default now(),
+  last_seen_at          timestamptz not null default now(),
+  page_views            int  not null default 0,
+  session_count         int  not null default 0,
+  device                text default '',
+  browser               text default '',
+  os                    text default '',
+  language              text default '',
+  timezone              text default '',
+  country               text default '',
+  region                text default '',
+  referrer              text default '',
+  landing_page          text default '',
+  first_touch_source    text default '',
+  first_touch_medium    text default '',
+  first_touch_campaign  text default '',
+  first_touch_term      text default '',
+  first_touch_content   text default '',
+  first_touch_gclid     text default '',
+  first_touch_fbclid    text default '',
+  first_touch_msclkid   text default '',
+  last_touch_source     text default '',
+  last_touch_medium     text default '',
+  last_touch_campaign   text default '',
+  last_touch_term       text default '',
+  last_touch_content    text default '',
+  last_touch_gclid      text default '',
+  last_touch_fbclid     text default '',
+  last_touch_msclkid    text default '',
+  identified            boolean not null default false,
+  consent_status        text not null default 'unknown' check (consent_status in ('granted','denied','unknown')),
+  created_at            timestamptz default now()
+);
+create index if not exists visitors_visitor_id_idx   on visitors (visitor_id);
+create index if not exists visitors_last_seen_at_idx on visitors (last_seen_at desc);
+alter table visitors enable row level security;
+create policy "Authenticated users can CRUD visitors" on visitors for all using (auth.role() = 'authenticated');
+
+-- ── Visitor sessions ─────────────────────────────────────────────────────
+create table if not exists visitor_sessions (
+  id                bigserial primary key,
+  session_id        text unique not null,
+  visitor_id        text not null references visitors(visitor_id) on delete cascade,
+  started_at        timestamptz not null default now(),
+  ended_at          timestamptz,
+  landing_page      text default '',
+  exit_page         text default '',
+  pages_viewed      int not null default 0,
+  duration_seconds  int not null default 0,
+  source            text default '',
+  medium            text default '',
+  campaign          text default '',
+  term              text default '',
+  content           text default '',
+  gclid             text default '',
+  fbclid            text default '',
+  msclkid           text default '',
+  device            text default '',
+  browser           text default '',
+  os                text default '',
+  created_at        timestamptz default now()
+);
+create index if not exists visitor_sessions_visitor_id_idx on visitor_sessions (visitor_id);
+alter table visitor_sessions enable row level security;
+create policy "Authenticated users can CRUD visitor_sessions" on visitor_sessions for all using (auth.role() = 'authenticated');
+
+-- ── Visitor events ───────────────────────────────────────────────────────
+-- High-volume append-only event log. Never store passwords/payment data
+-- (spec §16/§36); `properties` should stay small (UI/engagement metadata only).
+create table if not exists visitor_events (
+  id           bigserial primary key,
+  visitor_id   text not null references visitors(visitor_id) on delete cascade,
+  session_id   text references visitor_sessions(session_id) on delete cascade,
+  event_name   text not null,
+  page_url     text default '',
+  properties   jsonb not null default '{}',
+  created_at   timestamptz not null default now()
+);
+create index if not exists visitor_events_visitor_created_idx on visitor_events (visitor_id, created_at desc);
+create index if not exists visitor_events_event_name_idx      on visitor_events (event_name);
+alter table visitor_events enable row level security;
+create policy "Authenticated users can CRUD visitor_events" on visitor_events for all using (auth.role() = 'authenticated');
+
+-- ── Tracking consent log ─────────────────────────────────────────────────
+create table if not exists tracking_consents (
+  id              bigserial primary key,
+  visitor_id      text not null,
+  consent_status  text not null check (consent_status in ('granted','denied')),
+  categories      jsonb not null default '{}',
+  created_at      timestamptz not null default now()
+);
+create index if not exists tracking_consents_visitor_id_idx on tracking_consents (visitor_id);
+alter table tracking_consents enable row level security;
+create policy "Authenticated users can CRUD tracking_consents" on tracking_consents for all using (auth.role() = 'authenticated');
+
+-- ── Campaigns (Phase 17 — Lead Intelligence & Acquisition Engine, Wave 2) ───
+-- Auto-created the first time a named utm_campaign is seen; spend/budget/status
+-- are then editable from the CRM. Direct/organic traffic never creates a row here
+-- (campaign_touchpoints.source/medium covers source-level reporting instead).
+create table if not exists campaigns (
+  id              bigserial primary key,
+  campaign_key    text unique not null,
+  name            text not null,
+  source          text default '',
+  medium          text default '',
+  spend           numeric not null default 0,
+  budget          numeric not null default 0,
+  status          text not null default 'active' check (status in ('active','paused','ended')),
+  notes           text default '',
+  first_seen_at   timestamptz not null default now(),
+  last_seen_at    timestamptz not null default now(),
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
+);
+create index if not exists campaigns_campaign_key_idx on campaigns (campaign_key);
+alter table campaigns enable row level security;
+create policy "Authenticated users can CRUD campaigns" on campaigns for all using (auth.role() = 'authenticated');
+
+-- ── Campaign touchpoints ─────────────────────────────────────────────────
+-- Durable, append-only attribution ledger — decoupled from visitor_sessions so
+-- multi-touch models survive independently of session/event retention limits.
+create table if not exists campaign_touchpoints (
+  id           bigserial primary key,
+  visitor_id   text not null references visitors(visitor_id) on delete cascade,
+  session_id   text references visitor_sessions(session_id) on delete cascade,
+  campaign_id  bigint references campaigns(id) on delete set null,
+  source       text not null default '',
+  medium       text not null default '',
+  campaign     text default '',
+  occurred_at  timestamptz not null default now()
+);
+create index if not exists campaign_touchpoints_visitor_id_idx   on campaign_touchpoints (visitor_id);
+create index if not exists campaign_touchpoints_campaign_id_idx  on campaign_touchpoints (campaign_id);
+alter table campaign_touchpoints enable row level security;
+create policy "Authenticated users can CRUD campaign_touchpoints" on campaign_touchpoints for all using (auth.role() = 'authenticated');
+
+-- ── Landing pages ────────────────────────────────────────────────────────
+-- Traffic-only rollup for now — bounce rate / form completion / revenue land
+-- once a lead/deal join exists (Wave 3+).
+create table if not exists landing_pages (
+  id             bigserial primary key,
+  url_path       text unique not null,
+  hits           int not null default 0,
+  first_seen_at  timestamptz not null default now(),
+  last_seen_at   timestamptz not null default now(),
+  created_at     timestamptz default now()
+);
+create index if not exists landing_pages_url_path_idx on landing_pages (url_path);
+alter table landing_pages enable row level security;
+create policy "Authenticated users can CRUD landing_pages" on landing_pages for all using (auth.role() = 'authenticated');
+
+-- ── Leads: acquisition-engine attribution columns (Phase 17, Wave 3) ───────
+-- `leads` already exists from the original schema above — a fresh
+-- `create table if not exists` would be a no-op on a live DB, so new columns
+-- are added explicitly (idempotent, safe to re-run).
+alter table leads add column if not exists source text default '';
+alter table leads add column if not exists campaign text default '';
+alter table leads add column if not exists visitor_id text references visitors(visitor_id) on delete set null;
+create index if not exists leads_visitor_id_idx on leads (visitor_id);
+
+-- ── Visitor identity links (Phase 17, Wave 3 — Identity Resolution) ─────────
+-- Durable visitor↔lead mapping. A visitor resolves to exactly one lead;
+-- repeat identify() calls are idempotent against this table (unique visitor_id).
+create table if not exists visitor_identity_links (
+  id           bigserial primary key,
+  visitor_id   text not null unique references visitors(visitor_id) on delete cascade,
+  lead_id      bigint not null references leads(id) on delete cascade,
+  matched_on   text not null check (matched_on in ('phone','email','new')),
+  matched_at   timestamptz not null default now()
+);
+create index if not exists visitor_identity_links_lead_id_idx on visitor_identity_links (lead_id);
+alter table visitor_identity_links enable row level security;
+create policy "Authenticated users can CRUD visitor_identity_links" on visitor_identity_links for all using (auth.role() = 'authenticated');
+
+-- ── Visitors: intent scoring columns (Phase 17, Wave 4) ─────────────────────
+alter table visitors add column if not exists intent_score int not null default 0 check (intent_score between 0 and 100);
+alter table visitors add column if not exists intent_band text not null default 'cold' check (intent_band in ('cold','warm','hot','very_hot'));
+
+-- ── Intent scoring rules (Phase 17, Wave 4 — Lead Intent Scoring) ───────────
+-- Generic event→points / band-threshold config so scoring is admin-configurable,
+-- not hardcoded (spec §34). No settings UI yet (Wave 7) — edited directly for now.
+create table if not exists intent_scoring_rules (
+  id           bigserial primary key,
+  rule_key     text unique not null,
+  points       int not null default 0,
+  description  text default '',
+  updated_at   timestamptz default now()
+);
+alter table intent_scoring_rules enable row level security;
+create policy "Authenticated users can CRUD intent_scoring_rules" on intent_scoring_rules for all using (auth.role() = 'authenticated');
+
+insert into intent_scoring_rules (rule_key, points, description) values
+  ('event:page_view', 5, 'Any page viewed'),
+  ('event:pricing_view', 10, 'Pricing page viewed'),
+  ('event:demo_click', 15, 'Demo CTA clicked'),
+  ('event:whatsapp_click', 15, 'WhatsApp CTA clicked'),
+  ('event:form_start', 10, 'Form interaction started'),
+  ('event:form_submit', 25, 'Form submitted'),
+  ('event:phone_click', 10, 'Phone number clicked'),
+  ('event:email_click', 8, 'Email link clicked'),
+  ('event:video_play', 5, 'Video played'),
+  ('event:video_complete', 10, 'Video watched to completion'),
+  ('event:cta_click', 5, 'Generic CTA clicked'),
+  ('event:outbound_click', 3, 'Outbound link clicked'),
+  ('event:download', 8, 'File downloaded'),
+  ('event:scroll_depth', 2, 'Deep scroll on a page'),
+  ('bonus:repeat_visit', 10, 'Returning visitor started a new session'),
+  ('bonus:return_within_7_days', 10, 'Returned within 7 days of last visit'),
+  ('threshold:warm', 31, 'Minimum score for Warm band'),
+  ('threshold:hot', 61, 'Minimum score for Hot band'),
+  ('threshold:very_hot', 81, 'Minimum score for Very Hot band')
+on conflict (rule_key) do nothing;
+
+-- ── Acquisition settings (Phase 17, Wave 7 — Campaign ROI + Admin Controls) ─
+-- Generic key/value, same pattern as intent_scoring_rules. `tracking_enabled`
+-- is read by the public /api/analytics/config route the SDK checks on init() —
+-- the only setting here actually enforced at runtime this wave; the others are
+-- genuinely persisted/editable but not yet wired into new enforcement logic.
+create table if not exists acquisition_settings (
+  id           bigserial primary key,
+  setting_key  text unique not null,
+  value        text not null default '',
+  updated_at   timestamptz default now()
+);
+alter table acquisition_settings enable row level security;
+create policy "Authenticated users can CRUD acquisition_settings" on acquisition_settings for all using (auth.role() = 'authenticated');
+
+insert into acquisition_settings (setting_key, value) values
+  ('tracking_enabled', 'true'),
+  ('default_consent_mode', 'granted'),
+  ('retention_days', '365')
+on conflict (setting_key) do nothing;
+
 -- ── updated_at auto-trigger ────────────────────────────────────────────────
 create or replace function set_updated_at()
 returns trigger language plpgsql as $$
@@ -201,3 +440,6 @@ create trigger invoices_updated_at  before update on invoices  for each row exec
 create trigger team_members_updated_at    before update on team_members    for each row execute procedure set_updated_at();
 create trigger email_campaigns_updated_at before update on email_campaigns for each row execute procedure set_updated_at();
 create trigger whatsapp_conversations_updated_at before update on whatsapp_conversations for each row execute procedure set_updated_at();
+create trigger campaigns_updated_at before update on campaigns for each row execute procedure set_updated_at();
+create trigger intent_scoring_rules_updated_at before update on intent_scoring_rules for each row execute procedure set_updated_at();
+create trigger acquisition_settings_updated_at before update on acquisition_settings for each row execute procedure set_updated_at();

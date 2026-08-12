@@ -11,6 +11,8 @@ const quickCommands = [
   "Top customers this month",
   "Overdue invoices",
   "Team performance",
+  "Hot visitors right now",
+  "Next best action",
 ];
 
 interface Message {

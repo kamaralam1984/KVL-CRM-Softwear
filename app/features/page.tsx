@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AnalyticsTracker from "@/lib/tracking/sdk/AnalyticsTracker";
+import ConsentBanner from "@/lib/tracking/sdk/ConsentBanner";
 
 export const metadata: Metadata = {
   title: "Features — KVl CRM | Complete CRM Feature List",
@@ -84,6 +86,8 @@ const features = [
 export default function FeaturesPage() {
   return (
     <div className="min-h-screen bg-[#05080f] text-white">
+      <AnalyticsTracker />
+      <ConsentBanner />
       {/* Nav */}
       <nav className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between max-w-7xl mx-auto">
         <Link href="/" className="text-sm font-bold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">← KVl CRM</Link>

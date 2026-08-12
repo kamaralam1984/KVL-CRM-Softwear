@@ -1,35 +1,29 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { NextRequest } from "next/server";
+import { buildCrmSnapshot } from "@/lib/ai/context";
 
-const SYSTEM_PROMPT = `You are an AI CRM assistant for KVl CRM — a sales intelligence platform.
+async function buildSystemPrompt(): Promise<string> {
+  const snapshot = await buildCrmSnapshot();
+  return `You are an AI CRM assistant for KVl CRM — a sales intelligence platform.
 
-Current CRM snapshot (Dec 2025):
-- Pipeline: 9 active deals worth $975K total
-  • Discovery: TechNova ($45K), StartupHub ($12K)
-  • Qualified: CloudScale ($128K), EduSpark ($34K)
-  • Proposal: FinEdge ($95K), HealthTech AI ($128K), LogiFlow ($56K)
-  • Negotiation: RetailPro ($67K), Nexus Systems ($245K) — 9 days, closing call needed
-- Hot leads: Lisa Zhang/HealthTech AI ($128K, score 95), Alex Morgan/TechNova ($45K, score 92), Ryan O'Brien/RetailPro ($67K, score 88)
-- Customers: SkyNet Robotics ($520K champion), Apex Analytics ($312K), Nexus Systems ($245K)
-- At-risk: GreenLeaf Corp (health 61%), FoodTech Labs (health 55%) — combined $186K ARR
-- Overdue invoices: BrightPath Co $87K (10d), GreenLeaf Corp $54K (5d) — total $141K
-- Team: Priya Nair 101%, Mike Ross 98%, James Wu 97%, Aisha Patel 96%, Sarah Chen 95%
-- Revenue: $167K Dec, +28.5% YoY, Q4 total $467K vs $420K target
+${snapshot}
 
 Rules:
 - Be concise and direct. Use bullet points and bold for key numbers.
 - Always give a specific next action recommendation.
+- Ground every answer in the live snapshot above — never invent numbers not present there.
 - If asked something outside CRM scope, gently redirect.`;
+}
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-async function streamAnthropic(messages: ChatMessage[]): Promise<ReadableStream> {
+async function streamAnthropic(messages: ChatMessage[], system: string): Promise<ReadableStream> {
   const anthropic = new Anthropic();
   const stream = anthropic.messages.stream({
     model: "claude-sonnet-4-6",
     max_tokens: 800,
-    system: SYSTEM_PROMPT,
+    system,
     messages,
   });
 
@@ -49,14 +43,14 @@ async function streamAnthropic(messages: ChatMessage[]): Promise<ReadableStream>
   });
 }
 
-async function streamOpenAI(messages: ChatMessage[]): Promise<ReadableStream> {
+async function streamOpenAI(messages: ChatMessage[], system: string): Promise<ReadableStream> {
   const openai = new OpenAI();
   const stream = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     max_tokens: 800,
     stream: true,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: system },
       ...messages,
     ],
   });
@@ -84,10 +78,11 @@ export async function POST(req: NextRequest) {
     { role: "user", content: message },
   ];
 
+  const system = await buildSystemPrompt();
   const provider = process.env.AI_PROVIDER ?? "anthropic";
   const readable = provider === "openai"
-    ? await streamOpenAI(messages)
-    : await streamAnthropic(messages);
+    ? await streamOpenAI(messages, system)
+    : await streamAnthropic(messages, system);
 
   return new Response(readable, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },

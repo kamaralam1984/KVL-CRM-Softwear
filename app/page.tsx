@@ -37,6 +37,7 @@ import WebsiteAnalyzer from "@/components/crm/sections/WebsiteAnalyzer";
 import OpportunityFinder from "@/components/crm/sections/OpportunityFinder";
 import SalesAssistant from "@/components/crm/sections/SalesAssistant";
 import ProposalGenerator from "@/components/crm/sections/ProposalGenerator";
+import AcquisitionOverview from "@/components/crm/sections/AcquisitionOverview";
 import PlanGate from "@/components/crm/PlanGate";
 import { loadSAConfig, getEffectiveFeatures, type FeatureKey } from "@/lib/superAdmin";
 
@@ -62,6 +63,7 @@ const sectionMap: Record<string, React.ComponentType> = {
   opportunity: OpportunityFinder,
   salesassistant: SalesAssistant,
   proposals:   ProposalGenerator,
+  acquisition: AcquisitionOverview,
   settings:    Settings,
   admin:       AdminPanel,
   superadmin:  SuperAdminPanel,

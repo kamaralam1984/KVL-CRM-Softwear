@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Briefcase, CheckSquare, Calendar,
   GitBranch, MessageCircle, Mail, UserCheck, BarChart3,
   Wallet, Zap, Brain, Settings, ChevronLeft, ChevronRight,
-  TrendingUp, Sparkles, LogOut, Bell, Shield, Lock, Crown, Megaphone, Search, Share2, MessageSquare, Inbox, Headphones, ShoppingBag, Layout, Target, Gauge, Bot, FileText,
+  TrendingUp, Sparkles, LogOut, Bell, Shield, Lock, Crown, Megaphone, Search, Share2, MessageSquare, Inbox, Headphones, ShoppingBag, Layout, Target, Gauge, Bot, FileText, Radar,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { PlanFeatureMap, FeatureKey } from "@/lib/superAdmin";
@@ -38,6 +38,7 @@ const menuSections = [
       { id: "analyzer",    label: "Site Analyzer",  icon: Gauge },
       { id: "salesassistant", label: "Sales Assistant", icon: Bot },
       { id: "proposals",   label: "Proposals",      icon: FileText },
+      { id: "acquisition", label: "Visitor Intelligence", icon: Radar },
       { id: "pipeline",  label: "Sales Pipeline", icon: GitBranch },
       { id: "whatsapp",  label: "WhatsApp CRM",   icon: MessageCircle, badge: 3 },
       { id: "email",     label: "Email Marketing", icon: Mail },

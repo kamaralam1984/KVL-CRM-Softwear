@@ -37,6 +37,20 @@ export const WORKFLOWS: WorkflowDef[] = [
     description: "Flag at-risk customers and create a retention outreach task.",
     steps: ["Risk detected", "Create retention task", "Notify manager"],
   },
+  {
+    id: "high-intent-visitor",
+    name: "High Intent Visitor",
+    trigger: "Anonymous visitor intent score crosses Hot",
+    description: "Phase 17 — Acquisition Engine. Flag an anonymous visitor whose live intent score just crossed into Hot/Very Hot so sales can watch for identification.",
+    steps: ["High-intent visitor detected", "Create watch task", "Log activity"],
+  },
+  {
+    id: "hot-lead-alert",
+    name: "Hot Lead Alert",
+    trigger: "Lead score crosses 80+",
+    description: "Phase 17 — Acquisition Engine. Create a high-priority call-now follow-up when a lead's score reaches 80 or above.",
+    steps: ["Lead score crossed 80", "Create high-priority follow-up", "Log activity"],
+  },
 ];
 
 const OWNERS = ["Sarah Chen", "Mike Ross", "Priya Nair", "James Wu", "Aisha Patel"];
@@ -95,6 +109,98 @@ export function triggerLeadCreated(lead: LeadCtx): WorkflowRun | null {
     workflowName: "Lead Nurture",
     trigger: `New Lead: ${company}`,
     entity: company,
+    steps,
+    ok: true,
+    at: Date.now(),
+  };
+  addRun(run);
+  return run;
+}
+
+// Phase 17 — Acquisition Engine (Wave 5). Fires from server-side code
+// (lib/intent/score.ts, hit by anonymous visitors' browsers) — real Task/Activity
+// writes still happen there; addRun/isActive just no-op server-side (see store.ts's
+// `typeof window === "undefined"` guards), so these show up in Tasks/Dashboard but
+// not the client-only Automation run feed. That's an accepted scope cut, not a bug.
+export type HighIntentVisitorCtx = { visitorId: string; score: number; band: string; source: string };
+
+export function triggerHighIntentVisitor(ctx: HighIntentVisitorCtx): WorkflowRun | null {
+  if (!isActive("high-intent-visitor")) return null;
+  const owner = nextOwner();
+  const steps: RunStep[] = [];
+
+  steps.push({ label: "High-intent visitor detected", ok: true, detail: `${ctx.visitorId} · ${ctx.source || "direct"} · score ${ctx.score}` });
+
+  persistTask({
+    title: `Hot anonymous visitor from ${ctx.source || "direct"} (score ${ctx.score})`,
+    priority: "high",
+    due: "Today",
+    assignee: owner,
+    status: "pending",
+    tags: ["Automation", "Acquisition Engine", "High Intent"],
+    company: ctx.visitorId,
+  } as Parameters<typeof createTask>[0]);
+  steps.push({ label: "Create watch task", ok: true, detail: `Assigned to ${owner}` });
+
+  persistActivity({
+    type: "task",
+    text: `Automation: anonymous visitor ${ctx.visitorId} crossed into ${ctx.band} intent (score ${ctx.score})`,
+    time: "just now",
+    icon: "flame",
+    color: "rose",
+  } as Parameters<typeof createActivity>[0]);
+  steps.push({ label: "Log activity", ok: true, detail: "Added to activity feed" });
+
+  const run: WorkflowRun = {
+    id: newId(),
+    workflowId: "high-intent-visitor",
+    workflowName: "High Intent Visitor",
+    trigger: `Visitor ${ctx.visitorId} → ${ctx.band}`,
+    entity: ctx.visitorId,
+    steps,
+    ok: true,
+    at: Date.now(),
+  };
+  addRun(run);
+  return run;
+}
+
+export type LeadScoreSpikeCtx = { leadId: number; name: string; company: string; score: number };
+
+export function triggerLeadScoreSpike(ctx: LeadScoreSpikeCtx): WorkflowRun | null {
+  if (!isActive("hot-lead-alert")) return null;
+  const who = ctx.company || ctx.name;
+  const owner = nextOwner();
+  const steps: RunStep[] = [];
+
+  steps.push({ label: "Lead score crossed 80", ok: true, detail: `${who} → ${ctx.score}` });
+
+  persistTask({
+    title: `Call now — ${who} scored ${ctx.score}`,
+    priority: "high",
+    due: "Today",
+    assignee: owner,
+    status: "pending",
+    tags: ["Automation", "Hot Lead"],
+    company: who,
+  } as Parameters<typeof createTask>[0]);
+  steps.push({ label: "Create high-priority follow-up", ok: true, detail: `Assigned to ${owner}` });
+
+  persistActivity({
+    type: "task",
+    text: `Automation: ${who}'s lead score reached ${ctx.score} — high-priority follow-up created`,
+    time: "just now",
+    icon: "trending-up",
+    color: "rose",
+  } as Parameters<typeof createActivity>[0]);
+  steps.push({ label: "Log activity", ok: true, detail: "Added to activity feed" });
+
+  const run: WorkflowRun = {
+    id: newId(),
+    workflowId: "hot-lead-alert",
+    workflowName: "Hot Lead Alert",
+    trigger: `Lead score ≥80: ${who}`,
+    entity: who,
     steps,
     ok: true,
     at: Date.now(),

@@ -4,7 +4,7 @@
 // (or any page / the /api/executive/metrics route) can consume directly.
 
 export interface ExecutiveMetrics {
-  /** Leads first contacted today (heuristic on lastContact). */
+  /** Leads first contacted today (heuristic on last_contact). */
   todaysLeads: number;
   /** Tasks/meetings due today. */
   meetingsToday: number;
