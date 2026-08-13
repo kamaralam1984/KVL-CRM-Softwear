@@ -103,7 +103,7 @@ const USERS_KEY = "crm_managed_users";
 
 const DEFAULT_USERS: ManagedUser[] = [
   { id: "sa", name: "Super Admin", email: "kamaralam137@gmail.com", role: "Super Admin", avatar: "SA", password: "K12345678", status: "active", createdAt: "2025-01-01", lastLogin: "Today",        planId: "enterprise" },
-  { id: "1",  name: "Animesh",     email: "animesh@freedomwithai.com", role: "Admin",       avatar: "AN", password: "demo123",  status: "active", createdAt: "2025-01-01", lastLogin: "Today",        planId: "enterprise" },
+  { id: "1",  name: "Animesh",     email: "kamaralamjdu@gmail.com", role: "Admin",       avatar: "AN", password: "demo123",  status: "active", createdAt: "2025-01-01", lastLogin: "Today",        planId: "enterprise" },
   { id: "2",  name: "Sarah Chen",  email: "sarah@aicrmpro.com",        role: "Senior AE",   avatar: "SC", password: "demo123",  status: "active", createdAt: "2025-02-10", lastLogin: "Yesterday",    planId: "growth" },
   { id: "3",  name: "Demo User",   email: "demo@crm.com",              role: "Viewer",      avatar: "DU", password: "demo",     status: "active", createdAt: "2025-03-15", lastLogin: "3 days ago",   planId: "starter" },
 ];

@@ -11,7 +11,7 @@ type ProfileForm = { name: string; email: string; phone: string; role: string };
 
 const INITIAL_PROFILE: ProfileForm = {
   name: "Animesh",
-  email: "animesh@freedomwithai.com",
+  email: "kamaralamjdu@gmail.com",
   phone: "+1 555-0100",
   role: "Admin",
 };

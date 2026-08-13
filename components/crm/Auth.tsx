@@ -24,7 +24,7 @@ interface AuthProps {
 /* ── Demo fallback ───────────────────────────────────── */
 const DEMO_ACCOUNTS: Record<string, { id: string; password: string; name: string; role: string }> = {
   "kamaralam137@gmail.com":  { id: "sa", password: "K12345678", name: "Super Admin", role: "Super Admin" },
-  "animesh@freedomwithai.com": { id: "1",  password: "demo123",  name: "Animesh",     role: "Admin" },
+  "kamaralamjdu@gmail.com": { id: "1",  password: "demo123",  name: "Animesh",     role: "Admin" },
   "sarah@aicrmpro.com":        { id: "2",  password: "demo123",  name: "Sarah Chen",  role: "Senior AE" },
   "demo@crm.com":              { id: "3",  password: "demo",     name: "Demo User",   role: "Viewer" },
 };
@@ -318,7 +318,7 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
                     </button>
                     <div className="flex items-center gap-1.5">
                       {[
-                        { label:"Admin",  email:"animesh@freedomwithai.com", pw:"demo123", bg:"rgba(212,175,55,0.1)",  brd:"rgba(212,175,55,0.3)",  col:"#D4AF37" },
+                        { label:"Admin",  email:"kamaralamjdu@gmail.com", pw:"demo123", bg:"rgba(212,175,55,0.1)",  brd:"rgba(212,175,55,0.3)",  col:"#D4AF37" },
                         { label:"Sales",  email:"sarah@aicrmpro.com",        pw:"demo123", bg:"rgba(0,132,61,0.1)",   brd:"rgba(0,132,61,0.3)",   col:"#00843D" },
                         { label:"Viewer", email:"demo@crm.com",              pw:"demo",    bg:"rgba(128,128,128,0.1)",brd:"rgba(128,128,128,0.2)", col: text2 },
                       ].map(d => (

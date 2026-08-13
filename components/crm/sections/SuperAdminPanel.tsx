@@ -787,7 +787,7 @@ export default function SuperAdminPanel() {
           <Card title="Client Accounts" icon={Users}>
             <div className="space-y-2 text-xs">
               {[
-                { email: "animesh@freedomwithai.com", plan: "Enterprise" },
+                { email: "kamaralamjdu@gmail.com", plan: "Enterprise" },
                 { email: "sarah@aicrmpro.com",        plan: "Growth" },
                 { email: "demo@crm.com",              plan: "Starter" },
               ].map(r => (
