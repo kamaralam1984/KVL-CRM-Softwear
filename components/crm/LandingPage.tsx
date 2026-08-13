@@ -9,7 +9,7 @@ import {
   Target, Rocket, Award, GitBranch, Wallet,
   Users, CheckSquare, UserPlus, UserCheck, Bell,
   MessageSquare, Inbox, Lock, Key, Eye, Server,
-  Calendar, Brain, FileText, Phone, Mic, Sparkles,
+  Calendar, FileText, Phone, Mic, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadConfig, type AppMode } from "@/lib/appConfig";
@@ -199,16 +199,6 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
 /* ══════════════════════════════════════════════
    DATA
 ══════════════════════════════════════════════ */
-const features = [
-  { icon: TrendingUp,    grad: "from-green-400 to-emerald-400",   title: "Revenue Intelligence",   desc: "Predictive forecasting, deal scoring, and revenue insights that surface what matters before it's too late." },
-  { icon: GitBranch,     grad: "from-green-500 to-teal-500",   title: "Visual Sales Pipeline",  desc: "Drag-and-drop stages with real-time value tracking. Every deal, every rep, every opportunity at a glance." },
-  { icon: MessageCircle, grad: "from-emerald-500 to-teal-500",   title: "WhatsApp Integration",   desc: "Manage customer conversations from your CRM. Broadcast campaigns, auto-replies, message analytics." },
-  { icon: Mail,          grad: "from-blue-500 to-cyan-500",      title: "Email Marketing Suite",  desc: "Design, send, and track campaigns with open rates, click analytics, and A/B testing built in." },
-  { icon: Zap,           grad: "from-violet-500 to-purple-600",  title: "Workflow Automation",    desc: "Build sequences that run 24/7. Assign leads, send follow-ups, update pipeline — completely hands-free." },
-  { icon: BarChart3,     grad: "from-rose-500 to-pink-600",      title: "Advanced Analytics",     desc: "Granular reports on revenue, rep performance, funnel velocity, and customer lifetime value — live." },
-  { icon: Wallet,        grad: "from-green-500 to-emerald-600",  title: "Finance & Invoicing",    desc: "Generate invoices, track payments, manage expenses — a complete finance module built for sales teams." },
-  { icon: Shield,        grad: "from-slate-500 to-slate-700",    title: "Enterprise Security",    desc: "Role-based access, encrypted sessions, audit trails, and GDPR-compliant data handling." },
-];
 
 const stats = [
   { value: 2400, suffix: "+", label: "Companies Worldwide" },
@@ -326,17 +316,6 @@ const securityBadges = [
   { icon: Key,    title: "256-bit AES",    desc: "All data encrypted at rest" },
   { icon: Eye,    title: "Audit Trails",   desc: "Every action logged & tracked" },
   { icon: Server, title: "99.99% Uptime",  desc: "SLA-backed infrastructure" },
-];
-
-const integrations = [
-  { name: "Slack",            emoji: "💬", category: "Communication" },
-  { name: "Google Workspace", emoji: "🔵", category: "Productivity" },
-  { name: "Microsoft 365",    emoji: "🟦", category: "Productivity" },
-  { name: "Stripe",           emoji: "💳", category: "Payments" },
-  { name: "Zoom",             emoji: "🎥", category: "Video Calls" },
-  { name: "Shopify",          emoji: "🛍️",  category: "E-commerce" },
-  { name: "HubSpot",          emoji: "🟠", category: "Marketing" },
-  { name: "Salesforce",       emoji: "☁️",  category: "CRM Sync" },
 ];
 
 /* Real brand SVG logos — monochrome, scale to theme */
@@ -790,77 +769,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             ))}
           </motion.div>
 
-          {/* Live Metrics Strip */}
-          <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.55, duration:0.7 }}
-            className="flex flex-wrap items-center justify-center gap-3 mb-10">
-            {[
-              { label:"Revenue Growth",    value:"3.2×",   color:"#00A86B" },
-              { label:"Lead Conversion",   value:"68%",    color:"#D4AF37" },
-              { label:"Customer Retention",value:"94%",    color:"#3b82f6" },
-              { label:"Pipeline Value",    value:"$2.98M", color:"#8b5cf6" },
-            ].map((m) => (
-              <div key={m.label}
-                className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border"
-                style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)", borderColor: m.color + "33", backdropFilter:"blur(12px)" }}>
-                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: m.color }} />
-                <span className="text-[11px] font-medium" style={{ color: T.text2 }}>{m.label}</span>
-                <span className="text-sm font-black" style={{ color: m.color }}>{m.value}</span>
-              </div>
-            ))}
-          </motion.div>
-
-          {/* Dashboard Mockup */}
-          <motion.div initial={{ opacity:0, y:80, scale:0.93 }} animate={{ opacity:1, y:0, scale:1 }}
-            transition={{ duration:1.2, delay:0.4, ease:[0.22,1,0.36,1] }} className="relative max-w-5xl mx-auto">
-            <div className="absolute inset-0 z-10 pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent 50%, ${T.bg} 100%)` }} />
-            <div className="absolute -inset-1 rounded-3xl blur-2xl" style={{ background:"linear-gradient(135deg,rgba(212,175,55,0.2),rgba(212,175,55,0.04))", opacity:0.6 }} />
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl"
-              style={{ border:`1px solid ${T.mockupBorder}`, background: T.mockupBg, boxShadow: dark ? "0 40px 100px rgba(0,0,0,0.8)" : "0 24px 80px rgba(0,0,0,0.15)" }}>
-              {/* Browser bar */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: T.mockupBorder, background: T.mockupCardBg }}>
-                <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-rose-500/50"/><div className="w-3 h-3 rounded-full bg-amber-500/50"/><div className="w-3 h-3 rounded-full bg-emerald-500/50"/></div>
-                <div className="flex-1 mx-4">
-                  <div className="h-5 rounded-md flex items-center px-3 gap-2" style={{ background: T.urlBarBg, border:`1px solid ${T.urlBarBorder}` }}>
-                    <div className="w-2 h-2 rounded-full bg-emerald-500"/>
-                    <span className="text-[10px]" style={{ color: T.urlText }}>app.kvlcrm.com/dashboard</span>
-                  </div>
-                </div>
-              </div>
-              {/* Mock content */}
-              <div className="p-5 grid grid-cols-4 gap-3">
-                {[["Pipeline Value","$2.98M","+18%","#D4AF37"],["Deals Closed","142","+32%","#10b981"],["Win Rate","68.5%","+5.2%","#8b5cf6"],["Avg Deal Size","$38.4K","+12%","#3b82f6"]].map(([label,val,chg,col]) => (
-                  <div key={label} className="rounded-xl p-3" style={{ background: T.mockupCardBg, border:`1px solid ${T.mockupCardBrd}` }}>
-                    <p className="text-[10px] mb-1" style={{ color: T.mockupText }}>{label}</p>
-                    <p className="text-lg font-black" style={{ color: T.text1 }}>{val}</p>
-                    <span className="text-[10px] font-semibold" style={{ color: col }}>{chg}</span>
-                  </div>
-                ))}
-                <div className="col-span-3 rounded-xl p-4" style={{ background: T.mockupCardBg, border:`1px solid ${T.mockupCardBrd}` }}>
-                  <p className="text-[10px] mb-3" style={{ color: T.mockupText }}>Revenue Growth 2025</p>
-                  <div className="flex items-end gap-1 h-16">
-                    {[35,52,44,68,58,72,65,88,75,92,82,96].map((h, i) => (
-                      <motion.div key={i} initial={{ scaleY:0 }} animate={{ scaleY:1 }} transition={{ delay:0.9+i*0.04, ease:"easeOut" }}
-                        className="flex-1 rounded-t-sm origin-bottom"
-                        style={{ height:`${h}%`, background: i===11 ? "#00843D" : T.barInactive }} />
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-xl p-4" style={{ background: T.mockupCardBg, border:`1px solid ${T.mockupCardBrd}` }}>
-                  <p className="text-[10px] mb-3" style={{ color: T.mockupText }}>Pipeline</p>
-                  {["Prospect","Qualified","Proposal","Closing"].map((s, i) => (
-                    <div key={s} className="mb-1.5">
-                      <div className="flex justify-between text-[9px] mb-0.5" style={{ color: T.mockupText }}><span>{s}</span><span>{[85,64,42,18][i]}%</span></div>
-                      <div className="h-1 rounded-full" style={{ background: T.mockupCardBrd }}>
-                        <motion.div initial={{ width:0 }} animate={{ width:`${[85,64,42,18][i]}%` }}
-                          transition={{ delay:1+i*0.1, duration:0.8, ease:"easeOut" }}
-                          className="h-full rounded-full" style={{ background: greenGrad }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </motion.div>
         </motion.div>
       </section>
 
@@ -902,35 +810,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               <p className="text-sm" style={{ color: T.text2 }}>{s.label}</p>
             </FadeIn>
           ))}
-        </div>
-      </section>
-
-      {/* ── FEATURES ──────────────────────────────────────────── */}
-      <section id="features" className="py-28 max-w-7xl mx-auto px-6">
-        <FadeIn className="text-center mb-16">
-          <span className="text-xs font-bold uppercase tracking-widest" style={{ color:"#D4AF37" }}>Everything You Need</span>
-          <h2 className="text-4xl md:text-5xl font-black mt-3 mb-4" style={{ color: T.text1 }}>One Platform. Infinite Growth.</h2>
-          <p className="text-lg max-w-xl mx-auto" style={{ color: T.text2 }}>Every tool your sales team needs, seamlessly integrated and beautifully designed.</p>
-        </FadeIn>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {features.map((f,i) => {
-            const Icon = f.icon;
-            return (
-              <FadeIn key={f.title} delay={i*0.05}>
-                <motion.div whileHover={{ y:-6, scale:1.02 }} transition={{ duration:0.22 }}
-                  className="group rounded-2xl p-6 cursor-default transition-all"
-                  style={{ border:`1px solid ${T.cardBorder}`, background: T.cardBg, backdropFilter: dark ? "none" : "blur(8px)" }}
-                  onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = T.cardHoverBorder; el.style.background = T.cardHoverBg; }}
-                  onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = T.cardBorder; el.style.background = T.cardBg; }}>
-                  <div className={cn("w-11 h-11 rounded-xl bg-gradient-to-br flex items-center justify-center mb-4 shadow-lg", f.grad)}>
-                    <Icon size={19} className="text-white" />
-                  </div>
-                  <h3 className="text-sm font-bold mb-2" style={{ color: T.text1 }}>{f.title}</h3>
-                  <p className="text-xs leading-relaxed" style={{ color: T.text2 }}>{f.desc}</p>
-                </motion.div>
-              </FadeIn>
-            );
-          })}
         </div>
       </section>
 
@@ -1004,85 +883,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             );
           })}
         </div>
-        {/* AI demo mockup */}
-        <FadeIn>
-          <div className="rounded-2xl overflow-hidden shadow-2xl"
-            style={{ background: T.mockupBg, border:`1px solid ${T.mockupBorder}`, boxShadow: dark ? "0 32px 80px rgba(0,0,0,0.6)" : "0 20px 50px rgba(0,0,0,0.1)" }}>
-            <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: T.mockupBorder, background: T.mockupCardBg }}>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background:"linear-gradient(135deg,#D4AF37,#F5C842)" }}>
-                <Brain size={14} className="text-black" />
-              </div>
-              <span className="text-sm font-bold" style={{ color: T.text1 }}>KVl AI Copilot</span>
-              <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background:"rgba(0,168,107,0.15)", color:"#00A86B", border:"1px solid rgba(0,168,107,0.25)" }}>Active</span>
-            </div>
-            <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x" style={{ borderColor: T.mockupBorder }}>
-              <div className="p-6">
-                <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color:"#D4AF37" }}>AI Email Writer</p>
-                <div className="rounded-xl p-4 mb-3 text-xs leading-relaxed" style={{ background: T.mockupCardBg, border:`1px solid ${T.mockupCardBrd}`, color: T.text2 }}>
-                  <p className="font-semibold mb-1" style={{ color: T.text1 }}>Write email for: Priya Sharma, HealthAI Corp</p>
-                  Deal stage: Proposal sent · Last contact: 5 days ago · Industry: Healthcare SaaS
-                </div>
-                <motion.div animate={{ opacity:[0.7,1,0.7] }} transition={{ duration:2, repeat:Infinity }}
-                  className="rounded-xl p-4 text-xs leading-relaxed" style={{ background:`linear-gradient(135deg,rgba(212,175,55,0.06),rgba(212,175,55,0.02))`, border:"1px solid rgba(212,175,55,0.2)", color: T.text1 }}>
-                  <p className="font-bold mb-2" style={{ color:"#D4AF37" }}>✨ AI Generated:</p>
-                  Hi Priya, following up on the KVl proposal I sent last week. Given HealthAI's focus on patient relationship management, I wanted to highlight how our WhatsApp CRM has helped similar healthcare teams improve patient retention by 34%...
-                </motion.div>
-              </div>
-              <div className="p-6">
-                <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color:"#00A86B" }}>AI Sales Forecast</p>
-                <div className="space-y-3">
-                  {[["Q3 2025 Revenue","$1.24M","↑ High confidence","#00A86B"],["Pipeline at Risk","$180K","3 deals stalling","#f59e0b"],["Predicted Churn","2 accounts","Action needed","#ef4444"],["Upsell Opportunities","$95K","AI identified","#8b5cf6"]].map(([label,val,sub,col]) => (
-                    <div key={label} className="flex items-center justify-between p-3 rounded-xl"
-                      style={{ background: T.mockupCardBg, border:`1px solid ${T.mockupCardBrd}` }}>
-                      <div>
-                        <p className="text-[10px]" style={{ color: T.text2 }}>{label}</p>
-                        <p className="text-sm font-black" style={{ color: T.text1 }}>{val}</p>
-                      </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                        style={{ background: col + "18", color: col, border:`1px solid ${col}30` }}>{sub}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </FadeIn>
-      </section>
-
-      {/* ── PRODUCT SHOWCASE IMAGE ────────────────────────────── */}
-      <section className="py-20 max-w-6xl mx-auto px-6">
-        <FadeIn>
-          <div className="relative rounded-3xl overflow-hidden shadow-2xl"
-            style={{ border:`1px solid rgba(212,175,55,0.2)`, boxShadow: dark ? "0 32px 80px rgba(0,0,0,0.6)" : "0 24px 60px rgba(0,0,0,0.12)" }}>
-            <img
-              src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1400&q=80"
-              alt="KVl CRM Dashboard"
-              className="w-full object-cover"
-              style={{ height:"420px", filter: dark ? "brightness(0.65) saturate(0.85)" : "brightness(0.85)" }}
-            />
-            {/* Overlay content */}
-            <div className="absolute inset-0 flex items-end p-10"
-              style={{ background:"linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)" }}>
-              <div className="flex items-end justify-between w-full">
-                <div>
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-3 text-xs font-bold"
-                    style={{ background:"rgba(212,175,55,0.2)", border:"1px solid rgba(212,175,55,0.4)", color:"#D4AF37" }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                    Live Platform Preview
-                  </div>
-                  <h3 className="text-2xl md:text-3xl font-black text-white mb-2">Everything in One View</h3>
-                  <p className="text-sm text-white/60 max-w-md">Real-time pipeline, revenue tracking, team performance — all visible at a glance.</p>
-                </div>
-                <motion.button whileHover={{ scale:1.05 }} whileTap={{ scale:0.97 }}
-                  onClick={onGetStarted}
-                  className="hidden md:flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-black text-black flex-shrink-0"
-                  style={{ background: goldGrad, boxShadow:"0 4px 20px rgba(212,175,55,0.4)" }}>
-                  Try It Free <ArrowRight size={14}/>
-                </motion.button>
-              </div>
-            </div>
-          </div>
-        </FadeIn>
       </section>
 
       {/* ── AUTOMATION WORKFLOW ───────────────────────────────── */}
@@ -1279,81 +1079,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         </FadeIn>
       </section>
 
-      {/* ── ANALYTICS ─────────────────────────────────────────── */}
-      <section className="py-28 transition-colors duration-300" style={{ background: T.howBg }}>
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <FadeIn>
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color:"#D4AF37" }}>Revenue Intelligence</span>
-              <h2 className="text-4xl md:text-5xl font-black mt-3 mb-5" style={{ color: T.text1 }}>Data That Drives Decisions</h2>
-              <p className="text-lg mb-8" style={{ color: T.text2 }}>Real-time dashboards, predictive forecasting, and deep pipeline analysis — so you always know what to do next.</p>
-              <div className="space-y-5">
-                {[
-                  ["Revenue Forecasting","AI-powered quarterly and annual revenue predictions with confidence intervals."],
-                  ["Pipeline Velocity","Track how fast deals move through each stage and identify where they stall."],
-                  ["Team Performance","Individual rep metrics, quota attainment, and activity leaderboards."],
-                  ["Conversion Analytics","Full-funnel conversion rates from lead source to closed-won deal."],
-                ].map(([title, desc]) => (
-                  <div key={title} className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                      style={{ background:"rgba(0,132,61,0.15)" }}>
-                      <Check size={11} style={{ color:"#00843D" }} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold mb-0.5" style={{ color: T.text1 }}>{title}</p>
-                      <p className="text-xs leading-relaxed" style={{ color: T.text2 }}>{desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </FadeIn>
-            <FadeIn delay={0.2}>
-              <div className="rounded-2xl p-6 shadow-2xl"
-                style={{ background: T.mockupBg, border:`1px solid ${T.mockupBorder}`, boxShadow: dark ? "0 24px 60px rgba(0,0,0,0.6)" : "0 16px 40px rgba(0,0,0,0.1)" }}>
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <p className="text-sm font-bold" style={{ color: T.text1 }}>Revenue Forecast</p>
-                    <p className="text-xs mt-0.5" style={{ color: T.text2 }}>Q4 2025 Projection</p>
-                  </div>
-                  <div className="px-3 py-1 rounded-lg text-xs font-bold"
-                    style={{ background:"rgba(0,132,61,0.15)", color:"#00A86B", border:"1px solid rgba(0,132,61,0.25)" }}>
-                    ↑ 34% YoY
-                  </div>
-                </div>
-                <div className="flex items-end gap-1.5 h-36 mb-3">
-                  {[
-                    {h:45,actual:true,l:"J"},{h:58,actual:true,l:"F"},{h:52,actual:true,l:"M"},
-                    {h:71,actual:true,l:"A"},{h:67,actual:true,l:"M"},{h:84,actual:true,l:"J"},
-                    {h:79,actual:true,l:"J"},{h:93,actual:true,l:"A"},{h:88,actual:false,l:"S"},
-                    {h:102,actual:false,l:"O"},{h:98,actual:false,l:"N"},{h:115,actual:false,l:"D"},
-                  ].map((bar, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <motion.div initial={{ scaleY:0 }} animate={{ scaleY:1 }}
-                        transition={{ delay:0.3+i*0.05, ease:"easeOut" }}
-                        className="w-full rounded-t-sm origin-bottom"
-                        style={{ height:`${bar.h * 0.9}%`, background: bar.actual ? "linear-gradient(to top,#006B3C,#00A86B)" : "linear-gradient(to top,rgba(212,175,55,0.25),rgba(212,175,55,0.5))", border: bar.actual ? "none" : "1px dashed rgba(212,175,55,0.4)" }} />
-                      <span className="text-[8px]" style={{ color: T.text3 }}>{bar.l}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center gap-4 text-[10px] mb-5" style={{ color: T.text2 }}>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm inline-block" style={{ background:"#00A86B" }}/> Actual</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm inline-block border border-dashed" style={{ background:"rgba(212,175,55,0.3)", borderColor:"rgba(212,175,55,0.5)" }}/> Forecast</span>
-                </div>
-                <div className="grid grid-cols-3 gap-3 pt-5" style={{ borderTop:`1px solid ${T.mockupCardBrd}` }}>
-                  {[["$4.2M","Projected ARR"],["68%","Win Rate"],["42d","Avg Sales Cycle"]].map(([val, label]) => (
-                    <div key={label} className="text-center rounded-xl p-3" style={{ background: T.mockupCardBg }}>
-                      <p className="text-base font-black" style={{ color: T.text1 }}>{val}</p>
-                      <p className="text-[9px] mt-0.5" style={{ color: T.text2 }}>{label}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </FadeIn>
-          </div>
-        </div>
-      </section>
-
       {/* ── COMMUNICATION HUB ─────────────────────────────────── */}
       <section className="py-28 max-w-7xl mx-auto px-6">
         <FadeIn className="text-center mb-14">
@@ -1437,38 +1162,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             </div>
           </FadeIn>
         </div>
-      </section>
-
-      {/* ── INTEGRATIONS ──────────────────────────────────────── */}
-      <section className="py-28 max-w-7xl mx-auto px-6">
-        <FadeIn className="text-center mb-14">
-          <span className="text-xs font-bold uppercase tracking-widest" style={{ color:"#D4AF37" }}>Integrations</span>
-          <h2 className="text-4xl md:text-5xl font-black mt-3 mb-4" style={{ color: T.text1 }}>Works With Your Entire Stack</h2>
-          <p className="text-lg max-w-xl mx-auto" style={{ color: T.text2 }}>Connect KVl with the tools your team already uses. One-click integrations, zero friction.</p>
-        </FadeIn>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          {integrations.map((int, i) => (
-            <FadeIn key={int.name} delay={i*0.06}>
-              <motion.div whileHover={{ y:-5, scale:1.02 }} transition={{ duration:0.2 }}
-                className="rounded-2xl p-5 flex items-center gap-3 transition-all cursor-default"
-                style={{ border:`1px solid ${T.cardBorder}`, background: T.cardBg }}
-                onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = T.cardHoverBorder; el.style.background = T.cardHoverBg; }}
-                onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = T.cardBorder; el.style.background = T.cardBg; }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
-                  style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", border:`1px solid ${T.cardBorder}` }}>
-                  {int.emoji}
-                </div>
-                <div>
-                  <p className="text-xs font-bold" style={{ color: T.text1 }}>{int.name}</p>
-                  <p className="text-[10px]" style={{ color: T.text2 }}>{int.category}</p>
-                </div>
-              </motion.div>
-            </FadeIn>
-          ))}
-        </div>
-        <FadeIn className="text-center">
-          <p className="text-sm" style={{ color: T.text2 }}>And 100+ more via Zapier, Make, and our open REST API.</p>
-        </FadeIn>
       </section>
 
       {/* ── PRICING ───────────────────────────────────────────── */}
