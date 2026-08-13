@@ -4,17 +4,21 @@ import { getServerClient } from "@/lib/supabase/server";
 import { resolveCampaign } from "./campaigns";
 
 /** recordTouchpoint — one entry in the durable per-visitor attribution ledger. */
-export async function recordTouchpoint(input: {
-  visitorId: string;
-  sessionId: string;
-  source: string;
-  medium: string;
-  campaign: string;
-}): Promise<void> {
+export async function recordTouchpoint(
+  input: {
+    visitorId: string;
+    sessionId: string;
+    source: string;
+    medium: string;
+    campaign: string;
+  },
+  siteId: string
+): Promise<void> {
   try {
-    const campaignId = await resolveCampaign(input);
+    const campaignId = await resolveCampaign(input, siteId);
     const db = getServerClient();
     await db.from("campaign_touchpoints").insert({
+      site_id: siteId,
       visitor_id: input.visitorId,
       session_id: input.sessionId,
       campaign_id: campaignId,

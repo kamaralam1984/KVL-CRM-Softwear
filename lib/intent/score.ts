@@ -46,7 +46,7 @@ async function syncLeadScore(leadId: number, score: number, band: IntentBand): P
   }
 }
 
-async function addIntentPoints(visitorId: string, points: number): Promise<void> {
+async function addIntentPoints(visitorId: string, points: number, siteId: string): Promise<void> {
   if (!points) return;
   try {
     const db = getServerClient();
@@ -58,7 +58,7 @@ async function addIntentPoints(visitorId: string, points: number): Promise<void>
     const current = (data?.intent_score as number | undefined) ?? 0;
     const source = (data?.first_touch_source as string | undefined) || (data?.last_touch_source as string | undefined) || "";
 
-    const rules = await getRules();
+    const rules = await getRules(siteId);
     const previousBand = bandFromScore(current, rules);
     const next = Math.max(0, Math.min(100, current + points));
     const band = bandFromScore(next, rules);
@@ -82,11 +82,11 @@ async function addIntentPoints(visitorId: string, points: number): Promise<void>
 }
 
 /** applyEventPoints — sum rule points across a batch of just-recorded event names. */
-export async function applyEventPoints(visitorId: string, eventNames: string[]): Promise<void> {
+export async function applyEventPoints(visitorId: string, eventNames: string[], siteId: string): Promise<void> {
   try {
-    const rules = await getRules();
+    const rules = await getRules(siteId);
     const points = eventNames.reduce((sum, name) => sum + (rules[`event:${name}`] ?? 0), 0);
-    await addIntentPoints(visitorId, points);
+    await addIntentPoints(visitorId, points, siteId);
   } catch (err) {
     log("applyEventPoints", err);
   }
@@ -95,17 +95,18 @@ export async function applyEventPoints(visitorId: string, eventNames: string[]):
 /** applyVisitBonus — award repeat-visit / return-within-7-days bonuses on a new session. */
 export async function applyVisitBonus(
   visitorId: string,
-  info: { isReturning: boolean; previousLastSeenAt: string | null }
+  info: { isReturning: boolean; previousLastSeenAt: string | null },
+  siteId: string
 ): Promise<void> {
   if (!info.isReturning) return;
   try {
-    const rules = await getRules();
+    const rules = await getRules(siteId);
     let points = rules["bonus:repeat_visit"] ?? 10;
     if (info.previousLastSeenAt) {
       const days = (Date.now() - new Date(info.previousLastSeenAt).getTime()) / 86_400_000;
       if (days <= 7) points += rules["bonus:return_within_7_days"] ?? 10;
     }
-    await addIntentPoints(visitorId, points);
+    await addIntentPoints(visitorId, points, siteId);
   } catch (err) {
     log("applyVisitBonus", err);
   }

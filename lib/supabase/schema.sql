@@ -446,6 +446,77 @@ create index if not exists push_subscriptions_visitor_id_idx on push_subscriptio
 alter table push_subscriptions enable row level security;
 create policy "Authenticated users can CRUD push_subscriptions" on push_subscriptions for all using (auth.role() = 'authenticated');
 
+-- ── Sites (Phase 17, Wave 10 — Multi-Tenant Embed) ──────────────────────────
+-- Public embeddable identity for a website using the tracking SDK. KVL's own
+-- marketing site is bootstrapped as 'kvl-default' below so every existing
+-- single-tenant row/behavior keeps working with zero changes after this
+-- migration. `domains` empty = no Origin restriction — used only by the
+-- bootstrap site (served same-origin from this app); any other site must
+-- register real domains and is strictly enforced (see lib/sites/http.ts).
+create table if not exists sites (
+  id           bigserial primary key,
+  site_id      text unique not null,
+  name         text not null default '',
+  owner_email  text default '',
+  domains      text[] not null default '{}',
+  active       boolean not null default true,
+  created_at   timestamptz default now()
+);
+alter table sites enable row level security;
+create policy "Authenticated users can CRUD sites" on sites for all using (auth.role() = 'authenticated');
+
+insert into sites (site_id, name, domains) values
+  ('kvl-default', 'KVL CRM (default)', '{}')
+on conflict (site_id) do nothing;
+
+-- ── site_id columns (Phase 17, Wave 10) ─────────────────────────────────────
+-- Every column defaults to 'kvl-default' so existing rows and any code path
+-- that doesn't yet pass a siteId keep behaving exactly as before this
+-- migration — nothing here is a required change for current single-tenant
+-- behavior to keep working. Only the human/derived-string keys below
+-- (campaign_key, url_path, rule_key, setting_key) get a real composite-unique
+-- constraint — visitor_id/session_id stay globally unique as generated
+-- (random hex, effectively collision-free across any number of sites; giving
+-- them a composite key too would force composite-FK surgery on every table
+-- that references them, for no real benefit).
+alter table visitors               add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table visitor_sessions       add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table visitor_events         add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table tracking_consents      add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table campaigns              add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table campaign_touchpoints   add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table landing_pages          add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table visitor_identity_links add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table intent_scoring_rules   add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table acquisition_settings   add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table push_subscriptions     add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+alter table leads                  add column if not exists site_id text not null default 'kvl-default' references sites(site_id);
+
+create index if not exists visitors_site_id_idx  on visitors (site_id);
+create index if not exists campaigns_site_id_idx on campaigns (site_id);
+create index if not exists leads_site_phone_idx  on leads (site_id, phone);
+create index if not exists leads_site_email_idx  on leads (site_id, email);
+
+-- Composite-unique on the human/derived-string keys — drop the old
+-- single-column unique constraint (Postgres's default auto-generated name
+-- for an inline `unique` column), add the composite one. `if exists` /
+-- `if not exists` throughout keeps this idempotent and safe to re-run.
+alter table campaigns drop constraint if exists campaigns_campaign_key_key;
+alter table campaigns add constraint campaigns_site_campaign_key_unique unique (site_id, campaign_key);
+drop index if exists campaigns_campaign_key_idx;
+create index if not exists campaigns_site_campaign_key_idx on campaigns (site_id, campaign_key);
+
+alter table landing_pages drop constraint if exists landing_pages_url_path_key;
+alter table landing_pages add constraint landing_pages_site_url_path_unique unique (site_id, url_path);
+drop index if exists landing_pages_url_path_idx;
+create index if not exists landing_pages_site_url_path_idx on landing_pages (site_id, url_path);
+
+alter table intent_scoring_rules drop constraint if exists intent_scoring_rules_rule_key_key;
+alter table intent_scoring_rules add constraint intent_scoring_rules_site_rule_key_unique unique (site_id, rule_key);
+
+alter table acquisition_settings drop constraint if exists acquisition_settings_setting_key_key;
+alter table acquisition_settings add constraint acquisition_settings_site_setting_key_unique unique (site_id, setting_key);
+
 -- ── updated_at auto-trigger ────────────────────────────────────────────────
 create or replace function set_updated_at()
 returns trigger language plpgsql as $$

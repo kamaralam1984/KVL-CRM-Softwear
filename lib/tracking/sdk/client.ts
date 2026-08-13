@@ -1,7 +1,8 @@
 // Phase 17 — Lead Intelligence & Acquisition Engine, Wave 1 (Foundation)
 // Lightweight first-party tracking SDK.
 //
-//   kvlAnalytics.init()
+//   kvlAnalytics.init()                    // KVL's own site — defaults to DEFAULT_SITE_ID
+//   kvlAnalytics.init("KVL-SITE-XXXXXXXX") // an embedded client site (Wave 10)
 //   kvlAnalytics.page()
 //   kvlAnalytics.track("cta_click", { location: "hero" })
 //   kvlAnalytics.identify({ email, phone, name })   // only after voluntary submission
@@ -21,6 +22,11 @@ const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 const FLUSH_INTERVAL_MS = 4000;
 const BATCH_SIZE = 10;
 const MAX_RETRIES = 3;
+
+// Wave 10 (Multi-Tenant Embed) — matches lib/sites/store.ts's DEFAULT_SITE_ID.
+// Duplicated as a literal rather than imported: this file ships to the
+// browser, and lib/sites/store.ts pulls in the server-only Supabase client.
+const DEFAULT_SITE_ID = "kvl-default";
 
 interface SessionState {
   sessionId: string;
@@ -58,6 +64,7 @@ class KvlAnalytics {
   private initialized = false;
   private trackingDisabled = false;
   private visitorId = "";
+  private siteId = DEFAULT_SITE_ID;
   private session: SessionState | null = null;
   private queue: QueuedEvent[] = [];
   private lastPageUrl = "";
@@ -68,9 +75,10 @@ class KvlAnalytics {
     return localStorage.getItem(CONSENT_KEY) !== "denied";
   }
 
-  init(): void {
+  init(siteId?: string): void {
     if (!isBrowser() || this.initialized) return;
     this.initialized = true;
+    this.siteId = siteId?.trim() || DEFAULT_SITE_ID;
 
     this.visitorId = localStorage.getItem(VISITOR_KEY) || generateVisitorId();
     localStorage.setItem(VISITOR_KEY, this.visitorId);
@@ -95,7 +103,7 @@ class KvlAnalytics {
    */
   private async loadTrackingConfig(): Promise<void> {
     try {
-      const res = await fetch("/api/analytics/config");
+      const res = await fetch(`/api/analytics/config?site_id=${encodeURIComponent(this.siteId)}`);
       if (!res.ok) return;
       const data = await res.json();
       this.trackingDisabled = data.trackingEnabled === false;
@@ -129,6 +137,7 @@ class KvlAnalytics {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         visitor_id: this.visitorId,
+        site_id: this.siteId,
         session_id: this.session?.sessionId,
         page_url: window.location.href,
         traits,
@@ -137,10 +146,14 @@ class KvlAnalytics {
     }).catch(() => {});
   }
 
-  /** Public read-only accessor — needed by growth-channel components (push opt-in,
-   * Truecaller redirect state) that must reference the visitor_id outside identify()/track(). */
+  /** Public read-only accessors — needed by growth-channel components (push opt-in,
+   * Truecaller redirect state) that must reference these outside identify()/track(). */
   getVisitorId(): string {
     return this.visitorId;
+  }
+
+  getSiteId(): string {
+    return this.siteId;
   }
 
   setConsent(status: "granted" | "denied", categories: Record<string, unknown> = {}): void {
@@ -149,7 +162,7 @@ class KvlAnalytics {
     fetch("/api/analytics/consent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visitor_id: this.visitorId, status, categories }),
+      body: JSON.stringify({ visitor_id: this.visitorId, site_id: this.siteId, status, categories }),
       keepalive: true,
     }).catch(() => {});
   }
@@ -212,6 +225,7 @@ class KvlAnalytics {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           visitor_id: this.visitorId,
+          site_id: this.siteId,
           session_id: this.session.sessionId,
           phase: "start",
           page_url: window.location.href,
@@ -240,6 +254,7 @@ class KvlAnalytics {
 
     const payload = JSON.stringify({
       visitor_id: this.visitorId,
+      site_id: this.siteId,
       session_id: this.session?.sessionId,
       events: batch.map((e) => ({ name: e.name, page_url: e.page_url, properties: e.properties, ts: e.ts })),
     });
@@ -278,6 +293,7 @@ class KvlAnalytics {
     try {
       const payload = JSON.stringify({
         visitor_id: this.visitorId,
+        site_id: this.siteId,
         session_id: this.session.sessionId,
         phase: "end",
         exit_page: window.location.href,

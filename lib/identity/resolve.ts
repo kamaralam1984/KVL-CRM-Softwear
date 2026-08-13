@@ -42,12 +42,15 @@ export function initials(name: string): string {
   );
 }
 
-export async function resolveIdentity(input: {
-  visitorId: string;
-  name: string;
-  email: string;
-  phone: string;
-}): Promise<IdentityResolution | null> {
+export async function resolveIdentity(
+  input: {
+    visitorId: string;
+    name: string;
+    email: string;
+    phone: string;
+  },
+  siteId: string
+): Promise<IdentityResolution | null> {
   const email = input.email.trim();
   const phone = normalizePhone(input.phone);
   if (!email && !phone) return null; // name alone isn't enough to create/merge a lead
@@ -56,10 +59,14 @@ export async function resolveIdentity(input: {
     const db = getServerClient();
 
     // Idempotent: a visitor already resolved to a lead stays resolved to it.
+    // Scoped by site_id too (gap-check hardening) — a visitor_id presented by
+    // a different site than the one that originally created this link must
+    // not short-circuit into returning another site's lead id.
     const { data: existingLink } = await db
       .from("visitor_identity_links")
       .select("lead_id, matched_on")
       .eq("visitor_id", input.visitorId)
+      .eq("site_id", siteId)
       .maybeSingle();
     if (existingLink) {
       return { leadId: existingLink.lead_id as number, matchedOn: existingLink.matched_on };
@@ -68,15 +75,20 @@ export async function resolveIdentity(input: {
     let leadId: number | null = null;
     let matchedOn: "phone" | "email" | "new" = "new";
 
+    // Wave 10 — scoped to site_id: two different sites' customers sharing a
+    // phone/email must never silently merge into one lead. Matching is
+    // deliberately restricted to leads already tagged with this same site
+    // (manually-created/legacy leads default to 'kvl-default' too, so this
+    // stays exactly backward-compatible for the bootstrap site).
     if (phone) {
-      const { data } = await db.from("leads").select("id").eq("phone", phone).maybeSingle();
+      const { data } = await db.from("leads").select("id").eq("site_id", siteId).eq("phone", phone).maybeSingle();
       if (data) {
         leadId = data.id as number;
         matchedOn = "phone";
       }
     }
     if (!leadId && email) {
-      const { data } = await db.from("leads").select("id").ilike("email", email).maybeSingle();
+      const { data } = await db.from("leads").select("id").eq("site_id", siteId).ilike("email", email).maybeSingle();
       if (data) {
         leadId = data.id as number;
         matchedOn = "email";
@@ -84,7 +96,7 @@ export async function resolveIdentity(input: {
     }
 
     if (!leadId) {
-      const attribution = (await getVisitorAttribution(input.visitorId)) ?? { source: "", campaign: "" };
+      const attribution = (await getVisitorAttribution(input.visitorId, siteId)) ?? { source: "", campaign: "" };
       const name = input.name.trim() || email || phone;
       const extraTag = sourceTag(attribution.source);
       const tags = extraTag ? ["Acquisition Engine", extraTag] : ["Acquisition Engine"];
@@ -106,6 +118,7 @@ export async function resolveIdentity(input: {
         source: attribution.source,
         campaign: attribution.campaign,
         visitor_id: input.visitorId,
+        site_id: siteId,
       });
       leadId = created.id;
       matchedOn = "new";
@@ -117,6 +130,7 @@ export async function resolveIdentity(input: {
 
     await db.from("visitor_identity_links").insert({
       visitor_id: input.visitorId,
+      site_id: siteId,
       lead_id: leadId,
       matched_on: matchedOn,
     });

@@ -14,7 +14,7 @@ import { intentTone, timeAgo } from "./VisitorsTab";
 const ACTIVE_WINDOW_MS = 5 * 60_000;
 const POLL_INTERVAL_MS = 15_000;
 
-export default function LiveActivityTab() {
+export default function LiveActivityTab({ siteId }: { siteId?: string } = {}) {
   const [active, setActive] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,7 +22,7 @@ export default function LiveActivityTab() {
     let cancelled = false;
 
     function load() {
-      getVisitors()
+      getVisitors(siteId)
         .then((v) => {
           if (cancelled) return;
           const now = Date.now();
@@ -39,7 +39,7 @@ export default function LiveActivityTab() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, []);
+  }, [siteId]);
 
   const columns: Column<Visitor>[] = [
     { key: "visitor_id", label: "Visitor", weight: 1.3, render: (v) => <span className="font-mono text-[11px] text-slate-300">{v.visitor_id}</span> },

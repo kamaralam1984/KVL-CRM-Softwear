@@ -6,6 +6,7 @@ import type { Lead } from "@/lib/actions/leads";
 function makeCampaign(overrides: Partial<Campaign> = {}): Campaign {
   return {
     id: 1,
+    site_id: "kvl-default",
     campaign_key: "google:diwali_sale",
     name: "diwali_sale",
     source: "google",
@@ -84,6 +85,7 @@ describe("computeCampaignRoi", () => {
 function makeTouchpoint(overrides: Partial<CampaignTouchpoint> = {}): CampaignTouchpoint {
   return {
     id: 1,
+    site_id: "kvl-default",
     visitor_id: "KV-V-TEST",
     session_id: null,
     campaign_id: 1,

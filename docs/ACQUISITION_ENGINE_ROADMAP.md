@@ -200,3 +200,107 @@ the existing `resolveIdentity()` pipeline rather than inventing parallel lead-cr
 `intent_scoring_rules` gained `event:quiz_completed` and `event:push_subscribed` —
 no code change needed for scoring, since `applyEventPoints()` (`lib/intent/score.ts`)
 already looks up `event:<name>` generically for any tracked event name.
+
+---
+
+## 7. Wave 10 — Multi-Tenant Embed
+
+Turns the tracking SDK from single-tenant (only KVL's own marketing site) into
+multi-tenant: any client website can embed a script tag with its own **Site ID** and
+get isolated visitor/lead/campaign data inside this same KVL CRM instance — the
+`<script src=".../kvl-analytics.js" data-site-id="YOUR_SITE_ID" async>` roadmap item
+this doc's earlier PDF guide described as "Kal — Roadmap" is now built.
+
+**Not the white-label `Tenant`.** `lib/whitelabel/*` (Phase 13/14) is an unrelated,
+localStorage-only branding/reseller concept (other businesses reselling KVL CRM under
+their own logo) with zero server persistence and no data-isolation mechanism. Wave 10's
+`sites` table (`lib/sites/`) is a deliberately distinct, new concept — never conflate the two.
+
+**Backward compatibility, by construction.** A bootstrap site (`site_id = 'kvl-default'`)
+is seeded once; every new `site_id` column across the 12 Phase 17 tables is
+`not null default 'kvl-default'`. Every existing row and every existing code path that
+doesn't yet pass a `siteId` keeps behaving exactly as before this migration — nothing
+here required a breaking change for current single-tenant behavior.
+
+**Composite-unique only where collision is real.** `visitors.visitor_id` and
+`visitor_sessions.session_id` stay globally unique as generated (random hex, 48 bits of
+entropy — collision-free across any realistic number of sites). Composite-`(site_id, key)`
+uniqueness was only added to the four **human/derived-string** keys that two different
+sites could plausibly reuse: `campaigns.campaign_key`, `landing_pages.url_path`,
+`intent_scoring_rules.rule_key`, `acquisition_settings.setting_key`. This avoided forcing
+composite-FK surgery across every table that references `visitors(visitor_id)` for no
+real correctness benefit.
+
+**The actual bug this wave fixes:** `resolveIdentity()`'s phone/email dedup query had no
+isolation boundary. Once multiple sites share the `leads` table, two different sites'
+customers with the same phone number would have silently merged into one lead — a real
+cross-tenant data leak. Dedup is now scoped to `site_id` (`lib/identity/resolve.ts`).
+
+**Leads stay a unified, cross-site view in the core CRM.** `getLeads()` (the main Leads
+section) is intentionally **not** filtered by site — a business managing several client
+sites' leads in one CRM is a feature, not a bug. The Acquisition Engine dashboard's own
+site filter narrows leads client-side (by visitor_id membership in the already-filtered
+visitor list) rather than adding a site_id filter to `getLeads()` itself.
+
+**Read vs. write scoping.** Dashboard-facing `getX()` actions (`getVisitors`,
+`getCampaigns`, `getVisitorSessions`, `getTouchpointsByVisitorIds`) gained an *optional*
+`siteId` param — omitted means "every site" (today's exact default). Write paths
+(`lib/tracking/store.ts`, `resolveIdentity`, the attribution resolvers) always receive a
+real, request-validated `siteId` from `lib/sites/http.ts`'s `resolveSiteFromRequest()`.
+
+**CORS.** Zero CORS infrastructure existed anywhere in this codebase before Wave 10 —
+every `/api/analytics/*` route was implicitly same-origin-only. Every route now has an
+`OPTIONS` handler and `corsHeaders()` on every response; the bootstrap site's `domains`
+stays empty (unrestricted — it's served same-origin from this app), any other site must
+register real domains and is strictly enforced.
+
+**Scope boundaries, documented not hidden:**
+- The Admin Panel's existing Acquisition Engine settings (tracking kill-switch, intent
+  scoring rules, missed-call number) stay scoped to the default/KVL site only — other
+  sites simply inherit `lib/intent/rules.ts`'s in-code `DEFAULT_RULES` and don't yet have
+  per-site settings UI. A new site works correctly with sensible defaults from day one.
+- The Truecaller One-Tap and Missed-Call growth channels (Wave 9) are hardcoded to the
+  default site — both are either a React component that only renders on KVL's own site
+  today (`TruecallerButton`) or tied to one global admin-configured number
+  (`missed_call_number`), neither embeddable on a third-party site yet.
+- `public/kvl-embed.js` is a hand-written, dependency-free vanilla-JS reimplementation of
+  `lib/tracking/sdk/client.ts`'s core subset (no bundler exists to share code between a
+  React SDK and a standalone script) — keep both in sync by hand when either changes.
+
+## 8. Post-Wave-10 gap check
+
+An independent audit pass (own review + a dispatched agent, not trusting this doc's own
+claims) found real gaps, all fixed:
+
+- **Dashboard site filter didn't reach every tab.** `LiveActivityTab` did its own
+  independent `getVisitors()` fetch, ignoring the site-switcher — selecting a specific
+  site still showed every site's live visitors there. **Fixed**: takes a `siteId` prop.
+- **Push broadcast crossed tenants.** `sendPushBroadcast`/`getPushSubscriberCount`
+  queried every site's subscribers globally — an Admin-Panel-triggered broadcast would
+  have reached other embedded sites' opted-in visitors too. **Fixed**: both take an
+  optional `siteId`; the Admin Panel explicitly scopes to the default site.
+- **Sites actions invisible in the audit log.** `SitesManagementCard` logs `sites.*`
+  entries, but the "Recent Changes" card's resource filter didn't include `"sites"`.
+  **Fixed**: added to `ACQUISITION_AUDIT_RESOURCES`.
+- **Write-path row mutations weren't re-validated against the caller's own site.**
+  `upsertVisitor`/`recordSessionStart`'s read-modify-write update branches,
+  `recordSessionEnd`, `markVisitorIdentified`, `getVisitorAttribution`, and
+  `recordConsent`'s second update all filtered only by `visitor_id`/`session_id` — never
+  `site_id`. Decision 2 above argued these IDs are collision-free *by construction*, which
+  is true, but doesn't mean a different site presenting a leaked/guessed ID couldn't still
+  mutate another site's row — collision-resistance and cross-tenant-tamper-resistance are
+  different properties. `resolveIdentity()`'s own idempotent "already resolved" check had
+  the identical gap despite being the file whose Wave 10 comment specifically claims to
+  fix this class of bug. **Fixed**: every one of these now filters by `site_id` too — a
+  mismatched site makes the row invisible to the request instead of writable.
+- **`public/kvl-embed.js` had two real behavioral gaps vs `client.ts`, not just the
+  documented "smaller hand-written subset":** no page-view tracking on client-side route
+  changes (a third-party SPA would only ever record one page_view for an entire visit),
+  and no 30-minute session-timeout/reissue (an idle tab stayed one session forever,
+  skewing `applyVisitBonus`'s returning-visitor scoring). **Fixed**: added
+  `history.pushState`/`replaceState` patching + `popstate` tracking, and an
+  `ensureSession()`/`touchSession()` pair mirroring `client.ts`'s.
+- **Site domain entries had no normalization.** A trailing slash (e.g. `https://acme.com/`)
+  would silently make `isOriginAllowed()`'s exact-string match reject every real request
+  from that domain, since a browser's `Origin` header never has one. **Fixed**: `createSite`
+  strips trailing slashes.

@@ -11,8 +11,10 @@ import { getCampaigns } from "@/lib/actions/campaigns";
 import { getLeads, type Lead } from "@/lib/actions/leads";
 import { getVisitorSessions } from "@/lib/actions/sessions";
 import { getTouchpointsByVisitorIds } from "@/lib/actions/touchpoints";
+import { listSites } from "@/lib/actions/sites";
 import type { Visitor, VisitorSession } from "@/lib/tracking/types";
 import type { Campaign, CampaignTouchpoint } from "@/lib/attribution/types";
+import type { Site } from "@/lib/sites/types";
 import OverviewTab from "./acquisition/OverviewTab";
 import VisitorsTab from "./acquisition/VisitorsTab";
 import CampaignsTab from "./acquisition/CampaignsTab";
@@ -31,6 +33,8 @@ const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
 
 export default function AcquisitionOverview() {
   const [tab, setTab] = useState<Tab>("overview");
+  const [sites, setSites] = useState<Site[]>([]);
+  const [siteId, setSiteId] = useState<string>(""); // "" = All Sites
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -39,18 +43,31 @@ export default function AcquisitionOverview() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getVisitors(), getCampaigns(), getLeads(), getVisitorSessions()])
-      .then(async ([v, c, l, s]) => {
+    listSites().then(setSites).catch(() => setSites([]));
+  }, []);
+
+  useEffect(() => {
+    const filter = siteId || undefined;
+    Promise.all([getVisitors(filter), getCampaigns(filter), getLeads(), getVisitorSessions(filter)])
+      .then(async ([v, c, allLeads, s]) => {
         setVisitors(v);
         setCampaigns(c);
-        setLeads(l);
         setSessions(s);
+
+        // getLeads() stays a global, cross-site view by design (the core CRM's
+        // Leads section shows every lead regardless of site — see
+        // docs/ACQUISITION_ENGINE_ROADMAP.md Wave 10). When a specific site is
+        // selected here, narrow to leads tied to that site's own visitors —
+        // computed from the already-filtered visitor list rather than adding a
+        // site_id filter to getLeads() itself, so the core CRM stays untouched.
+        const l = filter ? allLeads.filter((lead) => lead.visitor_id && v.some((vis) => vis.visitor_id === lead.visitor_id)) : allLeads;
+        setLeads(l);
 
         // Bounded — only visitors behind a Closed lead matter for attribution ROI.
         const closedVisitorIds = Array.from(
           new Set(l.filter((lead) => lead.visitor_id && lead.stage === "Closed").map((lead) => lead.visitor_id as string))
         );
-        const touchpoints = await getTouchpointsByVisitorIds(closedVisitorIds);
+        const touchpoints = await getTouchpointsByVisitorIds(closedVisitorIds, filter);
         const grouped = new Map<string, CampaignTouchpoint[]>();
         for (const t of touchpoints) {
           if (!grouped.has(t.visitor_id)) grouped.set(t.visitor_id, []);
@@ -59,7 +76,7 @@ export default function AcquisitionOverview() {
         setTouchpointsByVisitor(grouped);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [siteId]);
 
   return (
     <div className="p-5 h-full overflow-y-auto space-y-4">
@@ -67,7 +84,25 @@ export default function AcquisitionOverview() {
         title="Visitor Intelligence"
         subtitle="Anonymous visitors, campaigns and live activity captured by the tracking SDK — the Acquisition Engine"
         actions={
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-crm-border">
+          <div className="flex items-center gap-2">
+            {sites.length > 0 && (
+              <select
+                value={siteId}
+                onChange={(e) => {
+                  setLoading(true);
+                  setSiteId(e.target.value);
+                }}
+                className="bg-white/[0.03] border border-crm-border rounded-xl px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-blue-500/50"
+              >
+                <option value="">All Sites</option>
+                {sites.map((s) => (
+                  <option key={s.site_id} value={s.site_id}>
+                    {s.name || s.site_id}
+                  </option>
+                ))}
+              </select>
+            )}
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-crm-border">
             {tabs.map((t) => {
               const Icon = t.icon;
               return (
@@ -83,6 +118,7 @@ export default function AcquisitionOverview() {
                 </button>
               );
             })}
+            </div>
           </div>
         }
       />
@@ -99,7 +135,7 @@ export default function AcquisitionOverview() {
         />
       )}
       {tab === "pages" && <LandingPagesTab sessions={sessions} leads={leads} loading={loading} />}
-      {tab === "live" && <LiveActivityTab />}
+      {tab === "live" && <LiveActivityTab siteId={siteId || undefined} />}
     </div>
   );
 }

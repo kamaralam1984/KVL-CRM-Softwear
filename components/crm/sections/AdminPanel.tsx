@@ -18,8 +18,11 @@ import { getAcquisitionSettings, updateAcquisitionSetting } from "@/lib/actions/
 import { getIntentRules, updateIntentRule, type IntentRuleRow } from "@/lib/actions/intentRules";
 import { logAudit, getAuditLog, type AuditEntry } from "@/lib/security/audit";
 import { getPushSubscriberCount, sendPushBroadcast } from "@/lib/actions/pushNotifications";
+import { listSites, createSite, setSiteActive } from "@/lib/actions/sites";
+import { DEFAULT_SITE_ID } from "@/lib/sites/store";
+import type { Site } from "@/lib/sites/types";
 
-const ACQUISITION_AUDIT_RESOURCES = new Set(["acquisition_settings", "intent_scoring_rules"]);
+const ACQUISITION_AUDIT_RESOURCES = new Set(["acquisition_settings", "intent_scoring_rules", "sites"]);
 
 /** Reads the same "crm_user" localStorage key app/page.tsx uses for session restore. */
 function currentActor(): string {
@@ -212,7 +215,7 @@ function AcquisitionSettingsCard() {
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
 
   function refreshSubscriberCount() {
-    getPushSubscriberCount().then(setSubscriberCount);
+    getPushSubscriberCount(DEFAULT_SITE_ID).then(setSubscriberCount);
   }
 
   async function handleBroadcast() {
@@ -220,7 +223,7 @@ function AcquisitionSettingsCard() {
     setSending(true);
     setBroadcastResult(null);
     try {
-      const result = await sendPushBroadcast(broadcast.title, broadcast.body, broadcast.url);
+      const result = await sendPushBroadcast(broadcast.title, broadcast.body, broadcast.url, DEFAULT_SITE_ID);
       if (!result.configured) {
         setBroadcastResult("Not configured — set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY to enable sending.");
       } else {
@@ -419,6 +422,125 @@ function AcquisitionSettingsCard() {
   );
 }
 
+/* Phase 17 — Lead Intelligence & Acquisition Engine, Wave 10 (Multi-Tenant Embed) */
+function SitesManagementCard() {
+  const [sites, setSites] = useState<Site[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ name: "", ownerEmail: "", domains: "" });
+  const [creating, setCreating] = useState(false);
+  const [newSnippet, setNewSnippet] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function refresh() {
+    listSites()
+      .then(setSites)
+      .catch(() => setSites([]))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  async function handleCreate() {
+    if (!form.name.trim()) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const domains = form.domains.split(",").map((d) => d.trim()).filter(Boolean);
+      const site = await createSite({ name: form.name, ownerEmail: form.ownerEmail, domains });
+      logAudit({ actor: currentActor(), action: "sites.create", resource: "sites", detail: `Created "${site.name}" (${site.site_id})` });
+      setNewSnippet(`<script src="${window.location.origin}/kvl-embed.js" data-site-id="${site.site_id}" async></script>`);
+      setForm({ name: "", ownerEmail: "", domains: "" });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create site");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function toggleActive(site: Site) {
+    setSites((prev) => prev.map((s) => (s.site_id === site.site_id ? { ...s, active: !s.active } : s)));
+    try {
+      await setSiteActive(site.site_id, !site.active);
+      logAudit({ actor: currentActor(), action: "sites.update", resource: "sites", detail: `${site.site_id} → ${!site.active ? "active" : "inactive"}` });
+    } catch {
+      refresh();
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <Card title="Add a Site" icon={Globe}>
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">
+            Each site gets its own embeddable Site ID — visitors, leads, and campaigns tracked on it stay isolated from every other site (including KVL&apos;s own).
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <input
+              type="text"
+              placeholder="Site name (e.g. Acme Corp)"
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/50"
+            />
+            <input
+              type="email"
+              placeholder="Owner email (optional)"
+              value={form.ownerEmail}
+              onChange={(e) => setForm((p) => ({ ...p, ownerEmail: e.target.value }))}
+              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/50"
+            />
+          </div>
+          <input
+            type="text"
+            placeholder="Allowed domains, comma-separated (e.g. https://acme.com, https://www.acme.com)"
+            value={form.domains}
+            onChange={(e) => setForm((p) => ({ ...p, domains: e.target.value }))}
+            className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/50"
+          />
+          <button
+            onClick={handleCreate}
+            disabled={creating || !form.name.trim()}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+          >
+            {creating ? "Creating…" : "Create Site"}
+          </button>
+          {error && <p className="text-xs text-rose-400">{error}</p>}
+          {newSnippet && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+              <p className="text-xs text-emerald-300 mb-1.5">Site created — embed this on the client&apos;s website:</p>
+              <code className="block text-[11px] text-slate-300 font-mono break-all">{newSnippet}</code>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card title="Sites" icon={Radar}>
+        {loading ? (
+          <p className="text-xs text-slate-500">Loading…</p>
+        ) : sites.length === 0 ? (
+          <p className="text-xs text-slate-500">No sites yet — the default KVL site is bootstrapped automatically and doesn&apos;t appear here.</p>
+        ) : (
+          <div className="space-y-1">
+            {sites.map((site) => (
+              <div key={site.site_id} className="flex items-center justify-between py-2.5 border-b border-white/[0.04] last:border-0 gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-200 truncate">{site.name || site.site_id}</p>
+                  <p className="text-[10px] font-mono text-slate-500 truncate">{site.site_id}</p>
+                  <p className="text-[10px] text-slate-600 truncate">{site.domains.length ? site.domains.join(", ") : "no domains registered"}</p>
+                </div>
+                <Toggle on={site.active} onChange={() => toggleActive(site)} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════
    MAIN ADMIN PANEL
 ═══════════════════════════════════════════ */
@@ -428,7 +550,7 @@ export default function AdminPanel() {
   const [perms, setPerms]     = useState<RolePermissions>(() => loadPermissions());
   const [logs, setLogs]       = useState<ActivityEntry[]>(() => loadLogs());
   const [saved, setSaved]     = useState(false);
-  const [tab, setTab]         = useState<"overview"|"users"|"roles"|"logs"|"features"|"plans"|"acquisition"|"system">("overview");
+  const [tab, setTab]         = useState<"overview"|"users"|"roles"|"logs"|"features"|"plans"|"acquisition"|"sites"|"system">("overview");
 
   /* user modal state */
   const [userModal, setUserModal] = useState<{ mode: "create"|"edit"; user: Partial<ManagedUser>|null }|null>(null);
@@ -459,6 +581,7 @@ export default function AdminPanel() {
     { id: "features",  label: "Features",         icon: Zap },
     { id: "plans",     label: "SaaS Plans",       icon: Package },
     { id: "acquisition", label: "Acquisition Engine", icon: Radar },
+    { id: "sites", label: "Sites", icon: Globe },
     { id: "system",    label: "System",           icon: Settings },
   ] as const;
 
@@ -929,6 +1052,8 @@ export default function AdminPanel() {
 
           {/* ══════════════ SYSTEM ══════════════ */}
           {tab === "acquisition" && <AcquisitionSettingsCard />}
+
+          {tab === "sites" && <SitesManagementCard />}
 
           {tab === "system" && (
             <div className="space-y-5">

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuthorizationCode } from "@/lib/integrations/truecaller";
 import { resolveIdentity } from "@/lib/identity/resolve";
 import { markVisitorIdentified } from "@/lib/tracking/store";
+import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import { isValidId } from "../shared";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +31,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(redirectTo);
   }
 
-  await markVisitorIdentified(state);
-  await resolveIdentity({ visitorId: state, name: profile.name, email: "", phone: profile.phone });
+  // Wave 10 — TruecallerButton only renders on KVL's own site today (a React
+  // component, not part of the standalone embed script), so this flow is
+  // hardcoded to the default site rather than threading site_id through the
+  // OAuth `state` param for a feature that can't yet run anywhere else.
+  await markVisitorIdentified(state, DEFAULT_SITE_ID);
+  await resolveIdentity({ visitorId: state, name: profile.name, email: "", phone: profile.phone }, DEFAULT_SITE_ID);
 
   redirectTo.searchParams.set("truecaller", "verified");
   return NextResponse.redirect(redirectTo);

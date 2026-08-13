@@ -62,7 +62,11 @@ export default function PushOptIn() {
       await fetch("/api/analytics/push-subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitor_id: kvlAnalytics.getVisitorId(), subscription: subscription.toJSON() }),
+        body: JSON.stringify({
+          visitor_id: kvlAnalytics.getVisitorId(),
+          site_id: kvlAnalytics.getSiteId(),
+          subscription: subscription.toJSON(),
+        }),
         keepalive: true,
       });
       kvlAnalytics.track("push_subscribed");

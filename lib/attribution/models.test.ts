@@ -11,7 +11,7 @@ import type { CampaignTouchpoint } from "./types";
 
 function touchpoint(id: number, campaignId: number, daysAgo: number): CampaignTouchpoint {
   const occurred = new Date(Date.now() - daysAgo * 86_400_000).toISOString();
-  return { id, visitor_id: "KV-V-TEST", session_id: null, campaign_id: campaignId, source: "test", medium: "test", campaign: `c${campaignId}`, occurred_at: occurred };
+  return { id, site_id: "kvl-default", visitor_id: "KV-V-TEST", session_id: null, campaign_id: campaignId, source: "test", medium: "test", campaign: `c${campaignId}`, occurred_at: occurred };
 }
 
 function sumWeights(credits: { weight: number }[]): number {

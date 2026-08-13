@@ -18,7 +18,10 @@ function campaignKey(source: string, campaign: string): string {
  * a campaign entity — source-level reporting instead reads source/medium
  * directly off campaign_touchpoints).
  */
-export async function resolveCampaign(input: { source: string; medium: string; campaign: string }): Promise<number | null> {
+export async function resolveCampaign(
+  input: { source: string; medium: string; campaign: string },
+  siteId: string
+): Promise<number | null> {
   const campaign = input.campaign.trim();
   if (!campaign) return null;
 
@@ -30,11 +33,13 @@ export async function resolveCampaign(input: { source: string; medium: string; c
     // Atomic upsert — avoids the select-then-insert race where two concurrent
     // first-sightings of the same new campaign both see "not found" and one
     // insert loses to a unique-constraint error (Wave 8 gap-check hardening).
+    // campaign_key alone is no longer globally unique (Wave 10) — the DB
+    // constraint and this upsert's conflict target are both (site_id, campaign_key).
     const { data, error } = await db
       .from("campaigns")
       .upsert(
-        { campaign_key: key, name: campaign, source: input.source, medium: input.medium, last_seen_at: now },
-        { onConflict: "campaign_key" }
+        { site_id: siteId, campaign_key: key, name: campaign, source: input.source, medium: input.medium, last_seen_at: now },
+        { onConflict: "site_id,campaign_key" }
       )
       .select("id")
       .single();

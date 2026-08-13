@@ -2,6 +2,7 @@
 
 export interface Campaign {
   id: number;
+  site_id: string;
   campaign_key: string;
   name: string;
   source: string;
@@ -18,6 +19,7 @@ export interface Campaign {
 
 export interface CampaignTouchpoint {
   id: number;
+  site_id: string;
   visitor_id: string;
   session_id: string | null;
   campaign_id: number | null;
@@ -29,6 +31,7 @@ export interface CampaignTouchpoint {
 
 export interface LandingPageStat {
   id: number;
+  site_id: string;
   url_path: string;
   hits: number;
   first_seen_at: string;

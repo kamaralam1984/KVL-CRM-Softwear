@@ -28,10 +28,10 @@ export const DEFAULT_RULES: Record<string, number> = {
   "threshold:very_hot": 81,
 };
 
-export async function getRules(): Promise<Record<string, number>> {
+export async function getRules(siteId: string): Promise<Record<string, number>> {
   try {
     const db = getServerClient();
-    const { data } = await db.from("intent_scoring_rules").select("rule_key, points");
+    const { data } = await db.from("intent_scoring_rules").select("rule_key, points").eq("site_id", siteId);
     if (!data || !data.length) return DEFAULT_RULES;
     const merged = { ...DEFAULT_RULES };
     for (const row of data as { rule_key: string; points: number }[]) {

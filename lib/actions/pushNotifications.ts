@@ -25,13 +25,17 @@ function vapidConfigured(): boolean {
   return !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
 }
 
-export async function getPushSubscriberCount(): Promise<number> {
+// Wave 10 — siteId is optional: omitted means "every site" (today's exact
+// behavior, since push subscriptions predate multi-tenancy). Pass it to scope
+// a broadcast to one site's own subscribers only — without this, a broadcast
+// triggered from the (site-unaware) Admin Panel Growth Channels card would
+// also reach every other embedded site's opted-in visitors.
+export async function getPushSubscriberCount(siteId?: string): Promise<number> {
   try {
     const db = getServerClient();
-    const { count } = await db
-      .from("push_subscriptions")
-      .select("id", { count: "exact", head: true })
-      .is("revoked_at", null);
+    let query = db.from("push_subscriptions").select("id", { count: "exact", head: true }).is("revoked_at", null);
+    if (siteId) query = query.eq("site_id", siteId);
+    const { count } = await query;
     return count ?? 0;
   } catch (err) {
     console.error("[push] getPushSubscriberCount failed", err);
@@ -42,7 +46,7 @@ export async function getPushSubscriberCount(): Promise<number> {
 /** sendPushBroadcast — sends the same notification to every active subscriber.
  * Self-pruning: a 404/410 send failure means the subscription is dead, so it's
  * marked revoked rather than retried on the next broadcast. */
-export async function sendPushBroadcast(title: string, body: string, url: string): Promise<PushBroadcastResult> {
+export async function sendPushBroadcast(title: string, body: string, url: string, siteId?: string): Promise<PushBroadcastResult> {
   if (!vapidConfigured()) return { configured: false, sent: 0, failed: 0 };
 
   try {
@@ -53,10 +57,9 @@ export async function sendPushBroadcast(title: string, body: string, url: string
     );
 
     const db = getServerClient();
-    const { data } = await db
-      .from("push_subscriptions")
-      .select("id, endpoint, p256dh, auth")
-      .is("revoked_at", null);
+    let query = db.from("push_subscriptions").select("id, endpoint, p256dh, auth").is("revoked_at", null);
+    if (siteId) query = query.eq("site_id", siteId);
+    const { data } = await query;
     const subs = (data as SubscriptionRow[] | null) ?? [];
 
     const payload = JSON.stringify({ title, body, url: url || "/" });

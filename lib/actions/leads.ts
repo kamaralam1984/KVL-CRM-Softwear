@@ -15,7 +15,12 @@ export async function getLeads(): Promise<Lead[]> {
   return data as Lead[];
 }
 
-export async function createLead(lead: Omit<Lead, "id">): Promise<Lead> {
+// Wave 10 — `site_id` isn't part of the base `Lead` type (derived from
+// lib/data.ts's seed shape, which predates multi-tenancy); accepted here as
+// an extra optional field so resolveIdentity() can tag tracking-originated
+// leads without widening every other Lead consumer. Omitted = DB default
+// ('kvl-default'), so manually-created leads from the core CRM UI need no changes.
+export async function createLead(lead: Omit<Lead, "id"> & { site_id?: string }): Promise<Lead> {
   const db = getServerClient();
   const { data, error } = await db
     .from("leads")

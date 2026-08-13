@@ -18,6 +18,7 @@ import { clientIp, str, plainObject } from "../../analytics/shared";
 import { recordSessionStart } from "@/lib/tracking/store";
 import { generateSessionId } from "@/lib/tracking/ids";
 import { resolveIdentity, normalizePhone } from "@/lib/identity/resolve";
+import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 
 export const dynamic = "force-dynamic";
 
@@ -54,15 +55,21 @@ export async function POST(req: NextRequest) {
     // each time.
     const visitorId = `call:${phone}`;
 
-    await recordSessionStart({
-      sessionId: generateSessionId(),
-      visitorId,
-      landingPage: "",
-      attribution: { source: "missed_call", medium: "phone", campaign: "", term: "", content: "", gclid: "", fbclid: "", msclkid: "" },
-      device: {},
-    });
+    // Wave 10 — the admin-configured missed-call number (acquisition_settings)
+    // is itself scoped to the default site only (no per-site number UI yet),
+    // so hardcoding DEFAULT_SITE_ID here matches that same scope boundary.
+    await recordSessionStart(
+      {
+        sessionId: generateSessionId(),
+        visitorId,
+        landingPage: "",
+        attribution: { source: "missed_call", medium: "phone", campaign: "", term: "", content: "", gclid: "", fbclid: "", msclkid: "" },
+        device: {},
+      },
+      DEFAULT_SITE_ID
+    );
 
-    const resolution = await resolveIdentity({ visitorId, name: "", email: "", phone: callerNumber });
+    const resolution = await resolveIdentity({ visitorId, name: "", email: "", phone: callerNumber }, DEFAULT_SITE_ID);
 
     return NextResponse.json({ ok: true, resolution });
   } catch (err) {

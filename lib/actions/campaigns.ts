@@ -3,18 +3,23 @@
 import { getServerClient } from "@/lib/supabase/server";
 import type { Campaign } from "@/lib/attribution/types";
 
-export async function getCampaigns(): Promise<Campaign[]> {
+// Wave 10 — siteId is optional: omitted means "every site" (today's exact behavior).
+export async function getCampaigns(siteId?: string): Promise<Campaign[]> {
   const db = getServerClient();
-  const { data, error } = await db
-    .from("campaigns")
-    .select("*")
-    .order("last_seen_at", { ascending: false });
+  let query = db.from("campaigns").select("*").order("last_seen_at", { ascending: false });
+  if (siteId) query = query.eq("site_id", siteId);
+  const { data, error } = await query;
 
   if (error || !data) return [];
   return data as Campaign[];
 }
 
-export async function createCampaign(campaign: Omit<Campaign, "id" | "created_at" | "updated_at">): Promise<Campaign> {
+// Wave 10 — site_id omitted from the required input (defaults to
+// 'kvl-default' at the DB level) so the existing "Add Campaign" UI needs no
+// changes; pass it explicitly only when creating a campaign for another site.
+export async function createCampaign(
+  campaign: Omit<Campaign, "id" | "created_at" | "updated_at" | "site_id"> & { site_id?: string }
+): Promise<Campaign> {
   const db = getServerClient();
   const { data, error } = await db.from("campaigns").insert(campaign).select().single();
   if (error) throw new Error(error.message);

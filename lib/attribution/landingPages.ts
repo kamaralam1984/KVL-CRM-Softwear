@@ -20,15 +20,24 @@ function normalizePath(urlOrPath: string): string {
  * under-count by one; a real atomic increment needs a Postgres RPC function,
  * which is a larger, separate change (documented in the roadmap).
  */
-export async function recordLandingPageHit(urlOrPath: string): Promise<void> {
+export async function recordLandingPageHit(urlOrPath: string, siteId: string): Promise<void> {
   try {
     const path = normalizePath(urlOrPath);
     const db = getServerClient();
     const now = new Date().toISOString();
 
-    await db.from("landing_pages").upsert({ url_path: path, hits: 0 }, { onConflict: "url_path", ignoreDuplicates: true });
+    // url_path alone is no longer globally unique (Wave 10) — the DB
+    // constraint and this upsert's conflict target are both (site_id, url_path).
+    await db
+      .from("landing_pages")
+      .upsert({ site_id: siteId, url_path: path, hits: 0 }, { onConflict: "site_id,url_path", ignoreDuplicates: true });
 
-    const { data: existing } = await db.from("landing_pages").select("id, hits").eq("url_path", path).maybeSingle();
+    const { data: existing } = await db
+      .from("landing_pages")
+      .select("id, hits")
+      .eq("site_id", siteId)
+      .eq("url_path", path)
+      .maybeSingle();
     if (existing) {
       await db
         .from("landing_pages")
