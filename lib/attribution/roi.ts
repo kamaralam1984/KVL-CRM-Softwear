@@ -8,7 +8,8 @@
 // absolute truth). No lead↔deal/customer FK exists in this schema, so this
 // stops at Lead revenue, not Deal/Customer revenue — see Wave 7's roadmap note.
 
-import type { Campaign } from "./types";
+import { attributeTouchpoints } from "./models";
+import type { Campaign, CampaignTouchpoint, AttributionModel } from "./types";
 import type { Lead } from "@/lib/actions/leads";
 
 export interface CampaignRoi {
@@ -27,4 +28,49 @@ export function computeCampaignRoi(campaign: Campaign, leads: Lead[]): CampaignR
   const roas = campaign.spend > 0 ? revenue / campaign.spend : null;
 
   return { leadCount: matched.length, closedCount: closed.length, revenue, roas };
+}
+
+/**
+ * computeCampaignRoiMultiTouch — Wave 6b. Splits each Closed lead's value
+ * across every campaign its visitor actually touched, weighted by the
+ * selected attribution model (lib/attribution/models.ts, built Wave 2, wired
+ * to a UI for the first time here). Touchpoints with campaign_id === null
+ * (direct/organic hops) contribute no revenue to any campaign — there's
+ * nothing to credit. `touchpointsByVisitor` should already be scoped to only
+ * the visitors behind Closed leads (see lib/actions/touchpoints.ts) — this
+ * function does no DB access itself.
+ */
+export function computeCampaignRoiMultiTouch(
+  campaigns: Campaign[],
+  leads: Lead[],
+  touchpointsByVisitor: Map<string, CampaignTouchpoint[]>,
+  model: AttributionModel
+): Map<number, CampaignRoi> {
+  const revenueByCampaign = new Map<number, number>();
+  const closedLeadIdsByCampaign = new Map<number, Set<number>>();
+
+  const closedLeads = leads.filter((l) => l.visitor_id && l.stage === "Closed");
+
+  for (const lead of closedLeads) {
+    const touchpoints = touchpointsByVisitor.get(lead.visitor_id as string) ?? [];
+    if (!touchpoints.length) continue;
+
+    const credits = attributeTouchpoints(touchpoints, model);
+    for (const credit of credits) {
+      if (credit.campaignId === null) continue;
+      const revenue = (lead.value || 0) * credit.weight;
+      revenueByCampaign.set(credit.campaignId, (revenueByCampaign.get(credit.campaignId) ?? 0) + revenue);
+      if (!closedLeadIdsByCampaign.has(credit.campaignId)) closedLeadIdsByCampaign.set(credit.campaignId, new Set());
+      closedLeadIdsByCampaign.get(credit.campaignId)!.add(lead.id);
+    }
+  }
+
+  const result = new Map<number, CampaignRoi>();
+  for (const campaign of campaigns) {
+    const revenue = revenueByCampaign.get(campaign.id) ?? 0;
+    const closedCount = closedLeadIdsByCampaign.get(campaign.id)?.size ?? 0;
+    const roas = campaign.spend > 0 ? revenue / campaign.spend : null;
+    result.set(campaign.id, { leadCount: closedCount, closedCount, revenue, roas });
+  }
+  return result;
 }

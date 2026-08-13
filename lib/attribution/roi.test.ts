@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { computeCampaignRoi } from "./roi";
-import type { Campaign } from "./types";
+import { computeCampaignRoi, computeCampaignRoiMultiTouch } from "./roi";
+import type { Campaign, CampaignTouchpoint } from "./types";
 import type { Lead } from "@/lib/actions/leads";
 
 function makeCampaign(overrides: Partial<Campaign> = {}): Campaign {
@@ -78,5 +78,84 @@ describe("computeCampaignRoi", () => {
   it("returns zeroed results when no leads match (roas is 0, not null, when spend > 0)", () => {
     const roi = computeCampaignRoi(makeCampaign({ spend: 1000 }), []);
     expect(roi).toEqual({ leadCount: 0, closedCount: 0, revenue: 0, roas: 0 });
+  });
+});
+
+function makeTouchpoint(overrides: Partial<CampaignTouchpoint> = {}): CampaignTouchpoint {
+  return {
+    id: 1,
+    visitor_id: "KV-V-TEST",
+    session_id: null,
+    campaign_id: 1,
+    source: "google",
+    medium: "cpc",
+    campaign: "diwali_sale",
+    occurred_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+describe("computeCampaignRoiMultiTouch", () => {
+  it("a single touchpoint behaves like first-touch — full credit to that campaign", () => {
+    const campaignA = makeCampaign({ id: 10 });
+    const lead = makeLead({ id: 1, stage: "Closed", value: 20_000, visitor_id: "KV-V-1" });
+    const touchpointsByVisitor = new Map([["KV-V-1", [makeTouchpoint({ id: 1, visitor_id: "KV-V-1", campaign_id: 10 })]]]);
+
+    const result = computeCampaignRoiMultiTouch([campaignA], [lead], touchpointsByVisitor, "first_touch");
+
+    expect(result.get(10)).toEqual({ leadCount: 1, closedCount: 1, revenue: 20_000, roas: 20 });
+  });
+
+  it("linear model splits a lead's value evenly across every campaign it touched", () => {
+    const campaignA = makeCampaign({ id: 10, spend: 1000 });
+    const campaignB = makeCampaign({ id: 20, spend: 1000 });
+    const lead = makeLead({ id: 1, stage: "Closed", value: 10_000, visitor_id: "KV-V-1" });
+    const touchpointsByVisitor = new Map([
+      [
+        "KV-V-1",
+        [
+          makeTouchpoint({ id: 1, visitor_id: "KV-V-1", campaign_id: 10, occurred_at: "2026-01-01T00:00:00Z" }),
+          makeTouchpoint({ id: 2, visitor_id: "KV-V-1", campaign_id: 20, occurred_at: "2026-01-02T00:00:00Z" }),
+        ],
+      ],
+    ]);
+
+    const result = computeCampaignRoiMultiTouch([campaignA, campaignB], [lead], touchpointsByVisitor, "linear");
+
+    expect(result.get(10)?.revenue).toBe(5_000);
+    expect(result.get(20)?.revenue).toBe(5_000);
+  });
+
+  it("a null-campaign touchpoint (direct/organic hop) contributes no revenue to any campaign", () => {
+    const campaignA = makeCampaign({ id: 10 });
+    const lead = makeLead({ id: 1, stage: "Closed", value: 10_000, visitor_id: "KV-V-1" });
+    const touchpointsByVisitor = new Map([
+      [
+        "KV-V-1",
+        [
+          makeTouchpoint({ id: 1, visitor_id: "KV-V-1", campaign_id: null, occurred_at: "2026-01-01T00:00:00Z" }),
+          makeTouchpoint({ id: 2, visitor_id: "KV-V-1", campaign_id: 10, occurred_at: "2026-01-02T00:00:00Z" }),
+        ],
+      ],
+    ]);
+
+    // linear split: 50% to the direct hop (discarded, campaign_id null) + 50% to campaign 10
+    const result = computeCampaignRoiMultiTouch([campaignA], [lead], touchpointsByVisitor, "linear");
+
+    expect(result.get(10)?.revenue).toBe(5_000); // only its own share, not the full 10,000
+  });
+
+  it("only considers Closed leads with a visitor_id", () => {
+    const campaignA = makeCampaign({ id: 10 });
+    const leads = [
+      makeLead({ id: 1, stage: "Qualified", value: 99_999, visitor_id: "KV-V-1" }),
+      makeLead({ id: 2, stage: "Closed", value: 5_000, visitor_id: null }),
+    ];
+    const touchpointsByVisitor = new Map([["KV-V-1", [makeTouchpoint({ campaign_id: 10 })]]]);
+
+    const result = computeCampaignRoiMultiTouch([campaignA], leads, touchpointsByVisitor, "first_touch");
+
+    // campaignA's default spend (1000) is > 0, so roas is 0 (not null) when revenue is 0.
+    expect(result.get(10)).toEqual({ leadCount: 0, closedCount: 0, revenue: 0, roas: 0 });
   });
 });

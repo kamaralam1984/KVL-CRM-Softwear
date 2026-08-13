@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import AnalyticsTracker from "@/lib/tracking/sdk/AnalyticsTracker";
 import ConsentBanner from "@/lib/tracking/sdk/ConsentBanner";
+import PushOptIn from "@/components/marketing/PushOptIn";
 
 export const metadata: Metadata = {
   title: "Pricing — KVl CRM | Transparent Plans for Every Team",
@@ -19,6 +20,7 @@ export default function PricingLayout({ children }: { children: React.ReactNode 
       <AnalyticsTracker />
       {children}
       <ConsentBanner />
+      <PushOptIn />
     </>
   );
 }

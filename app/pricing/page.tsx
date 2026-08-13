@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { loadPricing, type PricingConfig, DEFAULT_PRICING } from "@/lib/superAdmin";
 import { kvlAnalytics } from "@/lib/tracking/sdk/client";
+import MissedCallBanner from "@/components/marketing/MissedCallBanner";
 
 const faqs = [
   { q: "Is there a free trial?", a: "Yes. Every plan comes with a full-featured free trial. No credit card is required to start." },
@@ -222,6 +223,21 @@ export default function PricingPage() {
               </span>
             ))}
           </div>
+        </div>
+
+        {/* Not sure which plan / talk to us */}
+        <div className="grid md:grid-cols-2 gap-5 mb-20">
+          <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-6 text-center">
+            <h2 className="text-lg font-bold text-white mb-2">Not Sure Which Plan You Need?</h2>
+            <p className="text-sm text-slate-400 mb-4">Take our 30-second quiz and we&apos;ll recommend the right plan for your team.</p>
+            <Link
+              href="/quiz"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white text-sm font-bold hover:opacity-90 transition-opacity"
+            >
+              Take the Quiz →
+            </Link>
+          </div>
+          <MissedCallBanner />
         </div>
 
         {/* FAQ */}

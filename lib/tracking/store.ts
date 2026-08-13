@@ -281,6 +281,30 @@ export async function getVisitorAttribution(visitorId: string): Promise<{ source
   }
 }
 
+/**
+ * recordPushSubscription — persists a Web Push subscription tied only to
+ * visitor_id (Wave 9). Deliberately collects no name/email/phone — the whole
+ * point of this channel is re-reaching a visitor without ever identifying
+ * them. Upsert on endpoint (the subscription's own unique key) so a repeat
+ * subscribe from the same browser/session is idempotent, not a duplicate row.
+ */
+export async function recordPushSubscription(input: {
+  visitorId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}): Promise<void> {
+  try {
+    const db = getServerClient();
+    await db.from("push_subscriptions").upsert(
+      { visitor_id: input.visitorId, endpoint: input.endpoint, p256dh: input.p256dh, auth: input.auth, revoked_at: null },
+      { onConflict: "endpoint" }
+    );
+  } catch (err) {
+    log("recordPushSubscription", err);
+  }
+}
+
 export async function recordConsent(input: {
   visitorId: string;
   status: "granted" | "denied";

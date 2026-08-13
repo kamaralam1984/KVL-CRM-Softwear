@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { kvlAnalytics } from "@/lib/tracking/sdk/client";
+import MissedCallBanner from "@/components/marketing/MissedCallBanner";
+import TruecallerButton from "@/components/marketing/TruecallerButton";
 
 const subjects = [
   "General Inquiry",
@@ -47,7 +49,13 @@ export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", company: "", subject: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [tcStatus, setTcStatus] = useState<"verified" | "failed" | null>(null);
   const formStarted = useRef(false);
+
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("truecaller");
+    if (status === "verified" || status === "failed") setTcStatus(status);
+  }, []);
 
   const trackFormStart = () => {
     if (formStarted.current) return;
@@ -126,6 +134,17 @@ export default function ContactPage() {
           <div className="md:col-span-3">
             <h2 className="text-2xl font-black mb-6">Send Us a Message</h2>
 
+            {tcStatus === "verified" && (
+              <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+                Verified with Truecaller — our team will reach out shortly.
+              </div>
+            )}
+            {tcStatus === "failed" && (
+              <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+                Couldn&apos;t verify with Truecaller — please use the form below instead.
+              </div>
+            )}
+
             {submitted ? (
               <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-10 text-center">
                 <div className="text-5xl mb-4">✅</div>
@@ -136,6 +155,7 @@ export default function ContactPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
+                <TruecallerButton />
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Full Name *</label>
@@ -254,6 +274,8 @@ export default function ContactPage() {
               <h3 className="text-sm font-bold text-white mb-2">Enterprise Inquiries</h3>
               <p className="text-xs text-slate-400 leading-relaxed">For teams over 25 users, custom SLAs, white-label options, SSO/SAML, or dedicated infrastructure — contact our enterprise sales team directly at <span className="text-violet-400">enterprise@aicrmpro.com</span>.</p>
             </div>
+
+            <MissedCallBanner />
           </div>
         </div>
 

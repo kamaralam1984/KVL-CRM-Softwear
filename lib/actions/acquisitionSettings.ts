@@ -9,6 +9,7 @@ const DEFAULT_ACQUISITION_SETTINGS: Record<string, string> = {
   tracking_enabled: "true",
   default_consent_mode: "granted",
   retention_days: "365",
+  missed_call_number: "",
 };
 
 export async function getAcquisitionSettings(): Promise<Record<string, string>> {

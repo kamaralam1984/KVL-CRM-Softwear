@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import AnalyticsTracker from "@/lib/tracking/sdk/AnalyticsTracker";
 import ConsentBanner from "@/lib/tracking/sdk/ConsentBanner";
+import PushOptIn from "@/components/marketing/PushOptIn";
 
 export const metadata: Metadata = {
   title: "Contact Us — KVl CRM | Sales, Support & Partnerships",
@@ -14,6 +15,7 @@ export default function ContactLayout({ children }: { children: React.ReactNode 
       <AnalyticsTracker />
       {children}
       <ConsentBanner />
+      <PushOptIn />
     </>
   );
 }

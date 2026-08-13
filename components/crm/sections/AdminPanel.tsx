@@ -17,6 +17,7 @@ import {
 import { getAcquisitionSettings, updateAcquisitionSetting } from "@/lib/actions/acquisitionSettings";
 import { getIntentRules, updateIntentRule, type IntentRuleRow } from "@/lib/actions/intentRules";
 import { logAudit, getAuditLog, type AuditEntry } from "@/lib/security/audit";
+import { getPushSubscriberCount, sendPushBroadcast } from "@/lib/actions/pushNotifications";
 
 const ACQUISITION_AUDIT_RESOURCES = new Set(["acquisition_settings", "intent_scoring_rules"]);
 
@@ -198,11 +199,42 @@ function AcquisitionSettingsCard() {
     tracking_enabled: "true",
     default_consent_mode: "granted",
     retention_days: "365",
+    missed_call_number: "",
   });
   const [rules, setRules] = useState<IntentRuleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+
+  const [subscriberCount, setSubscriberCount] = useState(0);
+  const [broadcast, setBroadcast] = useState({ title: "", body: "", url: "" });
+  const [sending, setSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+
+  function refreshSubscriberCount() {
+    getPushSubscriberCount().then(setSubscriberCount);
+  }
+
+  async function handleBroadcast() {
+    if (!broadcast.title.trim() || !broadcast.body.trim()) return;
+    setSending(true);
+    setBroadcastResult(null);
+    try {
+      const result = await sendPushBroadcast(broadcast.title, broadcast.body, broadcast.url);
+      if (!result.configured) {
+        setBroadcastResult("Not configured — set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY to enable sending.");
+      } else {
+        setBroadcastResult(`Sent to ${result.sent} subscriber${result.sent === 1 ? "" : "s"}${result.failed ? ` (${result.failed} failed/expired)` : ""}.`);
+        logAudit({ actor: currentActor(), action: "push_notifications.broadcast", resource: "acquisition_settings", detail: `"${broadcast.title}" → ${result.sent} sent` });
+        refreshAuditEntries();
+        refreshSubscriberCount();
+      }
+    } catch {
+      setBroadcastResult("Failed to send — check server logs.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   function refreshAuditEntries() {
     setAuditEntries(getAuditLog(50).filter((e) => ACQUISITION_AUDIT_RESOURCES.has(e.resource)).slice(0, 10));
@@ -216,6 +248,7 @@ function AcquisitionSettingsCard() {
       })
       .finally(() => setLoading(false));
     refreshAuditEntries();
+    refreshSubscriberCount();
   }, []);
 
   async function saveSetting(key: string, value: string) {
@@ -281,6 +314,59 @@ function AcquisitionSettingsCard() {
               <Check size={12} /> Saved
             </p>
           )}
+        </div>
+      </Card>
+
+      <Card title="Growth Channels" icon={Zap}>
+        <div className="space-y-5">
+          <div>
+            <label className="text-xs text-slate-500 mb-1.5 block">Missed-Call Number</label>
+            <input
+              type="text"
+              placeholder="e.g. +91 98765 43210"
+              value={settings.missed_call_number}
+              onChange={(e) => setSettings((p) => ({ ...p, missed_call_number: e.target.value }))}
+              onBlur={(e) => saveSetting("missed_call_number", e.target.value)}
+              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/50"
+            />
+            <p className="text-[11px] text-slate-600 mt-1">Shown on the marketing site&apos;s &quot;give us a missed call&quot; CTA. Actual call capture needs a telephony provider webhook pointed at /api/telephony/missed-call.</p>
+          </div>
+
+          <div className="border-t border-white/[0.06] pt-4">
+            <p className="text-sm text-slate-200 mb-1">Push Notifications</p>
+            <p className="text-xs text-slate-500 mb-3">{subscriberCount} active subscriber{subscriberCount === 1 ? "" : "s"} — anonymous, no identity attached.</p>
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="Notification title"
+                value={broadcast.title}
+                onChange={(e) => setBroadcast((p) => ({ ...p, title: e.target.value }))}
+                className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/50"
+              />
+              <input
+                type="text"
+                placeholder="Message"
+                value={broadcast.body}
+                onChange={(e) => setBroadcast((p) => ({ ...p, body: e.target.value }))}
+                className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/50"
+              />
+              <input
+                type="text"
+                placeholder="Link URL (optional)"
+                value={broadcast.url}
+                onChange={(e) => setBroadcast((p) => ({ ...p, url: e.target.value }))}
+                className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/50"
+              />
+              <button
+                onClick={handleBroadcast}
+                disabled={sending || !broadcast.title.trim() || !broadcast.body.trim()}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+              >
+                {sending ? "Sending…" : `Send to ${subscriberCount} Subscriber${subscriberCount === 1 ? "" : "s"}`}
+              </button>
+              {broadcastResult && <p className="text-xs text-slate-400">{broadcastResult}</p>}
+            </div>
+          </div>
         </div>
       </Card>
 

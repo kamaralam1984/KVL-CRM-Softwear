@@ -2,9 +2,11 @@
 // Phase 17 — Lead Intelligence & Acquisition Engine.
 // Extracted from AcquisitionOverview.tsx (Wave 6a) — unchanged behavior.
 
-import { Users, Fingerprint, Radar, Eye } from "lucide-react";
+import { useState } from "react";
+import { Users, Fingerprint, Radar, Eye, GitCommitHorizontal } from "lucide-react";
 import { Card, StatTile, Badge, EmptyState, DataTable, type Column, type BadgeTone } from "@/components/ui";
 import type { Visitor } from "@/lib/tracking/types";
+import JourneyModal from "./JourneyModal";
 
 export const intentTone: Record<Visitor["intent_band"], BadgeTone> = {
   cold: "slate",
@@ -25,6 +27,7 @@ export function timeAgo(iso: string): string {
 }
 
 export default function VisitorsTab({ visitors, loading }: { visitors: Visitor[]; loading: boolean }) {
+  const [journeyVisitorId, setJourneyVisitorId] = useState<string | null>(null);
   const identified = visitors.filter((v) => v.identified).length;
   const totalSessions = visitors.reduce((sum, v) => sum + v.session_count, 0);
   const totalPageViews = visitors.reduce((sum, v) => sum + v.page_views, 0);
@@ -61,6 +64,20 @@ export default function VisitorsTab({ visitors, loading }: { visitors: Visitor[]
       render: (v) => <Badge tone={v.identified ? "emerald" : "slate"}>{v.identified ? "Identified" : "Anonymous"}</Badge>,
     },
     { key: "last_seen_at", label: "Last Seen", weight: 0.8, render: (v) => <span className="text-slate-400">{timeAgo(v.last_seen_at)}</span> },
+    {
+      key: "journey",
+      label: "",
+      align: "center",
+      weight: 0.5,
+      render: (v) => (
+        <button
+          onClick={() => setJourneyVisitorId(v.visitor_id)}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg border border-crm-border text-[10px] text-slate-400 hover:text-blue-400 hover:border-blue-500/40 transition-colors"
+        >
+          <GitCommitHorizontal size={11} /> Journey
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -85,6 +102,10 @@ export default function VisitorsTab({ visitors, loading }: { visitors: Visitor[]
           <DataTable columns={columns} rows={visitors} rowKey={(v) => v.visitor_id} />
         )}
       </Card>
+
+      {journeyVisitorId && (
+        <JourneyModal key={journeyVisitorId} visitorId={journeyVisitorId} open={!!journeyVisitorId} onClose={() => setJourneyVisitorId(null)} />
+      )}
     </>
   );
 }

@@ -137,6 +137,12 @@ class KvlAnalytics {
     }).catch(() => {});
   }
 
+  /** Public read-only accessor — needed by growth-channel components (push opt-in,
+   * Truecaller redirect state) that must reference the visitor_id outside identify()/track(). */
+  getVisitorId(): string {
+    return this.visitorId;
+  }
+
   setConsent(status: "granted" | "denied", categories: Record<string, unknown> = {}): void {
     if (!isBrowser()) return;
     localStorage.setItem(CONSENT_KEY, status);

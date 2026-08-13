@@ -401,6 +401,8 @@ insert into intent_scoring_rules (rule_key, points, description) values
   ('event:scroll_depth', 2, 'Deep scroll on a page'),
   ('bonus:repeat_visit', 10, 'Returning visitor started a new session'),
   ('bonus:return_within_7_days', 10, 'Returned within 7 days of last visit'),
+  ('event:quiz_completed', 20, 'Completed the plan-recommendation quiz'),
+  ('event:push_subscribed', 10, 'Opted in to push notifications'),
   ('threshold:warm', 31, 'Minimum score for Warm band'),
   ('threshold:hot', 61, 'Minimum score for Hot band'),
   ('threshold:very_hot', 81, 'Minimum score for Very Hot band')
@@ -423,8 +425,26 @@ create policy "Authenticated users can CRUD acquisition_settings" on acquisition
 insert into acquisition_settings (setting_key, value) values
   ('tracking_enabled', 'true'),
   ('default_consent_mode', 'granted'),
-  ('retention_days', '365')
+  ('retention_days', '365'),
+  ('missed_call_number', '')
 on conflict (setting_key) do nothing;
+
+-- ── Push subscriptions (Phase 17, Wave 9 — Growth & Re-engagement Channels) ─
+-- Anonymous re-engagement channel: a browser Push subscription tied only to
+-- visitor_id, deliberately collecting no name/email/phone. Lets the site
+-- re-reach a visitor who never identified, without ever knowing who they are.
+create table if not exists push_subscriptions (
+  id           bigserial primary key,
+  visitor_id   text not null references visitors(visitor_id) on delete cascade,
+  endpoint     text unique not null,
+  p256dh       text not null,
+  auth         text not null,
+  created_at   timestamptz not null default now(),
+  revoked_at   timestamptz
+);
+create index if not exists push_subscriptions_visitor_id_idx on push_subscriptions (visitor_id);
+alter table push_subscriptions enable row level security;
+create policy "Authenticated users can CRUD push_subscriptions" on push_subscriptions for all using (auth.role() = 'authenticated');
 
 -- ── updated_at auto-trigger ────────────────────────────────────────────────
 create or replace function set_updated_at()
