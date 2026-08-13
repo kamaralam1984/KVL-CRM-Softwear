@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, TrendingUp, MoreHorizontal } from "lucide-react";
+import { Plus, Search, TrendingUp, MoreHorizontal, Trash2 } from "lucide-react";
 import { deals as initialDeals } from "@/lib/data";
-import { getDeals, createDeal } from "@/lib/actions/deals";
+import { getDeals, createDeal, updateDeal, deleteDeal } from "@/lib/actions/deals";
 import { cn, formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -61,6 +61,18 @@ export default function Deals() {
     setForm(emptyForm);
   };
 
+  const changeStage = (id: number, stage: string) => {
+    setDealList((prev) => prev.map((d) => (d.id === id ? { ...d, stage } : d)));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+    updateDeal(id, { stage }).catch(() => {});
+  };
+
+  const removeDeal = (id: number) => {
+    setDealList((prev) => prev.filter((d) => d.id !== id));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    deleteDeal(id).catch(() => {});
+  };
+
   return (
     <>
       <div className="p-5 h-full overflow-y-auto space-y-4">
@@ -98,12 +110,13 @@ export default function Deals() {
         </div>
 
         <div className="glass-card rounded-2xl border border-crm-border overflow-hidden">
-          <div className="grid grid-cols-6 gap-3 px-4 py-2.5 border-b border-crm-border text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+          <div className="grid grid-cols-7 gap-3 px-4 py-2.5 border-b border-crm-border text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
             <div className="col-span-2">Deal / Company</div>
             <div className="text-center">Value</div>
             <div className="text-center">Stage</div>
             <div className="text-center">Probability</div>
             <div className="text-center">Owner</div>
+            <div className="text-center"></div>
           </div>
           {filtered.map((deal, i) => {
             const sc = stageColors[deal.stage] || stageColors.Discovery;
@@ -113,7 +126,7 @@ export default function Deals() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.04 }}
-                className="grid grid-cols-6 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 items-center hover:bg-white/[0.02] transition-colors cursor-pointer"
+                className="grid grid-cols-7 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 items-center hover:bg-white/[0.02] transition-colors cursor-pointer"
               >
                 <div className="col-span-2 flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
@@ -126,7 +139,16 @@ export default function Deals() {
                 </div>
                 <div className="text-center text-sm font-bold text-slate-100">{formatCurrency(deal.value)}</div>
                 <div className="flex justify-center">
-                  <span className={cn("badge border", sc.bg, sc.text, sc.border)}>{deal.stage}</span>
+                  <select
+                    value={deal.stage}
+                    onChange={(e) => changeStage(deal.id, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className={cn("badge border bg-transparent outline-none cursor-pointer", sc.bg, sc.text, sc.border)}
+                  >
+                    {["Discovery", "Qualified", "Proposal", "Negotiation", "Closed Won"].map((s) => (
+                      <option key={s} value={s} className="bg-[#0a1628] text-slate-200">{s}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex items-center gap-2 justify-center">
                   <div className="w-16 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
@@ -135,6 +157,15 @@ export default function Deals() {
                   <span className="text-xs font-semibold text-slate-300">{deal.probability}%</span>
                 </div>
                 <div className="text-center text-xs text-slate-400">{deal.owner.split(" ")[0]}</div>
+                <div className="flex justify-center">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeDeal(deal.id); }}
+                    title="Delete deal"
+                    className="p-1 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </motion.div>
             );
           })}

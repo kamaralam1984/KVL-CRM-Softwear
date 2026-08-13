@@ -175,12 +175,12 @@ function itemsTable(input: DocInput, priceLabel = "Amount"): string {
     : `<tr><td colspan="3" style="color:#8a94a6">No line items provided.</td></tr>`;
   const total = computedTotal(input);
   return `<table class="items">
-    <thead><tr><th class="num" style="width:44px">#</th><th>Description</th><th class="num" style="width:150px">${esc(priceLabel)} (INR)</th></tr></thead>
+    <thead><tr><th class="num" style="width:44px">#</th><th>Description</th><th class="num" style="width:150px">${esc(priceLabel)} ($)</th></tr></thead>
     <tbody>${body}</tbody>
   </table>
   <div class="totals">
     <div class="row"><span>Subtotal</span><span>${money(total)}</span></div>
-    <div class="row grand"><span>Total</span><span>INR ${money(total)}</span></div>
+    <div class="row grand"><span>Total</span><span>$${money(total)}</span></div>
   </div>`;
 }
 
@@ -261,7 +261,7 @@ function invoice(input: DocInput): string {
     ${itemsTable(input, "Amount")}
   </div>
   <div class="section">
-    <div class="notes"><strong>Amount Due: INR ${money(total)}</strong><br/>Kindly remit payment as per the agreed terms.</div>
+    <div class="notes"><strong>Amount Due: $${money(total)}</strong><br/>Kindly remit payment as per the agreed terms.</div>
   </div>
   ${notesBlock(input)}
   ${signatures(input, "For " + sender(input), "Received by")}
@@ -279,7 +279,7 @@ function agreement(input: DocInput): string {
   )}</span> ("Client").</p>
     <ol>
       <li><span class="clause-h">Scope of Services.</span> The Service Provider agrees to provide the services described in the attached schedule or as mutually agreed in writing between the parties.</li>
-      <li><span class="clause-h">Fees & Payment.</span> The Client shall pay the fees set out for the services, being INR ${money(
+      <li><span class="clause-h">Fees & Payment.</span> The Client shall pay the fees set out for the services, being $${money(
         computedTotal(input)
       )} in aggregate, in accordance with the agreed payment schedule.</li>
       <li><span class="clause-h">Term & Termination.</span> This Agreement commences on the effective date and continues until the services are completed, unless terminated earlier by either party with reasonable written notice.</li>
@@ -339,7 +339,7 @@ function amc(input: DocInput): string {
       <li><span class="clause-h">Scope.</span> The Service Provider shall provide preventive and corrective maintenance, support, and updates for the covered services during the term.</li>
       <li><span class="clause-h">Response.</span> Support requests shall be acknowledged and addressed within reasonable service levels as mutually agreed.</li>
       <li><span class="clause-h">Exclusions.</span> This Contract excludes hardware replacement, third-party licensing costs, and issues arising from misuse unless otherwise agreed.</li>
-      <li><span class="clause-h">Fees.</span> The annual maintenance fee is INR ${money(
+      <li><span class="clause-h">Fees.</span> The annual maintenance fee is $${money(
         computedTotal(input)
       )}, payable as per the agreed schedule.</li>
     </ol>

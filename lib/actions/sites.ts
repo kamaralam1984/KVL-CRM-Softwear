@@ -7,6 +7,8 @@ import {
   listSites as storeListSites,
   createSite as storeCreateSite,
   setSiteActive as storeSetSiteActive,
+  updateSite as storeUpdateSite,
+  deleteSite as storeDeleteSite,
 } from "@/lib/sites/store";
 import type { Site } from "@/lib/sites/types";
 
@@ -20,4 +22,15 @@ export async function createSite(input: { name: string; ownerEmail: string; doma
 
 export async function setSiteActive(siteId: string, active: boolean): Promise<void> {
   return storeSetSiteActive(siteId, active);
+}
+
+export async function updateSite(
+  siteId: string,
+  input: { name?: string; ownerEmail?: string; domains?: string[] }
+): Promise<Site> {
+  return storeUpdateSite(siteId, input);
+}
+
+export async function deleteSite(siteId: string): Promise<void> {
+  return storeDeleteSite(siteId);
 }

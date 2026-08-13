@@ -42,12 +42,16 @@ const BLOCKS = [
 
 type ViewMode = "desktop" | "tablet" | "mobile";
 
+const slugify = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
 export default function KVlPages() {
   const [tab,       setTab]       = useState<"pages"|"builder"|"templates"|"analytics">("pages");
   const [viewMode,  setViewMode]  = useState<ViewMode>("desktop");
   const [selected,  setSelected]  = useState<number|null>(1);
   const [saved,     setSaved]     = useState(false);
   const [published, setPublished] = useState(false);
+  const [pages,     setPages]     = useState(demoPages);
 
   const handleSave = () => {
     setSaved(true);
@@ -59,8 +63,27 @@ export default function KVlPages() {
     setTimeout(() => setPublished(false), 2500);
   };
 
-  const totalVisits      = demoPages.reduce((a, p) => a + p.visits, 0);
-  const totalConversions = demoPages.reduce((a, p) => a + p.conversions, 0);
+  const handlePreview = (p: (typeof demoPages)[number]) => {
+    setSelected(p.id);
+    window.open(`https://kvlcrm.com/p/${slugify(p.name)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDuplicate = (p: (typeof demoPages)[number]) => {
+    setPages((prev) => {
+      const newId = Math.max(...prev.map((x) => x.id), 0) + 1;
+      const copy = { ...p, id: newId, name: `${p.name} (Copy)`, status: "Draft", visits: 0, conversions: 0, rate: "—", updated: "Just now" };
+      return [copy, ...prev];
+    });
+  };
+
+  const handleDelete = (id: number) => {
+    if (typeof window !== "undefined" && !window.confirm("Delete this page? This cannot be undone.")) return;
+    setPages((prev) => prev.filter((p) => p.id !== id));
+    setSelected((cur) => (cur === id ? null : cur));
+  };
+
+  const totalVisits      = pages.reduce((a, p) => a + p.visits, 0);
+  const totalConversions = pages.reduce((a, p) => a + p.conversions, 0);
   const avgRate = ((totalConversions / Math.max(totalVisits, 1)) * 100).toFixed(1);
 
   return (
@@ -104,7 +127,7 @@ export default function KVlPages() {
             {/* Stats */}
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label:"Total Pages",    val: demoPages.length.toString(),   color:"#3b82f6" },
+                { label:"Total Pages",    val: pages.length.toString(),   color:"#3b82f6" },
                 { label:"Total Visits",   val: totalVisits.toLocaleString(),  color: GOLD },
                 { label:"Conversions",    val: totalConversions.toString(),   color: EMERALD },
                 { label:"Avg Conv. Rate", val: avgRate + "%",                  color:"#8b5cf6" },
@@ -120,7 +143,7 @@ export default function KVlPages() {
             <div className="glass-card rounded-2xl border border-crm-border overflow-hidden">
               <div className="px-4 py-3 border-b border-crm-border flex items-center justify-between">
                 <p className="text-xs font-bold text-slate-200">Your Pages</p>
-                <span className="text-[10px] text-slate-500">{demoPages.length} pages</span>
+                <span className="text-[10px] text-slate-500">{pages.length} pages</span>
               </div>
               <table className="w-full text-xs">
                 <thead>
@@ -131,7 +154,7 @@ export default function KVlPages() {
                   </tr>
                 </thead>
                 <tbody>
-                  {demoPages.map((p, i) => (
+                  {pages.map((p, i) => (
                     <tr key={p.id} className={cn("border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors", i % 2 === 0 && "bg-white/[0.01]")}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -159,11 +182,14 @@ export default function KVlPages() {
                           <button onClick={() => setTab("builder")} className="w-6 h-6 rounded-lg bg-white/[0.04] border border-crm-border flex items-center justify-center hover:bg-white/[0.08] transition-colors" title="Edit">
                             <Edit2 size={10} className="text-slate-400" />
                           </button>
-                          <button className="w-6 h-6 rounded-lg bg-white/[0.04] border border-crm-border flex items-center justify-center hover:bg-white/[0.08] transition-colors" title="Preview">
+                          <button onClick={() => handlePreview(p)} className="w-6 h-6 rounded-lg bg-white/[0.04] border border-crm-border flex items-center justify-center hover:bg-white/[0.08] transition-colors" title="Preview">
                             <Eye size={10} className="text-slate-400" />
                           </button>
-                          <button className="w-6 h-6 rounded-lg bg-white/[0.04] border border-crm-border flex items-center justify-center hover:bg-white/[0.08] transition-colors" title="Duplicate">
+                          <button onClick={() => handleDuplicate(p)} className="w-6 h-6 rounded-lg bg-white/[0.04] border border-crm-border flex items-center justify-center hover:bg-white/[0.08] transition-colors" title="Duplicate">
                             <Copy size={10} className="text-slate-400" />
+                          </button>
+                          <button onClick={() => handleDelete(p.id)} className="w-6 h-6 rounded-lg bg-white/[0.04] border border-crm-border flex items-center justify-center hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors" title="Delete">
+                            <Trash2 size={10} className="text-rose-400/70 hover:text-rose-400" />
                           </button>
                         </div>
                       </td>
@@ -341,7 +367,7 @@ export default function KVlPages() {
             <div className="glass-card rounded-2xl border border-crm-border p-5">
               <p className="text-xs font-bold text-slate-200 mb-4">Page Performance</p>
               <div className="space-y-3">
-                {demoPages.filter(p => p.status === "Published").map(p => (
+                {pages.filter(p => p.status === "Published").map(p => (
                   <div key={p.id}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs text-slate-300">{p.name}</span>

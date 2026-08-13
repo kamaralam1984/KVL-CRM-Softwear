@@ -8,6 +8,7 @@ import {
   RefreshCw, Send, RotateCcw, Grid, List, Upload, ArrowRight,
   DollarSign, ShoppingCart, Star, LayoutDashboard,
 } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,7 +23,7 @@ interface Order {
 }
 interface Product {
   id: string; name: string; sku: string; price: number; stock: number;
-  reorder: number; category: string; color: string;
+  reorder: number; category: string; color: string; description?: string;
 }
 interface Customer {
   id: string; name: string; email: string; avatar: string;
@@ -165,9 +166,9 @@ function CSSBar({ value, max, color, label, sub }: { value: number; max: number;
 
 // ── Tab: Overview ─────────────────────────────────────────────────────────────
 
-function OverviewTab() {
-  const recentOrders = ORDERS.slice(0, 5);
-  const lowStock = PRODUCTS.filter(p => stockStatus(p) !== "In Stock").slice(0, 3);
+function OverviewTab({ orders, products }: { orders: Order[]; products: Product[] }) {
+  const recentOrders = orders.slice(0, 5);
+  const lowStock = products.filter(p => stockStatus(p) !== "In Stock").slice(0, 3);
   const maxBar = Math.max(...WEEK_REVENUE);
 
   return (
@@ -284,7 +285,7 @@ function OverviewTab() {
 
 // ── Tab: Orders ───────────────────────────────────────────────────────────────
 
-function OrdersTab() {
+function OrdersTab({ orders, setOrders }: { orders: Order[]; setOrders: React.Dispatch<React.SetStateAction<Order[]>> }) {
   const [filter, setFilter] = useState<OrderStatus | "All">("All");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -292,11 +293,23 @@ function OrdersTab() {
 
   const statuses: (OrderStatus | "All")[] = ["All", "Pending", "Processing", "Shipped", "Delivered", "Refunded"];
 
-  const filtered = ORDERS.filter(o => {
+  const filtered = orders.filter(o => {
     if (filter !== "All" && o.status !== filter) return false;
     if (search && !o.customer.toLowerCase().includes(search.toLowerCase()) && !o.id.includes(search)) return false;
     return true;
   });
+
+  function updateOrderStatus(id: string, status: OrderStatus) {
+    setOrders(prev => prev.map(o => (o.id === id ? { ...o, status } : o)));
+  }
+
+  function exportSelectedCSV() {
+    const rows = orders.filter(o => selected.has(o.id)).map(o => ({
+      id: o.id, customer: o.customer, email: o.email, amount: o.amount,
+      payment: o.payment, shipping: o.shipping, status: o.status, date: o.date,
+    }));
+    downloadCSV("orders.csv", rows);
+  }
 
   function toggleSelect(id: string) {
     setSelected(prev => {
@@ -336,10 +349,10 @@ function OrdersTab() {
         {selected.size > 0 && (
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-xs text-slate-400">{selected.size} selected</span>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "rgba(0,168,107,0.12)", color: EMERALD, border: `1px solid rgba(0,168,107,0.25)` }}>
+            <button onClick={exportSelectedCSV} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "rgba(0,168,107,0.12)", color: EMERALD, border: `1px solid rgba(0,168,107,0.25)` }}>
               <Download size={12} /> Export CSV
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "rgba(212,175,55,0.08)", color: GOLD, border: `1px solid rgba(212,175,55,0.2)` }}>
+            <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "rgba(212,175,55,0.08)", color: GOLD, border: `1px solid rgba(212,175,55,0.2)` }}>
               <Printer size={12} /> Print Labels
             </button>
           </div>
@@ -395,13 +408,13 @@ function OrdersTab() {
                           <Eye size={13} />
                         </button>
                         {o.status === "Pending" && (
-                          <button className="p-1 rounded hover:bg-indigo-500/20 text-indigo-400 transition-colors" title="Process"><RefreshCw size={13} /></button>
+                          <button onClick={() => updateOrderStatus(o.id, "Processing")} className="p-1 rounded hover:bg-indigo-500/20 text-indigo-400 transition-colors" title="Process"><RefreshCw size={13} /></button>
                         )}
                         {o.status === "Processing" && (
-                          <button className="p-1 rounded hover:bg-cyan-500/20 text-cyan-400 transition-colors" title="Ship"><Send size={13} /></button>
+                          <button onClick={() => updateOrderStatus(o.id, "Shipped")} className="p-1 rounded hover:bg-cyan-500/20 text-cyan-400 transition-colors" title="Ship"><Send size={13} /></button>
                         )}
                         {(o.status === "Delivered" || o.status === "Shipped") && (
-                          <button className="p-1 rounded hover:bg-red-500/20 text-red-400 transition-colors" title="Refund"><RotateCcw size={13} /></button>
+                          <button onClick={() => updateOrderStatus(o.id, "Refunded")} className="p-1 rounded hover:bg-red-500/20 text-red-400 transition-colors" title="Refund"><RotateCcw size={13} /></button>
                         )}
                       </div>
                     </td>
@@ -442,14 +455,33 @@ function OrdersTab() {
 
 // ── Tab: Products ─────────────────────────────────────────────────────────────
 
-function ProductsTab() {
+function ProductsTab({ products, setProducts }: { products: Product[]; setProducts: React.Dispatch<React.SetStateAction<Product[]>> }) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [catFilter, setCatFilter] = useState("All");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", sku: "", price: "", stock: "", category: "Electronics", description: "" });
 
   const cats = ["All", "Electronics", "Clothing", "Software", "Services"];
-  const filtered = catFilter === "All" ? PRODUCTS : PRODUCTS.filter(p => p.category === catFilter);
+  const filtered = catFilter === "All" ? products : products.filter(p => p.category === catFilter);
+
+  function handleSaveProduct() {
+    const name = form.name.trim();
+    if (!name) return;
+    const newProduct: Product = {
+      id: `p${Date.now()}`,
+      name,
+      sku: form.sku.trim() || `SKU-${Date.now()}`,
+      price: Number(form.price) || 0,
+      stock: Number(form.stock) || 0,
+      reorder: 10,
+      category: form.category,
+      color: GOLD,
+      description: form.description.trim() || undefined,
+    };
+    setProducts(prev => [newProduct, ...prev]);
+    setForm({ name: "", sku: "", price: "", stock: "", category: "Electronics", description: "" });
+    setShowForm(false);
+  }
 
   return (
     <div className="space-y-4">
@@ -589,7 +621,7 @@ function ProductsTab() {
                     className="w-full px-3 py-2 rounded-lg text-sm text-slate-300 outline-none resize-none"
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
                 </div>
-                <button onClick={() => setShowForm(false)}
+                <button onClick={handleSaveProduct}
                   className="w-full py-3 rounded-xl font-bold text-sm transition-all"
                   style={{ background: GOLD, color: "#000" }}>
                   Save Product
@@ -605,7 +637,7 @@ function ProductsTab() {
 
 // ── Tab: Customers ────────────────────────────────────────────────────────────
 
-function CustomersTab() {
+function CustomersTab({ orders }: { orders: Order[] }) {
   const [activeCust, setActiveCust] = useState<Customer | null>(null);
 
   return (
@@ -706,7 +738,7 @@ function CustomersTab() {
             <div>
               <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Purchase History</p>
               <div className="space-y-2">
-                {ORDERS.filter(o => o.customer === activeCust.name).map(o => {
+                {orders.filter(o => o.customer === activeCust.name).map(o => {
                   const sc = statusColor(o.status);
                   return (
                     <div key={o.id} className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
@@ -719,7 +751,7 @@ function CustomersTab() {
                     </div>
                   );
                 })}
-                {ORDERS.filter(o => o.customer === activeCust.name).length === 0 && (
+                {orders.filter(o => o.customer === activeCust.name).length === 0 && (
                   <p className="text-xs text-slate-600 text-center py-3">No orders found</p>
                 )}
               </div>
@@ -882,6 +914,8 @@ type TabId = typeof TABS[number]["id"];
 
 export default function KVlCommerce() {
   const [tab, setTab] = useState<TabId>("overview");
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const [orders, setOrders] = useState<Order[]>(ORDERS);
 
   return (
     <div className="h-full flex flex-col" style={{ background: "#080c14" }}>
@@ -925,10 +959,10 @@ export default function KVlCommerce() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18 }}>
-            {tab === "overview"  && <OverviewTab />}
-            {tab === "orders"    && <OrdersTab />}
-            {tab === "products"  && <ProductsTab />}
-            {tab === "customers" && <CustomersTab />}
+            {tab === "overview"  && <OverviewTab orders={orders} products={products} />}
+            {tab === "orders"    && <OrdersTab orders={orders} setOrders={setOrders} />}
+            {tab === "products"  && <ProductsTab products={products} setProducts={setProducts} />}
+            {tab === "customers" && <CustomersTab orders={orders} />}
             {tab === "analytics" && <AnalyticsTab />}
           </motion.div>
         </AnimatePresence>

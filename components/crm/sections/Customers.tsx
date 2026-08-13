@@ -2,14 +2,15 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, Plus, Phone, Mail, MoreHorizontal, Shield,
+  Search, Plus, Phone, Mail, Shield,
   Users, MapPin, AlertTriangle, Star, RefreshCw,
   CheckCircle, Clock, TrendingUp, TrendingDown, Send,
   Calendar, DollarSign, Activity, Zap, ChevronRight,
-  Flag, Award, ThumbsUp, ThumbsDown, Minus,
+  Flag, Award, ThumbsUp, ThumbsDown, Minus, Edit2, Trash2,
 } from "lucide-react";
 import { customers as initialCustomers } from "@/lib/data";
-import { getCustomers, createCustomer } from "@/lib/actions/customers";
+import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from "@/lib/actions/customers";
+import { createTask } from "@/lib/actions/tasks";
 import { cn, formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -195,9 +196,23 @@ function CustomerJourneyTab({ customers }: { customers: typeof initialCustomers 
 }
 
 function ChurnRiskTab() {
+  const [taskAdded, setTaskAdded] = useState<Set<number>>(new Set());
   const safe  = churnRiskData.filter((c) => c.score < 30).length;
   const watch = churnRiskData.filter((c) => c.score >= 30 && c.score < 60).length;
   const atRisk = churnRiskData.filter((c) => c.score >= 60).length;
+
+  const addTask = (c: (typeof churnRiskData)[number]) => {
+    createTask({
+      title: `Follow up with ${c.name} on churn risk`,
+      priority: c.score >= 60 ? "high" : c.score >= 30 ? "medium" : "low",
+      due: "Tomorrow",
+      assignee: "You",
+      status: "pending",
+      tags: ["Churn Risk"],
+      company: c.name,
+    }).catch(() => {});
+    setTaskAdded((prev) => new Set(prev).add(c.id));
+  };
 
   const riskColor = (s: number) =>
     s >= 60 ? { bar: "#f43f5e", badge: "bg-rose-500/15 text-rose-400 border-rose-500/25", label: "At Risk" }
@@ -281,8 +296,17 @@ function ChurnRiskTab() {
                 </div>
 
                 {/* Action */}
-                <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/25 text-[#D4AF37] text-[10px] font-medium hover:bg-[#D4AF37]/20 transition-colors whitespace-nowrap">
-                  <Plus size={9} /> Task
+                <button
+                  onClick={() => addTask(c)}
+                  disabled={taskAdded.has(c.id)}
+                  className={cn(
+                    "flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-medium transition-colors whitespace-nowrap",
+                    taskAdded.has(c.id)
+                      ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400 cursor-default"
+                      : "bg-[#D4AF37]/10 border-[#D4AF37]/25 text-[#D4AF37] hover:bg-[#D4AF37]/20"
+                  )}
+                >
+                  {taskAdded.has(c.id) ? <><CheckCircle size={9} /> Added</> : <><Plus size={9} /> Task</>}
                 </button>
               </motion.div>
             );
@@ -294,6 +318,7 @@ function ChurnRiskTab() {
 }
 
 function NPSManagementTab() {
+  const [surveySent, setSurveySent] = useState(false);
   const nps = 72;
   const promoters  = 58;
   const passives   = 28;
@@ -330,8 +355,11 @@ function NPSManagementTab() {
             />
           </div>
           <p className="text-[10px] text-slate-500 mt-1.5">World-class (&gt;70)</p>
-          <button className="mt-4 flex items-center gap-1.5 px-3 py-2 rounded-xl gradient-bg text-white text-[11px] font-medium">
-            <Send size={10} /> Send NPS Survey
+          <button
+            onClick={() => { setSurveySent(true); setTimeout(() => setSurveySent(false), 2500); }}
+            className="mt-4 flex items-center gap-1.5 px-3 py-2 rounded-xl gradient-bg text-white text-[11px] font-medium"
+          >
+            {surveySent ? <><CheckCircle size={10} /> Survey Sent</> : <><Send size={10} /> Send NPS Survey</>}
           </button>
         </div>
 
@@ -425,6 +453,7 @@ function NPSManagementTab() {
 }
 
 function RenewalsTab() {
+  const [started, setStarted] = useState<Set<number>>(new Set());
   const totalValue = renewalsData.reduce((s, r) => s + r.value, 0);
 
   const urgency = (d: number) =>
@@ -506,8 +535,17 @@ function RenewalsTab() {
                 <p className="text-xs text-slate-400 truncate">{r.owner}</p>
 
                 {/* Action */}
-                <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#00A86B]/10 border border-[#00A86B]/25 text-[#00A86B] text-[10px] font-medium hover:bg-[#00A86B]/20 transition-colors whitespace-nowrap">
-                  <RefreshCw size={9} /> Start
+                <button
+                  onClick={() => setStarted((prev) => new Set(prev).add(r.id))}
+                  disabled={started.has(r.id)}
+                  className={cn(
+                    "flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-medium transition-colors whitespace-nowrap",
+                    started.has(r.id)
+                      ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400 cursor-default"
+                      : "bg-[#00A86B]/10 border-[#00A86B]/25 text-[#00A86B] hover:bg-[#00A86B]/20"
+                  )}
+                >
+                  {started.has(r.id) ? <><CheckCircle size={9} /> Started</> : <><RefreshCw size={9} /> Start</>}
                 </button>
               </motion.div>
             );
@@ -534,6 +572,7 @@ export default function Customers() {
   const [search,   setSearch]   = useState("");
   const [showModal,setShowModal]= useState(false);
   const [form,     setForm]     = useState<CustForm>(emptyForm);
+  const [editingId,setEditingId]= useState<number | null>(null);
   const [activeTab,setActiveTab]= useState<TabId>("overview");
 
   // Load from Supabase on mount; falls back to seed data in demo mode
@@ -551,6 +590,27 @@ export default function Customers() {
   const addCustomer = () => {
     if (!form.name.trim() || !form.contact.trim()) return;
     const avatar = form.name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
+
+    if (editingId != null) {
+      const patch = {
+        name: form.name,
+        contact: form.contact,
+        email: form.email,
+        phone: form.phone,
+        value: parseInt(form.value) || 0,
+        segment: form.segment,
+        status: form.status as "active" | "at-risk" | "champion",
+        avatar,
+      };
+      setCustList((prev) => prev.map((c) => (c.id === editingId ? { ...c, ...patch } : c)));
+      // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+      updateCustomer(editingId, patch).catch(() => {});
+      setShowModal(false);
+      setEditingId(null);
+      setForm(emptyForm);
+      return;
+    }
+
     const newCustomer = {
       id: Date.now(),
       name: form.name,
@@ -571,6 +631,27 @@ export default function Customers() {
     createCustomer(customerData).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
+  };
+
+  const openEdit = (c: (typeof custList)[number]) => {
+    setEditingId(c.id);
+    setForm({
+      name: c.name,
+      contact: c.contact,
+      email: c.email,
+      phone: c.phone,
+      value: String(c.value),
+      segment: c.segment,
+      status: c.status,
+    });
+    setShowModal(true);
+  };
+
+  const removeCustomer = (id: number) => {
+    if (!confirm("Delete this customer? This cannot be undone.")) return;
+    setCustList((prev) => prev.filter((c) => c.id !== id));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    deleteCustomer(id).catch(() => {});
   };
 
   return (
@@ -664,7 +745,20 @@ export default function Customers() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={cn("badge border", st.bg, st.text, st.border)}>{c.status}</span>
-                          <MoreHorizontal size={14} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <button
+                            title="Edit"
+                            onClick={() => openEdit(c)}
+                            className="w-6 h-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-white/[0.08] transition-all"
+                          >
+                            <Edit2 size={12} className="text-slate-400" />
+                          </button>
+                          <button
+                            title="Delete"
+                            onClick={() => removeCustomer(c.id)}
+                            className="w-6 h-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-rose-500/10 transition-all"
+                          >
+                            <Trash2 size={12} className="text-rose-400/70 hover:text-rose-400" />
+                          </button>
                         </div>
                       </div>
 
@@ -704,12 +798,20 @@ export default function Customers() {
                       <div className="flex items-center gap-2 justify-between">
                         <span className="text-[10px] text-slate-600">Since {c.since}</span>
                         <div className="flex gap-1.5">
-                          <button className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center hover:bg-blue-500/25 transition-colors">
+                          <a
+                            href={`tel:${c.phone.replace(/[^0-9+]/g, "")}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center hover:bg-blue-500/25 transition-colors"
+                          >
                             <Phone size={10} className="text-blue-400" />
-                          </button>
-                          <button className="w-6 h-6 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center hover:bg-violet-500/25 transition-colors">
+                          </a>
+                          <a
+                            href={`mailto:${c.email}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-6 h-6 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center hover:bg-violet-500/25 transition-colors"
+                          >
                             <Mail size={10} className="text-violet-400" />
-                          </button>
+                          </a>
                         </div>
                       </div>
                     </motion.div>
@@ -769,8 +871,12 @@ export default function Customers() {
         </AnimatePresence>
       </div>
 
-      {/* Add Customer Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Add New Customer">
+      {/* Add / Edit Customer Modal */}
+      <Modal
+        open={showModal}
+        onClose={() => { setShowModal(false); setEditingId(null); setForm(emptyForm); }}
+        title={editingId != null ? "Edit Customer" : "Add New Customer"}
+      >
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -816,7 +922,7 @@ export default function Customers() {
           </div>
           <div className="flex gap-2 pt-2">
             <button
-              onClick={() => setShowModal(false)}
+              onClick={() => { setShowModal(false); setEditingId(null); setForm(emptyForm); }}
               className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors"
             >
               Cancel
@@ -826,7 +932,7 @@ export default function Customers() {
               disabled={!form.name.trim() || !form.contact.trim()}
               className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium disabled:opacity-40"
             >
-              Add Customer
+              {editingId != null ? "Save Changes" : "Add Customer"}
             </button>
           </div>
         </div>

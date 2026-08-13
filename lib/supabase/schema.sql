@@ -54,6 +54,24 @@ create table if not exists leads (
 alter table leads enable row level security;
 create policy "Authenticated users can CRUD leads" on leads for all using (auth.role() = 'authenticated');
 
+-- ── Web-form submissions ─────────────────────────────────────────────────────
+-- Inbound leads captured by your public landing-page form. Polled by
+-- lib/leadgen/sources/webForm.ts, which reads unprocessed rows and flips
+-- `processed` to true so they aren't pulled again.
+create table if not exists web_form_submissions (
+  id           bigserial primary key,
+  name         text default '',
+  company      text default '',
+  email        text default '',
+  phone        text default '',
+  message      text default '',
+  processed    boolean not null default false,
+  created_at   timestamptz not null default now()
+);
+create index if not exists web_form_submissions_processed_idx on web_form_submissions (processed, created_at);
+alter table web_form_submissions enable row level security;
+create policy "Authenticated users can CRUD web_form_submissions" on web_form_submissions for all using (auth.role() = 'authenticated');
+
 -- ── Customers ──────────────────────────────────────────────────────────────
 create table if not exists customers (
   id            bigserial primary key,
@@ -106,6 +124,22 @@ create table if not exists tasks (
 );
 alter table tasks enable row level security;
 create policy "Authenticated users can CRUD tasks" on tasks for all using (auth.role() = 'authenticated');
+
+-- ── Calendar events ──────────────────────────────────────────────────────
+create table if not exists calendar_events (
+  id         bigserial primary key,
+  day        int not null,
+  month      int not null,
+  year       int not null,
+  title      text not null,
+  time       text default '',
+  type       text not null default 'meeting',
+  color      text not null default 'blue',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table calendar_events enable row level security;
+create policy "Authenticated users can CRUD calendar_events" on calendar_events for all using (auth.role() = 'authenticated');
 
 -- ── Invoices ───────────────────────────────────────────────────────────────
 create table if not exists invoices (

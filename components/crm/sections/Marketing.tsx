@@ -7,6 +7,8 @@ import {
   Zap, CheckCircle, Clock, FileText, ChevronDown, Target,
   Activity, ArrowUp, Award, FlaskConical,
 } from "lucide-react";
+import { sendPushBroadcast } from "@/lib/actions/pushNotifications";
+import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 
 // ─── shared styles ──────────────────────────────────────────────────────────
 const GOLD = "#D4AF37";
@@ -122,16 +124,21 @@ function StatCard({ label, value, icon: Icon, color }: { label: string; value: s
 // ─── CAMPAIGNS tab ──────────────────────────────────────────────────────────
 function CampaignsTab() {
   const [filter, setFilter] = useState<"All" | "Email" | "WhatsApp" | "SMS">("All");
+  const [campaignList, setCampaignList] = useState(campaigns);
 
-  const filtered = filter === "All" ? campaigns : campaigns.filter(c => c.type === filter);
-  const totalRevenue = campaigns.reduce((s, c) => s + c.revenue, 0);
-  const avgOpen = (campaigns.filter(c => c.openRate > 0).reduce((s, c) => s + c.openRate, 0) / campaigns.filter(c => c.openRate > 0).length).toFixed(1);
+  const filtered = filter === "All" ? campaignList : campaignList.filter(c => c.type === filter);
+  const totalRevenue = campaignList.reduce((s, c) => s + c.revenue, 0);
+  const avgOpen = (campaignList.filter(c => c.openRate > 0).reduce((s, c) => s + c.openRate, 0) / campaignList.filter(c => c.openRate > 0).length).toFixed(1);
+
+  const createCampaign = () => {
+    setCampaignList(prev => [{ id: Date.now(), name: "New Campaign", type: "Email", status: "Draft", sent: 0, openRate: 0, clickRate: 0, revenue: 0 }, ...prev]);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* stat row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
-        <StatCard label="Total Campaigns"     value={campaigns.length} icon={Megaphone}   color={GOLD}     />
+        <StatCard label="Total Campaigns"     value={campaignList.length} icon={Megaphone}   color={GOLD}     />
         <StatCard label="Avg Open Rate"       value={`${avgOpen}%`}    icon={TrendingUp}   color={EMERALD}  />
         <StatCard label="Revenue Generated"   value={`$${(totalRevenue/1000).toFixed(1)}k`} icon={DollarSign} color="#7C3AED" />
         <StatCard label="Active Automations"  value={4}                icon={Zap}          color="#0EA5E9"  />
@@ -148,7 +155,7 @@ function CampaignsTab() {
             </button>
           ))}
         </div>
-        <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: GOLD, color: "#000", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer" }}>
+        <button onClick={createCampaign} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: GOLD, color: "#000", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer" }}>
           <Plus size={14} /> Create Campaign
         </button>
       </div>
@@ -185,19 +192,26 @@ function CampaignsTab() {
 
 // ─── FORMS tab ───────────────────────────────────────────────────────────────
 function FormsTab() {
+  const [formList, setFormList] = useState(forms);
+  const [selected, setSelected] = useState<{ id: number; mode: "view" | "edit" } | null>(null);
+
+  const createForm = () => {
+    setFormList(prev => [{ id: Date.now(), name: "New Form", submissions: 0, conversion: 0 }, ...prev]);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: GOLD, color: "#000", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer" }}>
+        <button onClick={createForm} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: GOLD, color: "#000", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer" }}>
           <Plus size={14} /> Create Form
         </button>
       </div>
 
       {/* form grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 16 }}>
-        {forms.map((f, i) => (
+        {formList.map((f, i) => (
           <motion.div key={f.id} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.07 }}
-            style={{ ...card, padding: 20 }}>
+            style={{ ...card, padding: 20, border: selected?.id === f.id ? `1px solid ${GOLD}88` : card.border }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 8, background: `${GOLD}22`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -231,13 +245,16 @@ function FormsTab() {
             </div>
 
             <div style={{ display: "flex", gap: 8 }}>
-              <button style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 0", borderRadius: 7, background: "rgba(255,255,255,0.05)", color: "#94a3b8", fontSize: 12, fontWeight: 600, border: `1px solid ${BORDER}`, cursor: "pointer" }}>
+              <button onClick={() => setSelected({ id: f.id, mode: "view" })} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 0", borderRadius: 7, background: "rgba(255,255,255,0.05)", color: "#94a3b8", fontSize: 12, fontWeight: 600, border: `1px solid ${BORDER}`, cursor: "pointer" }}>
                 <Eye size={12} /> View
               </button>
-              <button style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 0", borderRadius: 7, background: `${GOLD}22`, color: GOLD, fontSize: 12, fontWeight: 600, border: `1px solid ${GOLD}44`, cursor: "pointer" }}>
+              <button onClick={() => setSelected({ id: f.id, mode: "edit" })} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 0", borderRadius: 7, background: `${GOLD}22`, color: GOLD, fontSize: 12, fontWeight: 600, border: `1px solid ${GOLD}44`, cursor: "pointer" }}>
                 <Edit2 size={12} /> Edit
               </button>
             </div>
+            {selected?.id === f.id && (
+              <p style={{ fontSize: 11, color: GOLD, marginTop: 10 }}>{selected.mode === "view" ? "Viewing" : "Editing"} “{f.name}”…</p>
+            )}
           </motion.div>
         ))}
       </div>
@@ -247,25 +264,35 @@ function FormsTab() {
 
 // ─── A/B TESTING tab ─────────────────────────────────────────────────────────
 function ABTestingTab() {
-  const maxRate = Math.max(...abTests.flatMap(t => [t.variantA.openRate, t.variantB.openRate]));
+  const [testList, setTestList] = useState(abTests);
+  const maxRate = Math.max(...testList.flatMap(t => [t.variantA.openRate, t.variantB.openRate]));
+
+  const createTest = () => {
+    setTestList(prev => [{
+      id: Date.now(), name: "New Test",
+      variantA: { label: "Variant A", openRate: 0 },
+      variantB: { label: "Variant B", openRate: 0 },
+      winner: "A" as const, status: "Running",
+    }, ...prev]);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
-        <StatCard label="Tests Running"      value={abTests.filter(t => t.status === "Running").length}   icon={FlaskConical} color={GOLD}    />
+        <StatCard label="Tests Running"      value={testList.filter(t => t.status === "Running").length}   icon={FlaskConical} color={GOLD}    />
         <StatCard label="Avg Improvement"    value="14.6%"                                                icon={ArrowUp}      color={EMERALD} />
-        <StatCard label="Winning Variants"   value={abTests.filter(t => t.status === "Completed").length} icon={Award}        color="#7C3AED" />
+        <StatCard label="Winning Variants"   value={testList.filter(t => t.status === "Completed").length} icon={Award}        color="#7C3AED" />
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: GOLD, color: "#000", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer" }}>
+        <button onClick={createTest} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: GOLD, color: "#000", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer" }}>
           <Plus size={14} /> Create New Test
         </button>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {abTests.map((test, i) => (
+        {testList.map((test, i) => (
           <motion.div key={test.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
             style={{ ...card, padding: 20 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -310,6 +337,40 @@ function ABTestingTab() {
 function SMSPushTab() {
   const [smsText, setSmsText] = useState("");
   const [audience, setAudience] = useState("All Contacts");
+  const [smsList, setSmsList] = useState(smsCampaigns);
+  const [smsResult, setSmsResult] = useState<string | null>(null);
+
+  const [pushTitle, setPushTitle] = useState("");
+  const [pushBody, setPushBody] = useState("");
+  const [pushSending, setPushSending] = useState(false);
+  const [pushResult, setPushResult] = useState<string | null>(null);
+
+  const sendSmsBlast = () => {
+    if (!smsText.trim()) return;
+    setSmsList(prev => [{ id: Date.now(), name: smsText.slice(0, 40), recipients: 0, delivery: 0, response: 0 }, ...prev]);
+    setSmsResult(`Queued for ${audience}.`);
+    setSmsText("");
+  };
+
+  const sendPush = async () => {
+    if (!pushTitle.trim() || !pushBody.trim()) return;
+    setPushSending(true);
+    setPushResult(null);
+    try {
+      const result = await sendPushBroadcast(pushTitle, pushBody, "/", DEFAULT_SITE_ID);
+      if (!result.configured) {
+        setPushResult("Not configured — set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY to enable sending.");
+      } else {
+        setPushResult(`Sent to ${result.sent} subscriber${result.sent === 1 ? "" : "s"}${result.failed ? ` (${result.failed} failed/expired)` : ""}.`);
+        setPushTitle("");
+        setPushBody("");
+      }
+    } catch {
+      setPushResult("Failed to send — check server logs.");
+    } finally {
+      setPushSending(false);
+    }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -346,9 +407,11 @@ function SMSPushTab() {
               <div style={{ width: `${(smsText.length / 160) * 100}%`, height: "100%", background: smsText.length > 140 ? "#ef4444" : GOLD, transition: "width .1s, background .1s", borderRadius: 2 }} />
             </div>
           </div>
-          <button style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 8, background: GOLD, color: "#000", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer" }}>
+          <button onClick={sendSmsBlast} disabled={!smsText.trim()}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 8, background: GOLD, color: "#000", fontWeight: 700, fontSize: 13, border: "none", cursor: smsText.trim() ? "pointer" : "not-allowed", opacity: smsText.trim() ? 1 : 0.5 }}>
             <Send size={13} /> Send SMS Blast
           </button>
+          {smsResult && <p style={{ fontSize: 11, color: EMERALD, marginTop: 8 }}>{smsResult}</p>}
         </div>
 
         {/* Push composer */}
@@ -358,16 +421,18 @@ function SMSPushTab() {
           </p>
           <div style={{ marginBottom: 12 }}>
             <p style={{ fontSize: 11, color: "#64748b", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Title</p>
-            <input placeholder="Notification title…" style={{ width: "100%", padding: "8px 12px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, color: "#e2e8f0", fontSize: 13, boxSizing: "border-box" }} />
+            <input value={pushTitle} onChange={e => setPushTitle(e.target.value)} placeholder="Notification title…" style={{ width: "100%", padding: "8px 12px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, color: "#e2e8f0", fontSize: 13, boxSizing: "border-box" }} />
           </div>
           <div style={{ marginBottom: 14 }}>
             <p style={{ fontSize: 11, color: "#64748b", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Body</p>
-            <textarea rows={4} placeholder="Notification body…"
+            <textarea value={pushBody} onChange={e => setPushBody(e.target.value)} rows={4} placeholder="Notification body…"
               style={{ width: "100%", padding: "10px 12px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, color: "#e2e8f0", fontSize: 13, resize: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
           </div>
-          <button style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 8, background: EMERALD, color: "#fff", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer" }}>
-            <Send size={13} /> Send Push Notification
+          <button onClick={sendPush} disabled={pushSending || !pushTitle.trim() || !pushBody.trim()}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 8, background: EMERALD, color: "#fff", fontWeight: 700, fontSize: 13, border: "none", cursor: pushSending || !pushTitle.trim() || !pushBody.trim() ? "not-allowed" : "pointer", opacity: pushSending || !pushTitle.trim() || !pushBody.trim() ? 0.6 : 1 }}>
+            <Send size={13} /> {pushSending ? "Sending…" : "Send Push Notification"}
           </button>
+          {pushResult && <p style={{ fontSize: 11, color: EMERALD, marginTop: 8 }}>{pushResult}</p>}
         </div>
       </div>
 
@@ -383,7 +448,7 @@ function SMSPushTab() {
             </tr>
           </thead>
           <tbody>
-            {smsCampaigns.map((c, i) => (
+            {smsList.map((c, i) => (
               <motion.tr key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}
                 style={{ borderBottom: `1px solid ${BORDER}` }}>
                 <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>{c.name}</td>

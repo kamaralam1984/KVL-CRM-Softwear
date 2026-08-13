@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Modal from "@/components/ui/modal";
 import {
   LayoutDashboard, Ticket, MessageCircle, BookOpen, BarChart3,
   Search, Plus, Filter, ChevronDown, X, Send, Paperclip,
@@ -302,6 +303,12 @@ const STATUS_COLORS: Record<TicketStatus, { bg: string; text: string }> = {
   Closed:      { bg: "rgba(100,116,139,0.15)", text: "#94a3b8" },
 };
 
+const PRIORITY_ORDER: Priority[] = ["Low", "Medium", "High", "Critical"];
+function escalatePriority(p: Priority): Priority {
+  const idx = PRIORITY_ORDER.indexOf(p);
+  return PRIORITY_ORDER[Math.min(idx + 1, PRIORITY_ORDER.length - 1)];
+}
+
 function PriorityBadge({ p }: { p: Priority }) {
   const c = PRIORITY_COLORS[p];
   return (
@@ -324,13 +331,20 @@ function StatusBadge({ s }: { s: TicketStatus }) {
 
 // ── Tab: Dashboard ─────────────────────────────────────────────────────────
 function DashboardTab() {
+  const openCount = TICKETS.filter((t) => t.status === "Open").length;
+  const resolvedCount = TICKETS.filter((t) => t.status === "Resolved").length;
+  const priorityCounts = TICKETS.reduce((acc, t) => {
+    acc[t.priority] = (acc[t.priority] ?? 0) + 1;
+    return acc;
+  }, {} as Record<Priority, number>);
+
   return (
     <div className="space-y-6">
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: "Open Tickets", value: "24", icon: <Ticket size={18} />, color: "#6366f1" },
-          { label: "Resolved Today", value: "18", icon: <CheckCircle2 size={18} />, color: "#00A86B" },
+          { label: "Open Tickets", value: String(openCount), icon: <Ticket size={18} />, color: "#6366f1" },
+          { label: "Resolved Today", value: String(resolvedCount), icon: <CheckCircle2 size={18} />, color: "#00A86B" },
           { label: "Avg Response", value: "2.4h", icon: <Clock size={18} />, color: "#D4AF37" },
           { label: "CSAT Score", value: "4.7/5", icon: <Star size={18} />, color: "#f97316" },
         ].map((s) => (
@@ -356,7 +370,6 @@ function DashboardTab() {
           <h3 className="text-sm font-semibold text-slate-300 mb-3">Priority Breakdown</h3>
           <div className="space-y-2">
             {(["Critical", "High", "Medium", "Low"] as Priority[]).map((p, i) => {
-              const counts: Record<Priority, number> = { Critical: 2, High: 7, Medium: 10, Low: 5 };
               const c = PRIORITY_COLORS[p];
               return (
                 <div key={p} className="flex items-center justify-between">
@@ -366,7 +379,7 @@ function DashboardTab() {
                       {p}
                     </span>
                   </div>
-                  <span className="text-sm font-bold text-slate-200">{counts[p]}</span>
+                  <span className="text-sm font-bold text-slate-200">{priorityCounts[p] ?? 0}</span>
                 </div>
               );
             })}
@@ -436,7 +449,7 @@ function DashboardTab() {
 }
 
 // ── Tab: Tickets ───────────────────────────────────────────────────────────
-function TicketsTab() {
+function TicketsTab({ tickets, setTickets }: { tickets: Ticket[]; setTickets: React.Dispatch<React.SetStateAction<Ticket[]>> }) {
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [priorityFilter, setPriorityFilter] = useState<string>("All");
   const [search, setSearch] = useState("");
@@ -446,13 +459,57 @@ function TicketsTab() {
 
   const statusTabs = ["All", "Open", "In Progress", "Resolved", "Closed"];
 
-  const filtered = TICKETS.filter((t) => {
+  const filtered = tickets.filter((t) => {
     const matchStatus = statusFilter === "All" || t.status === statusFilter;
     const matchPriority = priorityFilter === "All" || t.priority === priorityFilter;
     const matchSearch = search === "" || t.subject.toLowerCase().includes(search.toLowerCase()) ||
       t.customer.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchPriority && matchSearch;
   });
+
+  function updateSelectedTicket(updater: (t: Ticket) => Ticket) {
+    setSelectedTicket((prev) => {
+      if (!prev) return prev;
+      const updated = updater(prev);
+      setTickets((prevTickets) => prevTickets.map((t) => (t.id === updated.id ? updated : t)));
+      return updated;
+    });
+  }
+
+  function handleSendReply() {
+    const text = replyText.trim();
+    if (!text || !selectedTicket) return;
+    const newMsg: Message = { id: `m${Date.now()}`, sender: "agent", name: "You", text, time: "Just now" };
+    updateSelectedTicket((t) => ({ ...t, messages: [...t.messages, newMsg] }));
+    setReplyText("");
+  }
+
+  function handleAssign() {
+    updateSelectedTicket((t) => {
+      const idx = AGENTS.findIndex((a) => a.name === t.assignee);
+      const next = AGENTS[(idx + 1) % AGENTS.length];
+      return { ...t, assignee: next.name };
+    });
+  }
+
+  function handleEscalate() {
+    updateSelectedTicket((t) => ({ ...t, priority: escalatePriority(t.priority) }));
+  }
+
+  function handleClose() {
+    updateSelectedTicket((t) => ({ ...t, status: "Closed" }));
+  }
+
+  function handleAddNote() {
+    setNoteTab("notes");
+  }
+
+  const ticketActions: Record<string, () => void> = {
+    Assign: handleAssign,
+    Escalate: handleEscalate,
+    Close: handleClose,
+    "Add Note": handleAddNote,
+  };
 
   return (
     <div className="flex gap-4 h-full">
@@ -630,6 +687,7 @@ function TicketsTab() {
               <div className="flex items-center gap-2 mb-2">
                 {["Assign", "Escalate", "Close", "Add Note"].map((action) => (
                   <button key={action}
+                    onClick={ticketActions[action]}
                     className="text-[11px] px-2.5 py-1 rounded-lg font-medium transition-colors"
                     style={{ background: "rgba(255,255,255,0.05)", color: "#94a3b8" }}
                     onMouseEnter={(e) => (e.currentTarget.style.color = "#D4AF37")}
@@ -646,7 +704,7 @@ function TicketsTab() {
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0" }} />
                 <button className="px-3 py-2 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all"
                   style={{ background: "#D4AF37", color: "#080c14" }}
-                  onClick={() => setReplyText("")}>
+                  onClick={handleSendReply}>
                   <Send size={12} /> Send
                 </button>
               </div>
@@ -659,14 +717,39 @@ function TicketsTab() {
 }
 
 // ── Tab: Live Chat ──────────────────────────────────────────────────────────
+interface LiveChatMessage { id: string; sender: "customer" | "agent"; text: string; time: string }
+
 function LiveChatTab() {
+  const [sessions, setSessions] = useState<ChatSession[]>(CHAT_SESSIONS);
   const [activeChat, setActiveChat] = useState<ChatSession>(CHAT_SESSIONS[0]);
   const [msg, setMsg] = useState("");
   const [showCanned, setShowCanned] = useState(false);
   const [isTyping] = useState(true);
+  const [chatMessages, setChatMessages] = useState<Record<string, LiveChatMessage[]>>({});
 
-  const activeSessions = CHAT_SESSIONS.filter((c) => c.status === "active");
-  const waitingQueue = CHAT_SESSIONS.filter((c) => c.status === "waiting");
+  const activeSessions = sessions.filter((c) => c.status === "active");
+  const waitingQueue = sessions.filter((c) => c.status === "waiting");
+
+  function handleSendChat() {
+    const text = msg.trim();
+    if (!text) return;
+    const newMsg: LiveChatMessage = { id: `${activeChat.id}-${Date.now()}`, sender: "agent", text, time: "now" };
+    setChatMessages((prev) => ({ ...prev, [activeChat.id]: [...(prev[activeChat.id] ?? []), newMsg] }));
+    setMsg("");
+  }
+
+  function handleTransfer() {
+    const remainingActive = sessions.filter((c) => c.status === "active" && c.id !== activeChat.id);
+    setSessions((prev) => prev.map((c) => (c.id === activeChat.id ? { ...c, status: "waiting", waitTime: "0m" } : c)));
+    if (remainingActive[0]) setActiveChat(remainingActive[0]);
+  }
+
+  function handleEndChat() {
+    const remaining = sessions.filter((c) => c.id !== activeChat.id);
+    setSessions(remaining);
+    const fallback = remaining.find((c) => c.status === "active") ?? remaining[0];
+    if (fallback) setActiveChat(fallback);
+  }
 
   return (
     <div className="flex gap-4 h-full">
@@ -730,11 +813,11 @@ function LiveChatTab() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="text-xs px-3 py-1.5 rounded-lg font-medium"
+            <button onClick={handleTransfer} className="text-xs px-3 py-1.5 rounded-lg font-medium"
               style={{ background: "rgba(255,255,255,0.05)", color: "#94a3b8" }}>
               Transfer
             </button>
-            <button className="text-xs px-3 py-1.5 rounded-lg font-medium"
+            <button onClick={handleEndChat} className="text-xs px-3 py-1.5 rounded-lg font-medium"
               style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
               End Chat
             </button>
@@ -756,6 +839,21 @@ function LiveChatTab() {
               <p className="text-[10px] text-slate-600 mt-1">{activeChat.time}</p>
             </div>
           </div>
+          {(chatMessages[activeChat.id] ?? []).map((m) => (
+            <div key={m.id} className="flex gap-2 flex-row-reverse">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                style={{ background: "linear-gradient(135deg,#006B3C,#00843D)" }}>
+                Me
+              </div>
+              <div>
+                <div className="rounded-xl rounded-tr-sm px-3 py-2 text-xs text-slate-200 max-w-xs"
+                  style={{ background: "rgba(0,168,107,0.15)", border: "1px solid rgba(0,168,107,0.25)" }}>
+                  {m.text}
+                </div>
+                <p className="text-[10px] text-slate-600 mt-1 text-right">{m.time}</p>
+              </div>
+            </div>
+          ))}
           {isTyping && (
             <div className="flex gap-2 items-center">
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
@@ -803,7 +901,7 @@ function LiveChatTab() {
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0" }} />
             <button className="px-3 py-2 rounded-lg flex items-center gap-1.5 text-xs font-semibold"
               style={{ background: "#00A86B", color: "#fff" }}
-              onClick={() => setMsg("")}>
+              onClick={handleSendChat}>
               <Send size={12} /> Send
             </button>
           </div>
@@ -819,6 +917,16 @@ function KnowledgeBaseTab() {
   const [creating, setCreating] = useState(false);
   const [articleTitle, setArticleTitle] = useState("");
   const [articleContent, setArticleContent] = useState("");
+  const [articles, setArticles] = useState<string[]>(FEATURED_ARTICLES);
+
+  function handlePublish() {
+    const title = articleTitle.trim();
+    if (!title) return;
+    setArticles((prev) => [title, ...prev]);
+    setCreating(false);
+    setArticleTitle("");
+    setArticleContent("");
+  }
 
   return (
     <div className="space-y-5">
@@ -876,7 +984,7 @@ function KnowledgeBaseTab() {
               <div className="flex gap-2">
                 <button className="text-xs px-4 py-1.5 rounded-lg font-semibold"
                   style={{ background: "#D4AF37", color: "#080c14" }}
-                  onClick={() => { setCreating(false); setArticleTitle(""); setArticleContent(""); }}>
+                  onClick={handlePublish}>
                   Publish
                 </button>
                 <button className="text-xs px-4 py-1.5 rounded-lg font-medium"
@@ -893,7 +1001,7 @@ function KnowledgeBaseTab() {
       {/* Featured articles list */}
       <div className="rounded-xl border overflow-hidden"
         style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.07)" }}>
-        {FEATURED_ARTICLES.map((a, i) => (
+        {articles.map((a, i) => (
           <motion.div key={i} whileHover={{ background: "rgba(255,255,255,0.04)" }}
             className="flex items-center gap-3 px-4 py-3 border-b cursor-pointer"
             style={{ borderColor: "rgba(255,255,255,0.05)" }}>
@@ -1018,8 +1126,42 @@ const TABS = [
   { id: "reports",   label: "Reports",   icon: <BarChart3 size={14} /> },
 ];
 
+type NewTicketForm = { subject: string; customer: string; email: string; priority: string };
+const emptyNewTicketForm: NewTicketForm = { subject: "", customer: "", email: "", priority: "Medium" };
+
 export default function KVlHelpdesk() {
   const [activeTab, setActiveTab] = useState("tickets");
+  const [tickets, setTickets] = useState<Ticket[]>(TICKETS);
+  const [showNewTicket, setShowNewTicket] = useState(false);
+  const [newTicketForm, setNewTicketForm] = useState<NewTicketForm>(emptyNewTicketForm);
+
+  const setField = (k: keyof NewTicketForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setNewTicketForm((p) => ({ ...p, [k]: e.target.value }));
+
+  function handleCreateTicket() {
+    const subject = newTicketForm.subject.trim();
+    const customer = newTicketForm.customer.trim();
+    if (!subject || !customer) return;
+    const newTicket: Ticket = {
+      id: `TKT-${Date.now()}`,
+      subject,
+      customer,
+      email: newTicketForm.email.trim() || "unknown@customer.com",
+      priority: newTicketForm.priority as Priority,
+      status: "Open",
+      assignee: "Unassigned",
+      created: "Just now",
+      lastUpdate: "Just now",
+      category: "General",
+      previousTickets: 0,
+      plan: "Starter",
+      messages: [],
+    };
+    setTickets((prev) => [newTicket, ...prev]);
+    setShowNewTicket(false);
+    setNewTicketForm(emptyNewTicketForm);
+    setActiveTab("tickets");
+  }
 
   return (
     <div className="h-full flex flex-col p-6" style={{ background: "#080c14", color: "#e2e8f0" }}>
@@ -1040,7 +1182,8 @@ export default function KVlHelpdesk() {
             style={{ background: "rgba(0,168,107,0.12)", color: "#00A86B", border: "1px solid rgba(0,168,107,0.2)" }}>
             <Circle size={8} style={{ fill: "#00A86B" }} /> Online
           </div>
-          <button className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold"
+          <button onClick={() => setShowNewTicket(true)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold"
             style={{ background: "#D4AF37", color: "#080c14" }}>
             <Plus size={13} /> New Ticket
           </button>
@@ -1074,13 +1217,64 @@ export default function KVlHelpdesk() {
             transition={{ duration: 0.18 }}
             className="h-full">
             {activeTab === "dashboard" && <DashboardTab />}
-            {activeTab === "tickets"   && <TicketsTab />}
+            {activeTab === "tickets"   && <TicketsTab tickets={tickets} setTickets={setTickets} />}
             {activeTab === "livechat"  && <LiveChatTab />}
             {activeTab === "kb"        && <KnowledgeBaseTab />}
             {activeTab === "reports"   && <ReportsTab />}
           </motion.div>
         </AnimatePresence>
       </div>
+
+      <Modal open={showNewTicket} onClose={() => setShowNewTicket(false)} title="New Ticket">
+        <div className="space-y-3">
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Subject *</label>
+            <input value={newTicketForm.subject} onChange={setField("subject")}
+              placeholder="What's the issue?"
+              className="w-full text-xs px-3 py-2 rounded-lg outline-none"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0" }} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Customer *</label>
+              <input value={newTicketForm.customer} onChange={setField("customer")}
+                placeholder="Customer name"
+                className="w-full text-xs px-3 py-2 rounded-lg outline-none"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0" }} />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Email</label>
+              <input value={newTicketForm.email} onChange={setField("email")}
+                placeholder="customer@email.com"
+                className="w-full text-xs px-3 py-2 rounded-lg outline-none"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0" }} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Priority</label>
+            <select value={newTicketForm.priority} onChange={setField("priority")}
+              className="w-full text-xs px-3 py-2 rounded-lg outline-none"
+              style={{ background: "#0d1424", border: "1px solid rgba(255,255,255,0.08)", color: "#e2e8f0" }}>
+              {(["Critical", "High", "Medium", "Low"] as Priority[]).map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button onClick={() => setShowNewTicket(false)}
+              className="flex-1 py-2 rounded-xl text-xs text-slate-400 transition-colors"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              Cancel
+            </button>
+            <button onClick={handleCreateTicket}
+              disabled={!newTicketForm.subject.trim() || !newTicketForm.customer.trim()}
+              className="flex-1 py-2 rounded-xl text-xs font-semibold disabled:opacity-40"
+              style={{ background: "#D4AF37", color: "#080c14" }}>
+              Create Ticket
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

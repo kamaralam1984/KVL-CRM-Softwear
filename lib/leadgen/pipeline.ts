@@ -44,18 +44,19 @@ export async function runLeadGenPipeline(
       ? config.sources
       : [{ source: "google_maps", queries: config.queries ?? [] }];
 
-  const usedMockData = plans.some(
-    (p) => p.source === "google_maps" && !process.env.GOOGLE_MAPS_API_KEY,
-  );
-
   // 1. SOURCE — run every enabled source, merged into one list.
   const sourced: RawLead[] = await fetchFromSources(plans, 20);
+
+  // Every source falls back to mock data (sourceId prefixed "mock-") when its
+  // API key is missing/invalid — checking the actual leads is what tells us
+  // whether *any* source in this run served fabricated data.
+  const usedMockData = sourced.some((l) => l.sourceId?.startsWith("mock-"));
 
   // 2. DEDUPE — within the batch (by email/phone) and against existing leads.
   const existing = await existingContactKeys();
   const seen = new Set<string>();
   const fresh = sourced.filter((l) => {
-    const key = (l.email || l.phone || l.sourceId || l.company).toLowerCase();
+    const key = (l.email || l.phone || l.company).toLowerCase();
     if (seen.has(key) || existing.has(key)) return false;
     seen.add(key);
     return true;
@@ -69,10 +70,12 @@ export async function runLeadGenPipeline(
   // 4. SAVE to the CRM leads table.
   const saved = await saveLeads(scored);
 
-  // 5. OUTREACH — optionally reach out to every fresh lead right away.
+  // 5. OUTREACH — optionally reach out to every lead that actually made it
+  // into the CRM (saveLeads is one batch insert: saved is either 0, meaning
+  // none persisted, or scored.length, meaning all of them did).
   let outreach: OutreachResult[] | undefined;
-  if (config.outreach && config.outreach.channels.length > 0) {
-    outreach = await runOutreach(scored, config.outreach);
+  if (config.outreach && config.outreach.channels.length > 0 && saved > 0) {
+    outreach = await runOutreach(scored.slice(0, saved), config.outreach);
   }
 
   return {

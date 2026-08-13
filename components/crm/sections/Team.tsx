@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Mail, Phone, Plus, Crown } from "lucide-react";
+import { Mail, Phone, Plus, Crown, Pencil, Trash2 } from "lucide-react";
 import { teamMembers as initialMembers } from "@/lib/data";
-import { getTeamMembers, createTeamMember } from "@/lib/actions/team";
+import { getTeamMembers, createTeamMember, updateTeamMember, deleteTeamMember } from "@/lib/actions/team";
 import { cn, formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -25,6 +25,7 @@ export default function Team() {
   const [members, setMembers] = useState(initialMembers);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<MemberForm>(emptyForm);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   // Load from Supabase on mount; falls back to seed data in demo mode
   useEffect(() => {
@@ -36,8 +37,34 @@ export default function Team() {
 
   const topPerformer = members.reduce((a, b) => a.performance > b.performance ? a : b);
 
-  const addMember = () => {
+  const closeModal = () => {
+    setShowModal(false);
+    setForm(emptyForm);
+    setEditingId(null);
+  };
+
+  const openEdit = (m: (typeof initialMembers)[number]) => {
+    setEditingId(m.id);
+    setForm({ name: m.name, role: m.role, email: m.email, status: m.status });
+    setShowModal(true);
+  };
+
+  const removeMember = (id: number) => {
+    setMembers((prev) => prev.filter((m) => m.id !== id));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    deleteTeamMember(id).catch(() => {});
+  };
+
+  const saveMember = () => {
     if (!form.name.trim() || !form.role.trim()) return;
+    if (editingId != null) {
+      const patch = { name: form.name, role: form.role, email: form.email, status: form.status as "online" | "away" | "offline" };
+      setMembers((prev) => prev.map((m) => (m.id === editingId ? { ...m, ...patch } : m)));
+      // Persist to Supabase when configured; demo mode throws → ignored (optimistic edit stays)
+      updateTeamMember(editingId, patch).catch(() => {});
+      closeModal();
+      return;
+    }
     const avatar = form.name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
     const newMember = {
       id: Date.now(),
@@ -56,8 +83,7 @@ export default function Team() {
     // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...memberData } = newMember;
     createTeamMember(memberData).catch(() => {});
-    setShowModal(false);
-    setForm(emptyForm);
+    closeModal();
   };
 
   return (
@@ -133,11 +159,17 @@ export default function Team() {
                       <p className="text-[10px] text-slate-500">{m.role}</p>
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center hover:bg-blue-500/25 transition-colors">
+                      <button disabled title="No phone number on file" onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center hover:bg-blue-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-500/15">
                         <Phone size={9} className="text-blue-400" />
                       </button>
-                      <button className="w-6 h-6 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center hover:bg-violet-500/25 transition-colors">
+                      <a href={`mailto:${m.email}`} onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center hover:bg-violet-500/25 transition-colors">
                         <Mail size={9} className="text-violet-400" />
+                      </a>
+                      <button onClick={() => openEdit(m)} className="w-6 h-6 rounded-lg bg-slate-500/15 border border-slate-500/20 flex items-center justify-center hover:bg-slate-500/25 transition-colors">
+                        <Pencil size={9} className="text-slate-400" />
+                      </button>
+                      <button onClick={() => removeMember(m.id)} className="w-6 h-6 rounded-lg bg-rose-500/15 border border-rose-500/20 flex items-center justify-center hover:bg-rose-500/25 transition-colors">
+                        <Trash2 size={9} className="text-rose-400" />
                       </button>
                     </div>
                   </div>
@@ -186,7 +218,7 @@ export default function Team() {
         </div>
       </div>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Add Team Member">
+      <Modal open={showModal} onClose={closeModal} title={editingId != null ? "Edit Team Member" : "Add Team Member"}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -216,8 +248,8 @@ export default function Team() {
             </div>
           </div>
           <div className="flex gap-2 pt-2">
-            <button onClick={() => setShowModal(false)} className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors">Cancel</button>
-            <button onClick={addMember} disabled={!form.name.trim() || !form.role} className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium disabled:opacity-40">Add Member</button>
+            <button onClick={closeModal} className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors">Cancel</button>
+            <button onClick={saveMember} disabled={!form.name.trim() || !form.role} className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium disabled:opacity-40">{editingId != null ? "Save Changes" : "Add Member"}</button>
           </div>
         </div>
       </Modal>

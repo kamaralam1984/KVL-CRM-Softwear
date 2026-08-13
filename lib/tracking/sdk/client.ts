@@ -130,7 +130,7 @@ class KvlAnalytics {
     this.enqueue({ name, page_url: window.location.href, properties });
   }
 
-  identify(traits: { name?: string; email?: string; phone?: string }): void {
+  identify(traits: { name?: string; email?: string; phone?: string; company?: string }): void {
     if (!isBrowser() || !this.initialized || this.trackingDisabled || !this.consentGranted()) return;
     fetch("/api/analytics/identify", {
       method: "POST",

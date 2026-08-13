@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
   let lead: RawLead | undefined;
   let analysis: WebsiteAnalysis | undefined;
   let url: string | undefined;
+  let company: string | undefined;
 
   try {
     const body = await req.json();
@@ -62,6 +63,9 @@ export async function POST(req: NextRequest) {
     if (typeof body?.url === "string") {
       url = body.url;
     }
+    if (typeof body?.company === "string") {
+      company = body.company;
+    }
   } catch {
     // no/invalid JSON body → inputs stay undefined
   }
@@ -69,9 +73,10 @@ export async function POST(req: NextRequest) {
   // If only a url was provided, synthesize a minimal RawLead for it.
   if (!lead && url && url.trim()) {
     const domain = deriveDomain(url);
+    const companyName = company && company.trim() ? company.trim() : domain;
     lead = {
-      name: domain,
-      company: domain,
+      name: companyName,
+      company: companyName,
       website: url,
       source: "company_website",
     };

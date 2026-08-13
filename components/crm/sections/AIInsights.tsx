@@ -181,6 +181,7 @@ function EmailWriter() {
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState<{ subject: string; body: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const lead = DEMO_LEADS.find((l) => l.id === leadId)!;
 
@@ -217,6 +218,12 @@ function EmailWriter() {
     navigator.clipboard.writeText(`Subject: ${output.subject}\n\n${output.body}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function sendEmail() {
+    if (!output) return;
+    setSent(true);
+    setTimeout(() => setSent(false), 2000);
   }
 
   return (
@@ -264,8 +271,12 @@ function EmailWriter() {
                 {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                 {copied ? "Copied!" : "Copy Email"}
               </button>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors">
-                <Send size={12} /> Send Now
+              <button
+                onClick={sendEmail}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+              >
+                {sent ? <Check size={12} /> : <Send size={12} />}
+                {sent ? "Sent!" : "Send Now"}
               </button>
             </div>
           </div>
@@ -281,6 +292,8 @@ function WhatsAppReply() {
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const replies = [
     {
@@ -308,6 +321,19 @@ function WhatsAppReply() {
       setOutput(true);
       setLoading(false);
     }, 1200);
+  }
+
+  function copyReply() {
+    if (selected === null) return;
+    navigator.clipboard.writeText(replies[selected].text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function sendReply() {
+    if (selected === null) return;
+    setSent(true);
+    setTimeout(() => setSent(false), 2000);
   }
 
   return (
@@ -374,12 +400,19 @@ function WhatsAppReply() {
         </div>
         {selected !== null && (
           <div className="flex gap-2 mt-3 pt-3 border-t border-white/[0.06]">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-slate-300 hover:bg-white/[0.06] transition-colors">
-              <Copy size={12} /> Copy
+            <button
+              onClick={copyReply}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-slate-300 hover:bg-white/[0.06] transition-colors"
+            >
+              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+              {copied ? "Copied!" : "Copy"}
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-              style={{ borderColor: "#25D366", color: "#25D366" }}>
-              <Send size={12} /> Send via WhatsApp
+            <button
+              onClick={sendReply}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+              style={{ borderColor: "#25D366", color: "#25D366" }}
+            >
+              <Send size={12} /> {sent ? "Sent!" : "Send via WhatsApp"}
             </button>
           </div>
         )}
@@ -620,6 +653,8 @@ function ProposalGenerator() {
   const [modules, setModules] = useState<string[]>(["CRM Core", "AI Insights", "Email Automation"]);
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [sent, setSent] = useState(false);
 
   function toggleModule(m: string) {
     setModules((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
@@ -632,6 +667,39 @@ function ProposalGenerator() {
   }
 
   const formatted = Number(dealValue).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+  const sections = [
+    {
+      title: "Executive Summary",
+      content: `We are pleased to present this proposal to ${company} for an AI-powered CRM solution designed to accelerate your sales growth. Based on our discovery sessions, we have tailored a solution that directly addresses your pipeline visibility and automation needs.`,
+    },
+    {
+      title: "Solution Overview",
+      content: modules.length
+        ? `Your package includes: ${modules.join(", ")}. Each module is fully integrated, with unified reporting and a single sign-on experience for your entire team.`
+        : "Please select modules above to include in this section.",
+    },
+    {
+      title: "Pricing",
+      content: `Total investment: ${formatted}\n• Annual contract (save 20% vs monthly)\n• Includes onboarding, training & 12-month support\n• ${modules.length} modules as selected above`,
+    },
+    {
+      title: "Next Steps",
+      content: "1. Review and sign proposal (DocuSign link)\n2. Kick-off call within 48 hours of signing\n3. Full deployment live within 14 business days\n4. 30-day hypercare support included",
+    },
+  ];
+
+  function copyProposal() {
+    const text = `${company} — Commercial Proposal\n\n${sections.map((s) => `${s.title}\n${s.content}`).join("\n\n")}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function sendProposal() {
+    setSent(true);
+    setTimeout(() => setSent(false), 2000);
+  }
 
   return (
     <div className="space-y-4">
@@ -676,38 +744,26 @@ function ProposalGenerator() {
             <p className="text-xs text-slate-500 mt-0.5">Prepared Jun 2, 2026 · Valid 30 days</p>
           </div>
           {/* Sections */}
-          {[
-            {
-              title: "Executive Summary",
-              content: `We are pleased to present this proposal to ${company} for an AI-powered CRM solution designed to accelerate your sales growth. Based on our discovery sessions, we have tailored a solution that directly addresses your pipeline visibility and automation needs.`,
-            },
-            {
-              title: "Solution Overview",
-              content: modules.length
-                ? `Your package includes: ${modules.join(", ")}. Each module is fully integrated, with unified reporting and a single sign-on experience for your entire team.`
-                : "Please select modules above to include in this section.",
-            },
-            {
-              title: "Pricing",
-              content: `Total investment: ${formatted}\n• Annual contract (save 20% vs monthly)\n• Includes onboarding, training & 12-month support\n• ${modules.length} modules as selected above`,
-            },
-            {
-              title: "Next Steps",
-              content: "1. Review and sign proposal (DocuSign link)\n2. Kick-off call within 48 hours of signing\n3. Full deployment live within 14 business days\n4. 30-day hypercare support included",
-            },
-          ].map((sec, i) => (
+          {sections.map((sec, i) => (
             <motion.div key={sec.title} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
               <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: GOLD }}>{sec.title}</p>
               <pre className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap font-sans">{sec.content}</pre>
             </motion.div>
           ))}
           <div className="flex gap-2 pt-2 border-t border-white/[0.06]">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-slate-300 hover:bg-white/[0.06] transition-colors">
-              <Copy size={12} /> Copy
+            <button
+              onClick={copyProposal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-slate-300 hover:bg-white/[0.06] transition-colors"
+            >
+              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+              {copied ? "Copied!" : "Copy"}
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
-              style={{ borderColor: `${GOLD}50`, color: GOLD }}>
-              <Send size={12} /> Send Proposal
+            <button
+              onClick={sendProposal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+              style={{ borderColor: `${GOLD}50`, color: GOLD }}
+            >
+              <Send size={12} /> {sent ? "Sent!" : "Send Proposal"}
             </button>
           </div>
         </div>

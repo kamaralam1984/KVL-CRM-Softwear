@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, CheckCircle2, Circle, Clock, Sparkles, Flag } from "lucide-react";
+import { Plus, CheckCircle2, Circle, Clock, Sparkles, Flag, Pencil, Trash2 } from "lucide-react";
 import { tasks as initialTasks } from "@/lib/data";
-import { getTasks, createTask, updateTask } from "@/lib/actions/tasks";
+import { getTasks, createTask, updateTask, deleteTask } from "@/lib/actions/tasks";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -24,6 +24,7 @@ export default function Tasks() {
   const [filter, setFilter] = useState("All");
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<TaskForm>(emptyForm);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   // Load from Supabase on mount; falls back to seed data in demo mode
   useEffect(() => {
@@ -45,6 +46,24 @@ export default function Tasks() {
 
   const addTask = () => {
     if (!form.title.trim()) return;
+
+    if (editingId !== null) {
+      const patch = {
+        title: form.title,
+        priority: form.priority as "high" | "medium" | "low",
+        due: form.due || "No due date",
+        assignee: form.assignee || "Unassigned",
+        company: form.company || "Internal",
+      };
+      setTaskList((prev) => prev.map((t) => (t.id === editingId ? { ...t, ...patch } : t)));
+      // Persist to Supabase when configured; demo mode throws → ignored (optimistic edit stays)
+      updateTask(editingId, patch).catch(() => {});
+      setShowModal(false);
+      setForm(emptyForm);
+      setEditingId(null);
+      return;
+    }
+
     const newTask = {
       id: Date.now(),
       title: form.title,
@@ -61,6 +80,18 @@ export default function Tasks() {
     createTask(taskData).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
+  };
+
+  const openEdit = (task: (typeof taskList)[number]) => {
+    setEditingId(task.id);
+    setForm({ title: task.title, priority: task.priority, due: task.due, assignee: task.assignee, company: task.company });
+    setShowModal(true);
+  };
+
+  const removeTask = (id: number) => {
+    setTaskList((prev) => prev.filter((t) => t.id !== id));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic remove stays)
+    deleteTask(id).catch(() => {});
   };
 
   const filtered = taskList.filter((t) => filter === "All" || t.status === filter.toLowerCase().replace(" ", "-"));
@@ -107,7 +138,7 @@ export default function Tasks() {
             ))}
           </div>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => { setEditingId(null); setForm(emptyForm); setShowModal(true); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg gradient-bg text-white text-xs ml-auto"
           >
             <Plus size={12} /> Add Task
@@ -157,6 +188,12 @@ export default function Tasks() {
                   )}>
                     {task.status}
                   </span>
+                  <button onClick={() => openEdit(task)} className="text-slate-600 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100">
+                    <Pencil size={13} />
+                  </button>
+                  <button onClick={() => removeTask(task.id)} className="text-slate-600 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100">
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               </motion.div>
             );
@@ -164,7 +201,7 @@ export default function Tasks() {
         </div>
       </div>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Add New Task">
+      <Modal open={showModal} onClose={() => { setShowModal(false); setEditingId(null); }} title={editingId !== null ? "Edit Task" : "Add New Task"}>
         <div className="space-y-3">
           <div>
             <label className="text-[11px] text-slate-500 mb-1 block">Task Title *</label>
@@ -196,7 +233,7 @@ export default function Tasks() {
           </div>
           <div className="flex gap-2 pt-2">
             <button
-              onClick={() => setShowModal(false)}
+              onClick={() => { setShowModal(false); setEditingId(null); }}
               className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors"
             >
               Cancel
@@ -206,7 +243,7 @@ export default function Tasks() {
               disabled={!form.title.trim()}
               className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium disabled:opacity-40"
             >
-              Add Task
+              {editingId !== null ? "Save Changes" : "Add Task"}
             </button>
           </div>
         </div>

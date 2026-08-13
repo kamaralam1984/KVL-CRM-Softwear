@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, Clock, Download, Plus } from "lucide-react";
+import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, Clock, Download, Plus, Trash2 } from "lucide-react";
 import { invoices as initialInvoices } from "@/lib/data";
-import { getInvoices, createInvoice } from "@/lib/actions/invoices";
+import { getInvoices, createInvoice, updateInvoice, deleteInvoice } from "@/lib/actions/invoices";
 import { cn, formatCurrency } from "@/lib/utils";
 import { downloadCSV } from "@/lib/export";
 import Modal from "@/components/ui/modal";
@@ -36,6 +36,10 @@ export default function Finance() {
   const totalPaid = invoiceList.filter((i) => i.status === "paid").reduce((s, i) => s + i.amount, 0);
   const totalPending = invoiceList.filter((i) => i.status === "pending").reduce((s, i) => s + i.amount, 0);
   const totalOverdue = invoiceList.filter((i) => i.status === "overdue").reduce((s, i) => s + i.amount, 0);
+  const totalBilled = totalPaid + totalPending + totalOverdue;
+  const overdueCount = invoiceList.filter((i) => i.status === "overdue").length;
+  const collectionRate = totalBilled > 0 ? (totalPaid / totalBilled) * 100 : 0;
+  const churnRate = totalBilled > 0 ? (totalOverdue / totalBilled) * 100 : 0;
 
   const addInvoice = () => {
     if (!form.client.trim() || !form.amount) return;
@@ -53,6 +57,18 @@ export default function Finance() {
     createInvoice(newInvoice).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
+  };
+
+  const markPaid = (id: string) => {
+    setInvoiceList((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status: "paid" } : inv)));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+    updateInvoice(id, { status: "paid" }).catch(() => {});
+  };
+
+  const removeInvoice = (id: string) => {
+    setInvoiceList((prev) => prev.filter((inv) => inv.id !== id));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic remove stays)
+    deleteInvoice(id).catch(() => {});
   };
 
   return (
@@ -100,12 +116,13 @@ export default function Finance() {
         </div>
 
         <div className="glass-card rounded-2xl border border-crm-border overflow-hidden">
-          <div className="grid grid-cols-5 gap-3 px-4 py-2.5 border-b border-crm-border text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+          <div className="grid grid-cols-6 gap-3 px-4 py-2.5 border-b border-crm-border text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
             <div>Invoice ID</div>
             <div>Client</div>
             <div className="text-center">Amount</div>
             <div className="text-center">Status</div>
             <div className="text-center">Due Date</div>
+            <div className="text-center">Actions</div>
           </div>
           {invoiceList.map((inv, i) => {
             const st = statusStyles[inv.status];
@@ -116,7 +133,7 @@ export default function Finance() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.05 }}
-                className="grid grid-cols-5 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 items-center hover:bg-white/[0.02] transition-colors cursor-pointer"
+                className="grid grid-cols-6 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 items-center hover:bg-white/[0.02] transition-colors"
               >
                 <div className="text-xs font-mono text-slate-400">{inv.id}</div>
                 <div className="text-xs font-medium text-slate-200">{inv.client}</div>
@@ -127,6 +144,24 @@ export default function Finance() {
                   </span>
                 </div>
                 <div className="text-center text-xs text-slate-500">{inv.due}</div>
+                <div className="flex items-center justify-center gap-2">
+                  {inv.status !== "paid" && (
+                    <button
+                      onClick={() => markPaid(inv.id)}
+                      title="Mark as paid"
+                      className="p-1.5 rounded-lg border border-crm-border text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                    >
+                      <CheckCircle2 size={12} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => removeInvoice(inv.id)}
+                    title="Delete invoice"
+                    className="p-1.5 rounded-lg border border-crm-border text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               </motion.div>
             );
           })}
@@ -134,9 +169,9 @@ export default function Finance() {
 
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "MRR", value: "$94,250", sub: "Monthly Recurring Revenue", trend: "+12.4%" },
-            { label: "ARR", value: "$1.13M", sub: "Annual Recurring Revenue", trend: "+28.5%" },
-            { label: "Churn Rate", value: "2.1%", sub: "Monthly churn", trend: "-0.4%" },
+            { label: "MRR", value: formatCurrency(totalPaid), sub: "Monthly Recurring Revenue", trend: `${collectionRate.toFixed(0)}% collected` },
+            { label: "ARR", value: formatCurrency(totalPaid * 12), sub: "Annual Recurring Revenue", trend: `${invoiceList.length} invoices` },
+            { label: "Churn Rate", value: `${churnRate.toFixed(1)}%`, sub: "Monthly churn", trend: `${overdueCount} overdue` },
           ].map((s) => (
             <div key={s.label} className="glass-card rounded-xl border border-crm-border p-4">
               <p className="text-xs text-slate-500 mb-1">{s.label}</p>

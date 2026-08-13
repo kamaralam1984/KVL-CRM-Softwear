@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, Filter, Plus, MoreHorizontal, Star, Phone, Mail, Brain } from "lucide-react";
+import { Search, Filter, Plus, MoreHorizontal, Star, Phone, Mail, Brain, Pencil, Trash2 } from "lucide-react";
 import { leads as initialLeads } from "@/lib/data";
-import { getLeads, createLead } from "@/lib/actions/leads";
+import { getLeads, createLead, updateLead, deleteLead } from "@/lib/actions/leads";
 import { triggerLeadCreated } from "@/lib/automation/engine";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
@@ -34,6 +34,8 @@ export default function Leads() {
   const [sortByScore, setSortByScore] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<LeadForm>(emptyForm);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   // Load from Supabase on mount; falls back to seed data in demo mode
   useEffect(() => {
@@ -53,6 +55,26 @@ export default function Leads() {
 
   const addLead = () => {
     if (!form.name.trim() || !form.company.trim()) return;
+
+    if (editingId !== null) {
+      const patch = {
+        name: form.name,
+        company: form.company,
+        email: form.email,
+        phone: form.phone,
+        value: parseInt(form.value) || 0,
+        stage: form.stage,
+        status: form.status as "hot" | "warm" | "cold",
+      };
+      setLeadList((prev) => prev.map((l) => (l.id === editingId ? { ...l, ...patch } : l)));
+      // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+      updateLead(editingId, patch).catch(() => {});
+      setShowModal(false);
+      setForm(emptyForm);
+      setEditingId(null);
+      return;
+    }
+
     const avatar = form.name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
     const newLead = {
       id: Date.now(),
@@ -81,6 +103,28 @@ export default function Leads() {
     triggerLeadCreated(newLead);
     setShowModal(false);
     setForm(emptyForm);
+  };
+
+  const openEdit = (lead: (typeof leadList)[number]) => {
+    setForm({
+      name: lead.name,
+      company: lead.company,
+      email: lead.email,
+      phone: lead.phone,
+      value: String(lead.value),
+      stage: lead.stage,
+      status: lead.status,
+    });
+    setEditingId(lead.id);
+    setOpenMenuId(null);
+    setShowModal(true);
+  };
+
+  const removeLead = (id: number) => {
+    setLeadList((prev) => prev.filter((l) => l.id !== id));
+    setOpenMenuId(null);
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    deleteLead(id).catch(() => {});
   };
 
   return (
@@ -141,7 +185,15 @@ export default function Leads() {
         <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-violet-500/20 text-xs" style={{ background: "linear-gradient(135deg, rgba(109,40,217,0.12), rgba(59,130,246,0.06))" }}>
           <Brain size={14} className="text-violet-400 flex-shrink-0" />
           <p className="text-slate-300"><span className="text-violet-300 font-medium">AI Recommendation:</span> Lisa Zhang (HealthTech AI) has a score of 95 and hasn&apos;t been contacted in 1h — high close probability. Follow up now!</p>
-          <button className="ml-auto flex-shrink-0 text-blue-400 hover:text-blue-300 font-medium">Act</button>
+          <button
+            onClick={() => {
+              const lead = leadList.find((l) => l.name === "Lisa Zhang");
+              if (lead) openEdit(lead);
+            }}
+            className="ml-auto flex-shrink-0 text-blue-400 hover:text-blue-300 font-medium"
+          >
+            Act
+          </button>
         </div>
 
         {/* Leads Grid */}
@@ -171,7 +223,30 @@ export default function Leads() {
                       <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1", sc.dot)} />
                       {lead.status}
                     </span>
-                    <MoreHorizontal size={14} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId((id) => (id === lead.id ? null : lead.id)); }}
+                        className="text-slate-600 opacity-0 group-hover:opacity-100 hover:text-slate-300 transition-opacity"
+                      >
+                        <MoreHorizontal size={14} />
+                      </button>
+                      {openMenuId === lead.id && (
+                        <div className="absolute right-0 top-5 z-10 w-28 rounded-lg border border-crm-border bg-[#0a1628] shadow-lg overflow-hidden">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openEdit(lead); }}
+                            className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/[0.06]"
+                          >
+                            <Pencil size={11} /> Edit
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); removeLead(lead.id); }}
+                            className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-rose-400 hover:bg-white/[0.06]"
+                          >
+                            <Trash2 size={11} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -220,12 +295,20 @@ export default function Leads() {
                     </span>
                   )}
                   <div className="ml-auto flex gap-1.5">
-                    <button className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center hover:bg-blue-500/25 transition-colors">
+                    <a
+                      href={`tel:${lead.phone.replace(/[^0-9+]/g, "")}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center hover:bg-blue-500/25 transition-colors"
+                    >
                       <Phone size={10} className="text-blue-400" />
-                    </button>
-                    <button className="w-6 h-6 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center hover:bg-violet-500/25 transition-colors">
+                    </a>
+                    <a
+                      href={`mailto:${lead.email}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-6 h-6 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center hover:bg-violet-500/25 transition-colors"
+                    >
                       <Mail size={10} className="text-violet-400" />
-                    </button>
+                    </a>
                   </div>
                 </div>
               </motion.div>
@@ -234,7 +317,11 @@ export default function Leads() {
         </div>
       </div>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Add New Lead">
+      <Modal
+        open={showModal}
+        onClose={() => { setShowModal(false); setEditingId(null); setForm(emptyForm); }}
+        title={editingId !== null ? "Edit Lead" : "Add New Lead"}
+      >
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -280,7 +367,7 @@ export default function Leads() {
           </div>
           <div className="flex gap-2 pt-2">
             <button
-              onClick={() => setShowModal(false)}
+              onClick={() => { setShowModal(false); setEditingId(null); setForm(emptyForm); }}
               className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors"
             >
               Cancel
@@ -290,7 +377,7 @@ export default function Leads() {
               disabled={!form.name.trim() || !form.company.trim()}
               className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium disabled:opacity-40"
             >
-              Add Lead
+              {editingId !== null ? "Save Changes" : "Add Lead"}
             </button>
           </div>
         </div>

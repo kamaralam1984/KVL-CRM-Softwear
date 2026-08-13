@@ -123,14 +123,14 @@ export function loadSAConfig(): SuperAdminConfig {
     const raw = localStorage.getItem(SA_KEY);
     if (raw) {
       const p = JSON.parse(raw);
-      // Deep merge per plan per feature — DEFAULT true always wins
+      // Deep merge per plan per feature — saved value wins, default is fallback only
       const planMatrix = {} as PlanMatrix;
       for (const plan of PLAN_ORDER) {
         planMatrix[plan] = {} as PlanFeatureMap;
         for (const feature of ALL_FEATURES) {
           const def = DEFAULT_PLAN_MATRIX[plan][feature];
           const saved = p.planMatrix?.[plan]?.[feature];
-          planMatrix[plan][feature] = def || saved || false;
+          planMatrix[plan][feature] = typeof saved === "boolean" ? saved : def;
         }
       }
       return {

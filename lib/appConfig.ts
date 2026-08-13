@@ -161,6 +161,11 @@ export function savePermissions(p: RolePermissions): void {
   localStorage.setItem(PERMS_KEY, JSON.stringify(p));
 }
 
+export function resetPermissions(): RolePermissions {
+  if (typeof window !== "undefined") localStorage.removeItem(PERMS_KEY);
+  return { ...DEFAULT_PERMISSIONS };
+}
+
 /* ── Activity Log ── */
 export interface ActivityEntry {
   id: string;
@@ -228,4 +233,9 @@ export function loadConfig(): AppConfig {
 export function saveConfig(config: AppConfig): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(CONFIG_KEY, JSON.stringify({ ...config, updatedAt: new Date().toISOString() }));
+}
+
+export function resetConfig(): AppConfig {
+  if (typeof window !== "undefined") localStorage.removeItem(CONFIG_KEY);
+  return { ...DEFAULT_CONFIG, updatedAt: new Date().toISOString() };
 }

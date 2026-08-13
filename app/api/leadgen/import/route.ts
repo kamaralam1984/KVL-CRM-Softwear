@@ -7,11 +7,12 @@
 // Body:
 //   { "type": "csv", "data": "<raw csv text>" }
 //   { "type": "api", "data": [ { "company": "..." }, ... ] }   // or { leads: [...] }
+//   { "type": "manual", "data": { "company": "..." } }         // or [ { "company": "..." }, ... ]
 //
 // Returns: { ok, count, leads } on success, or { ok:false, error } with 400/401.
 
 import { NextRequest, NextResponse } from "next/server";
-import { parseCsvLeads, parseApiLeads } from "@/lib/leadgen/import";
+import { parseCsvLeads, parseApiLeads, parseManualLead } from "@/lib/leadgen/import";
 import type { RawLead } from "@/lib/leadgen/types";
 
 export const dynamic = "force-dynamic";
@@ -39,9 +40,9 @@ export async function POST(req: NextRequest) {
 
   const { type, data } = body as { type?: unknown; data?: unknown };
 
-  if (type !== "csv" && type !== "api") {
+  if (type !== "csv" && type !== "api" && type !== "manual") {
     return NextResponse.json(
-      { ok: false, error: 'type must be "csv" or "api"' },
+      { ok: false, error: 'type must be "csv", "api", or "manual"' },
       { status: 400 },
     );
   }
@@ -57,6 +58,21 @@ export async function POST(req: NextRequest) {
         );
       }
       leads = parseCsvLeads(data);
+    } else if (type === "manual") {
+      // type === "manual": accept a single lead object or an array of them.
+      if (data === undefined || data === null || typeof data !== "object") {
+        return NextResponse.json(
+          { ok: false, error: "manual import requires data (a lead object or array of lead objects)" },
+          { status: 400 },
+        );
+      }
+      const entries = Array.isArray(data) ? data : [data];
+      leads = entries.map((entry, i) => {
+        if (!entry || typeof entry !== "object" || typeof (entry as { company?: unknown }).company !== "string") {
+          throw new Error(`manual import entry ${i} requires a "company" string`);
+        }
+        return parseManualLead(entry as Partial<RawLead> & { company: string });
+      });
     } else {
       // type === "api": accept an array or a wrapper object.
       if (data === undefined || data === null) {

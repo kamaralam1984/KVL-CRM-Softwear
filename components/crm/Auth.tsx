@@ -154,6 +154,21 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
     onAuth(user);
   };
 
+  const handleForgotPassword = async () => {
+    setError("");
+    if (!lEmail) { setError("Enter your email above, then click \"Forgot password?\" to get a reset link."); return; }
+    if (isSupabaseConfigured()) {
+      setLoading(true);
+      const supabase = getSupabaseClient();
+      const { error: err } = await supabase.auth.resetPasswordForEmail(lEmail.toLowerCase());
+      setLoading(false);
+      if (err) { setError(err.message); return; }
+      setError(`Password reset link sent to ${lEmail}. Check your inbox.`);
+      return;
+    }
+    setError("Demo mode: any email + password (min 4 chars) signs you in, so no reset is needed.");
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -289,7 +304,7 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-[11px] font-bold uppercase tracking-wider" style={{ color: text2 }}>Password</label>
-                      <button type="button" className="text-[11px] font-semibold transition-colors" style={{ color:"#D4AF37" }}>Forgot password?</button>
+                      <button type="button" onClick={handleForgotPassword} className="text-[11px] font-semibold transition-colors" style={{ color:"#D4AF37" }}>Forgot password?</button>
                     </div>
                     <div className="relative">
                       <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: text2 }} />

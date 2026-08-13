@@ -19,14 +19,17 @@ type TeamRow = { name: string; deals: number; revenue: number; target: number };
 
 const CustomTooltipStyle = { backgroundColor: "#0f1729", border: "1px solid #1e2d45", borderRadius: "10px", color: "#e2e8f0", fontSize: 12, padding: "8px 12px" };
 
-const quarterlyData = [
+const quarterlyDataFallback = [
   { quarter: "Q1 2025", revenue: 245000, target: 230000, deals: 48 },
   { quarter: "Q2 2025", revenue: 312000, target: 280000, deals: 63 },
   { quarter: "Q3 2025", revenue: 387000, target: 350000, deals: 78 },
   { quarter: "Q4 2025", revenue: 467000, target: 420000, deals: 94 },
 ];
 
+const monthShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 const periodSlice: Record<string, number> = { "3M": 3, "6M": 6, "1Y": 12 };
+const periodOptions = ["3M", "6M", "1Y"];
 
 export default function Reports() {
   const [period, setPeriod] = useState("1Y");
@@ -82,10 +85,43 @@ export default function Reports() {
     .sort((a, b) => b.revenue - a.revenue);
   const teamTable = teamRows.length ? teamRows : (teamPerformanceData as TeamRow[]);
 
-  const chartData = salesChartData.slice(-periodSlice[period]);
+  // Derive monthly revenue by bucketing real deals (created_at) by month; fall back to seed series
+  type MonthRow = { month: string; revenue: number; leads: number; deals: number; order: number };
+  const dealCreatedAt = (d: unknown) => (d as { created_at?: string }).created_at;
+  const dealsWithDates = deals.filter((d) => dealCreatedAt(d));
+  const monthBuckets: Record<string, MonthRow> = {};
+  for (const d of dealsWithDates) {
+    const dt = new Date(dealCreatedAt(d)!);
+    if (isNaN(dt.getTime())) continue;
+    const key = `${dt.getFullYear()}-${dt.getMonth()}`;
+    monthBuckets[key] ??= { month: monthShort[dt.getMonth()], revenue: 0, leads: 0, deals: 0, order: dt.getFullYear() * 12 + dt.getMonth() };
+    monthBuckets[key].revenue += Number(d.value) || 0;
+    monthBuckets[key].deals += 1;
+  }
+  const monthlyFromDeals = Object.values(monthBuckets).sort((a, b) => a.order - b.order);
+  const monthlyChartData = monthlyFromDeals.length ? monthlyFromDeals : salesChartData;
+
+  // Derive quarterly revenue vs peer-average target from real deals; fall back to seed series
+  type QuarterRow = { quarter: string; revenue: number; deals: number; order: number };
+  const quarterBuckets: Record<string, QuarterRow> = {};
+  for (const d of dealsWithDates) {
+    const dt = new Date(dealCreatedAt(d)!);
+    if (isNaN(dt.getTime())) continue;
+    const q = Math.floor(dt.getMonth() / 3) + 1;
+    const key = `${dt.getFullYear()}-Q${q}`;
+    quarterBuckets[key] ??= { quarter: `Q${q} ${dt.getFullYear()}`, revenue: 0, deals: 0, order: dt.getFullYear() * 4 + q };
+    quarterBuckets[key].revenue += Number(d.value) || 0;
+    quarterBuckets[key].deals += 1;
+  }
+  const quarterRowsRaw = Object.values(quarterBuckets).sort((a, b) => a.order - b.order);
+  const avgQuarterRevenue = quarterRowsRaw.length ? quarterRowsRaw.reduce((s, r) => s + r.revenue, 0) / quarterRowsRaw.length : 0;
+  const quarterlyFromDeals = quarterRowsRaw.map((r) => ({ ...r, target: Math.max(Math.round(avgQuarterRevenue), 1) }));
+  const quarterlyData = quarterlyFromDeals.length ? quarterlyFromDeals : quarterlyDataFallback;
+
+  const chartData = monthlyChartData.slice(-periodSlice[period]);
 
   const exportFullReport = () => {
-    downloadCSV("crm-full-report.csv", salesChartData.map(d => ({
+    downloadCSV("crm-full-report.csv", monthlyChartData.map(d => ({
       Month: d.month, Revenue: d.revenue, Leads: d.leads, Deals: d.deals,
     })));
   };
@@ -111,8 +147,11 @@ export default function Reports() {
           <p className="text-xs text-slate-500">Year-to-date performance</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04]">
-            <Filter size={12} /> Filter
+          <button
+            onClick={() => setPeriod((p) => periodOptions[(periodOptions.indexOf(p) + 1) % periodOptions.length])}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04]"
+          >
+            <Filter size={12} /> Filter ({period})
           </button>
           <button onClick={exportFullReport} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg gradient-bg text-white text-xs">
             <Download size={12} /> Export Report

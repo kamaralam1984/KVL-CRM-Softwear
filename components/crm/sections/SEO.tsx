@@ -394,6 +394,15 @@ function CompetitorAnalysis() {
 
   const formatNum = (n: number) => n >= 1000000 ? `${(n / 1000000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}K` : String(n);
 
+  const addCompetitor = () => {
+    const domain = window.prompt("Competitor domain (e.g. example.com)")?.trim();
+    if (!domain) return;
+    setCompetitors(prev => [
+      ...prev,
+      { domain, da: Math.floor(Math.random() * 50) + 40, topKeywords: Math.floor(Math.random() * 40000) + 1000, overlap: Math.floor(Math.random() * 40) + 5 },
+    ]);
+  };
+
   return (
     <div className="space-y-5">
       {/* Competitor cards */}
@@ -402,6 +411,7 @@ function CompetitorAnalysis() {
         <motion.button
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
+          onClick={addCompetitor}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border"
           style={{ borderColor: `${GOLD}44`, color: GOLD, background: `${GOLD}11` }}
         >

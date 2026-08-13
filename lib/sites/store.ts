@@ -62,3 +62,28 @@ export async function setSiteActive(siteId: string, active: boolean): Promise<vo
   const { error } = await db.from("sites").update({ active }).eq("site_id", siteId);
   if (error) throw new Error(error.message);
 }
+
+export async function updateSite(
+  siteId: string,
+  input: { name?: string; ownerEmail?: string; domains?: string[] }
+): Promise<Site> {
+  const db = getServerClient();
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name.trim();
+  if (input.ownerEmail !== undefined) patch.owner_email = input.ownerEmail.trim();
+  if (input.domains !== undefined) {
+    // Same trailing-slash normalization as createSite() — isOriginAllowed()
+    // does an exact match against the browser's Origin header.
+    patch.domains = input.domains.map((d) => d.trim().replace(/\/+$/, "")).filter(Boolean);
+  }
+  const { data, error } = await db.from("sites").update(patch).eq("site_id", siteId).select().single();
+  if (error) throw new Error(error.message);
+  return data as Site;
+}
+
+export async function deleteSite(siteId: string): Promise<void> {
+  if (siteId === DEFAULT_SITE_ID) throw new Error("Cannot delete the default KVL site.");
+  const db = getServerClient();
+  const { error } = await db.from("sites").delete().eq("site_id", siteId);
+  if (error) throw new Error(error.message);
+}

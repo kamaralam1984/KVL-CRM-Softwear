@@ -54,6 +54,7 @@ async function addIntentPoints(visitorId: string, points: number, siteId: string
       .from("visitors")
       .select("intent_score, first_touch_source, last_touch_source")
       .eq("visitor_id", visitorId)
+      .eq("site_id", siteId)
       .maybeSingle();
     const current = (data?.intent_score as number | undefined) ?? 0;
     const source = (data?.first_touch_source as string | undefined) || (data?.last_touch_source as string | undefined) || "";
@@ -63,12 +64,17 @@ async function addIntentPoints(visitorId: string, points: number, siteId: string
     const next = Math.max(0, Math.min(100, current + points));
     const band = bandFromScore(next, rules);
 
-    await db.from("visitors").update({ intent_score: next, intent_band: band }).eq("visitor_id", visitorId);
+    await db
+      .from("visitors")
+      .update({ intent_score: next, intent_band: band })
+      .eq("visitor_id", visitorId)
+      .eq("site_id", siteId);
 
     const { data: link } = await db
       .from("visitor_identity_links")
       .select("lead_id")
       .eq("visitor_id", visitorId)
+      .eq("site_id", siteId)
       .maybeSingle();
 
     if (link) {

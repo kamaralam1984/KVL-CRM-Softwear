@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Plus, Video, Phone, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
+import { getEvents, createEvent } from "@/lib/actions/calendarEvents";
 
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -41,6 +42,11 @@ export default function Calendar() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<EventForm>(emptyForm);
 
+  // Load from Supabase on mount; falls back to seed data in demo mode
+  useEffect(() => {
+    getEvents().then((rows) => { if (rows?.length) setEvents(rows); }).catch(() => {});
+  }, []);
+
   const set = (k: keyof EventForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
@@ -64,7 +70,7 @@ export default function Calendar() {
 
   const addEvent = () => {
     if (!form.title.trim() || !form.day) return;
-    setEvents((prev) => [...prev, {
+    const newEvent = {
       id: Date.now(),
       day: parseInt(form.day),
       month,
@@ -73,7 +79,11 @@ export default function Calendar() {
       time: form.time || "12:00 PM",
       type: form.type,
       color: form.color,
-    }]);
+    };
+    setEvents((prev) => [...prev, newEvent]);
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    const { id: _id, ...eventData } = newEvent;
+    createEvent(eventData).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
   };

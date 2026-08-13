@@ -429,11 +429,10 @@ function AutomationShowcase({ T, dark, goldGrad }: { T: ThemeObj; dark: boolean;
         {/* ── Live Log (right 1/3) ── */}
         <div className="p-5 border-t lg:border-t-0" style={{ borderColor: T.mockupBorder }}>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-bold" style={{ color: T.text1 }}>Live Execution Log</p>
+            <p className="text-xs font-bold" style={{ color: T.text1 }}>Example Execution Log</p>
             <div className="flex items-center gap-1.5">
-              <motion.span animate={{ opacity:[1,0.3,1] }} transition={{ duration:1.4, repeat:Infinity }}
-                className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-              <span className="text-[10px] font-semibold" style={{ color:"#00A86B" }}>Live</span>
+              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: T.text3 }} />
+              <span className="text-[10px] font-semibold" style={{ color: T.text3 }}>Sample preview</span>
             </div>
           </div>
           <div className="space-y-2 overflow-hidden">
@@ -1107,11 +1106,11 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                   <p className="text-sm mb-6" style={{ color: T.text2 }}>Our team will walk you through the full platform — personalized to your business.</p>
                   <div className="space-y-3">
                     {[
-                      { key:"name",    placeholder:"Your Full Name",    type:"text" },
-                      { key:"email",   placeholder:"Work Email",         type:"email" },
-                      { key:"company", placeholder:"Company Name",       type:"text" },
+                      { key:"name",    placeholder:"Your Full Name",    type:"text",  required:true },
+                      { key:"email",   placeholder:"Work Email",         type:"email", required:true },
+                      { key:"company", placeholder:"Company Name",       type:"text",  required:false },
                     ].map(f => (
-                      <input key={f.key} type={f.type} placeholder={f.placeholder}
+                      <input key={f.key} type={f.type} placeholder={f.placeholder} required={f.required}
                         value={(demoForm as any)[f.key]}
                         onChange={e => setDemoForm(p => ({ ...p, [f.key]: e.target.value }))}
                         className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
@@ -1127,8 +1126,8 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                   <motion.button whileHover={{ scale:1.03 }} whileTap={{ scale:0.97 }}
                     onClick={() => {
                       if (!demoForm.name || !demoForm.email) return;
-                      kvlAnalytics.track("form_submit", { form: "demo" });
-                      kvlAnalytics.identify({ name: demoForm.name, email: demoForm.email });
+                      kvlAnalytics.track("form_submit", { form: "demo", company: demoForm.company, time: demoForm.time });
+                      kvlAnalytics.identify({ name: demoForm.name, email: demoForm.email, company: demoForm.company });
                       setDemoSent(true);
                     }}
                     className="w-full mt-5 py-3.5 rounded-xl text-sm font-black text-black"
@@ -1146,7 +1145,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                   </motion.div>
                   <h3 className="text-xl font-black mb-2" style={{ color: T.text1 }}>Demo Booked!</h3>
                   <p className="text-sm mb-6" style={{ color: T.text2 }}>We'll confirm your slot at <strong>{demoForm.email}</strong> within 2 hours.</p>
-                  <motion.button whileHover={{ scale:1.03 }} onClick={() => { setDemoOpen(false); setDemoSent(false); onGetStarted(); }}
+                  <motion.button whileHover={{ scale:1.03 }} onClick={() => { setDemoOpen(false); setDemoSent(false); setDemoForm({ name:"", email:"", company:"", time:"" }); onGetStarted(); }}
                     className="px-8 py-3 rounded-xl text-sm font-black text-black"
                     style={{ background:"linear-gradient(135deg,#D4AF37,#F5C842)" }}>
                     Start Free Trial Meanwhile →

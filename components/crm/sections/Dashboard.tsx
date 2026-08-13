@@ -10,14 +10,15 @@ import {
   CheckSquare, Trophy, UserPlus, Mail, Calendar, Sparkles,
   ArrowUpRight, Eye, Brain, GitBranch, Star, Flame,
   ChevronRight, Clock, Phone, Activity, Rocket, Shield,
-  BarChart3, Globe, Heart,
+  BarChart3, Globe, Heart, Trash2,
 } from "lucide-react";
 import { salesChartData, revenueByCategory, activityFeed, teamMembers, leads as seedLeads, deals as seedDeals, tasks as seedTasks } from "@/lib/data";
-import { getActivityFeed } from "@/lib/actions/activity";
+import { getActivityFeed, deleteActivity } from "@/lib/actions/activity";
 import { getLeads } from "@/lib/actions/leads";
 import { getDeals } from "@/lib/actions/deals";
 import { getTasks } from "@/lib/actions/tasks";
 import { cn, formatCurrency } from "@/lib/utils";
+import { downloadCSV } from "@/lib/export";
 import GenerateLeadsButton from "@/components/crm/GenerateLeadsButton";
 
 /* ── Animated Counter ── */
@@ -95,19 +96,15 @@ const kpis = [
   { label: "Tasks Completed", value: 48,      change: -8.3,  icon: CheckSquare, color: "#f43f5e", glow: "rgba(244,63,94,0.2)",    border: "border-rose-500/25",   bg: "from-rose-500/10 to-rose-500/0",    iconBg: "bg-rose-500/15",   sparkColor: "#f43f5e", spark: taskSparkline, prefix: "",  suffix: "",  pct: 40 },
 ];
 
-const pipelineStages = [
-  { label: "Prospect",     count: 24, value: 380000, color: "#475569", pct: 100 },
-  { label: "Qualified",    count: 18, value: 540000, color: "#3b82f6", pct: 75 },
-  { label: "Proposal",     count: 12, value: 720000, color: "#8b5cf6", pct: 50 },
-  { label: "Negotiation",  count:  7, value: 490000, color: "#f59e0b", pct: 29 },
-  { label: "Closed Won",   count:  5, value: 850000, color: "#10b981", pct: 21 },
+const pipelineStageMeta: { label: string; color: string }[] = [
+  { label: "Discovery",    color: "#475569" },
+  { label: "Qualified",    color: "#3b82f6" },
+  { label: "Proposal",     color: "#8b5cf6" },
+  { label: "Negotiation",  color: "#f59e0b" },
+  { label: "Closed Won",   color: "#10b981" },
 ];
 
-const recentWins = [
-  { name: "SkyNet Robotics",   value: 520000, rep: "Priya N.", time: "2h ago",  color: "#10b981" },
-  { name: "Apex Analytics",    value: 312000, rep: "Sarah C.", time: "1d ago",  color: "#3b82f6" },
-  { name: "Nexus Systems",     value: 245000, rep: "Mike R.",  time: "2d ago",  color: "#8b5cf6" },
-];
+const winColors = ["#10b981", "#3b82f6", "#8b5cf6"];
 
 const businessMetrics = [
   { label: "MRR",        value: "$94.2K",  trend: "+12.4%", icon: TrendingUp,  color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-500/20" },
@@ -151,6 +148,12 @@ export default function Dashboard() {
     getTasks().then((rows) => { if (rows?.length) setTasks(rows); }).catch(() => {});
   }, []);
 
+  const removeActivity = (id: number) => {
+    setActivity((prev) => prev.filter((item) => item.id !== id));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    deleteActivity(id).catch(() => {});
+  };
+
   // Derive live KPI numbers from real data (reconcile with loaded leads/deals/tasks)
   const totalRevenue    = deals.reduce((s, d) => s + (Number(d.value) || 0), 0);
   const activeLeads     = leads.length;
@@ -160,10 +163,53 @@ export default function Dashboard() {
   const hotLeads        = leads.filter((l) => l.status === "hot").length;
   const tasksDue        = tasks.filter((t) => t.status === "pending").length;
   const liveKpiValues   = [totalRevenue, activeLeads, winRate, tasksCompleted];
-  const liveKpis        = kpis.map((k, i) => ({ ...k, value: liveKpiValues[i] ?? k.value }));
+  const liveKpis        = kpis.map((k, i) => {
+    const live = liveKpiValues[i];
+    if (live === undefined || live === null || !k.value) return k;
+    const change = Math.round(((live - k.value) / k.value) * 1000) / 10;
+    const pct = Math.max(0, Math.min(100, Math.round((live / k.value) * 100)));
+    return { ...k, value: live, change, pct };
+  });
 
   const chartData = salesChartData.slice(-periodSlice[period]);
   const topPerformer = [...teamMembers].filter(m => m.performance > 0).sort((a,b) => b.revenue - a.revenue).slice(0, 3);
+
+  // Derive pipeline funnel + recent wins from the real (or seed-fallback) deals list
+  const dealValue = (d: (typeof deals)[number]) => Number(d.value) || 0;
+  const stageCounts = pipelineStageMeta.map((s) => {
+    const stageDeals = deals.filter((d) => String(d.stage) === s.label);
+    return { ...s, count: stageDeals.length, value: stageDeals.reduce((sum, d) => sum + dealValue(d), 0) };
+  });
+  const maxStageValue = Math.max(...stageCounts.map((s) => s.value), 1);
+  const livePipelineStages = stageCounts.map((s) => ({ ...s, pct: Math.round((s.value / maxStageValue) * 100) }));
+  const pipelineTotalValue = deals.reduce((s, d) => s + dealValue(d), 0);
+
+  const liveRecentWins = deals
+    .filter((d) => /won|closed/i.test(String(d.stage)))
+    .sort((a, b) => dealValue(b) - dealValue(a))
+    .slice(0, 3)
+    .map((d, i) => ({
+      name: d.company || d.name,
+      value: dealValue(d),
+      rep: d.owner || "—",
+      time: d.daysInStage ? `${d.daysInStage}d in stage` : "Recently closed",
+      color: winColors[i % winColors.length],
+    }));
+
+  const liveBusinessValues: Record<string, string> = {
+    MRR: formatCurrency(totalRevenue / 12),
+    ARR: formatCurrency(totalRevenue),
+    "Avg Deal": formatCurrency(deals.length ? totalRevenue / deals.length : 0),
+  };
+  const liveBusinessMetrics = businessMetrics.map((m) =>
+    liveBusinessValues[m.label] ? { ...m, value: liveBusinessValues[m.label] } : m
+  );
+
+  const aiInsights = [
+    { icon: TrendingUp,   color: "text-emerald-400", bg: "bg-emerald-500/10", text: "Q1 2026 forecast: $1.8M — 14 deals in late stage driving 28.5% YoY growth." },
+    { icon: Flame,        color: "text-amber-400",   bg: "bg-amber-500/10",   text: "3 hot leads (score 88+) idle for 2h — historical data shows 67% drop in conversion." },
+    { icon: Zap,          color: "text-blue-400",    bg: "bg-blue-500/10",    text: "Automate follow-ups for 12 warm leads to save ~4hrs/week and boost conversion +23%." },
+  ];
 
   return (
     <div className="p-5 space-y-4 overflow-y-auto h-full">
@@ -221,10 +267,10 @@ export default function Dashboard() {
             <GenerateLeadsButton />
             <div className="flex items-center gap-3 flex-wrap">
             {[
-              { icon: Rocket,    label: "Pipeline",   value: "$2.98M",  color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-500/20" },
-              { icon: TrendingUp,label: "Growth",     value: "+28.5%",  color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-              { icon: Users,     label: "Team",       value: "6 Reps",  color: "text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-500/20" },
-              { icon: BarChart3, label: "Win Rate",   value: "68.5%",   color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-500/20" },
+              { icon: Rocket,    label: "Pipeline",   value: formatCurrency(totalRevenue),                                              color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-500/20" },
+              { icon: TrendingUp,label: "Growth",     value: `${liveKpis[0].change > 0 ? "+" : ""}${liveKpis[0].change}%`,               color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+              { icon: Users,     label: "Team",       value: `${teamMembers.length} Reps`,                                              color: "text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-500/20" },
+              { icon: BarChart3, label: "Win Rate",   value: `${winRate}%`,                                                              color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-500/20" },
             ].map((s) => {
               const Icon = s.icon;
               return (
@@ -301,14 +347,14 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-100">Business Pulse</h3>
-              <p className="text-xs text-slate-500">Key performance indicators — real time</p>
+              <p className="text-xs text-slate-500">Key performance indicators</p>
             </div>
             <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live data
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Deal-backed
             </span>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            {businessMetrics.map((m, i) => {
+            {liveBusinessMetrics.map((m, i) => {
               const Icon = m.icon;
               return (
                 <motion.div key={m.label}
@@ -332,14 +378,16 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-100">Pipeline Health</h3>
-              <p className="text-xs text-slate-500">$2.98M total value</p>
+              <p className="text-xs text-slate-500">{formatCurrency(pipelineTotalValue)} total value</p>
             </div>
-            <button className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
+            <button
+              onClick={() => downloadCSV("pipeline-health.csv", livePipelineStages.map((s) => ({ Stage: s.label, Deals: s.count, Value: s.value })))}
+              className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
               Full view <ChevronRight size={10}/>
             </button>
           </div>
           <div className="space-y-3">
-            {pipelineStages.map((s, i) => (
+            {livePipelineStages.map((s, i) => (
               <motion.div key={s.label}
                 initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + i * 0.07 }}>
                 <div className="flex items-center justify-between mb-1.5">
@@ -428,10 +476,10 @@ export default function Dashboard() {
                 <Trophy size={13} className="text-amber-400"/>
                 <p className="text-sm font-bold text-slate-100">Recent Wins</p>
               </div>
-              <span className="text-[10px] text-emerald-400 font-semibold">+3 this week</span>
+              <span className="text-[10px] text-emerald-400 font-semibold">+{liveRecentWins.length} closed won</span>
             </div>
             <div className="space-y-2.5">
-              {recentWins.map((w, i) => (
+              {liveRecentWins.map((w, i) => (
                 <motion.div key={w.name} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.06 }}
                   className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-white/[0.03] transition-colors cursor-pointer group">
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
@@ -507,11 +555,7 @@ export default function Dashboard() {
             <span className="ml-auto text-[10px] bg-violet-500/10 text-violet-300 px-2 py-0.5 rounded-full border border-violet-500/20 font-semibold">87% confidence</span>
           </div>
           <div className="space-y-2.5">
-            {[
-              { icon: TrendingUp,   color: "text-emerald-400", bg: "bg-emerald-500/10", text: "Q1 2026 forecast: $1.8M — 14 deals in late stage driving 28.5% YoY growth." },
-              { icon: Flame,        color: "text-amber-400",   bg: "bg-amber-500/10",   text: "3 hot leads (score 88+) idle for 2h — historical data shows 67% drop in conversion." },
-              { icon: Zap,          color: "text-blue-400",    bg: "bg-blue-500/10",    text: "Automate follow-ups for 12 warm leads to save ~4hrs/week and boost conversion +23%." },
-            ].map((ins, i) => {
+            {aiInsights.map((ins, i) => {
               const Icon = ins.icon;
               return (
                 <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 + i * 0.07 }}
@@ -524,7 +568,9 @@ export default function Dashboard() {
               );
             })}
           </div>
-          <button className="mt-3 flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">
+          <button
+            onClick={() => downloadCSV("ai-revenue-insights.csv", aiInsights.map((ins) => ({ Insight: ins.text })))}
+            className="mt-3 flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">
             Full AI Report <ArrowUpRight size={11}/>
           </button>
         </motion.div>
@@ -537,7 +583,9 @@ export default function Dashboard() {
               <Activity size={14} className="text-slate-400"/>
               <h3 className="text-sm font-bold text-slate-100">Live Activity Feed</h3>
             </div>
-            <button className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
+            <button
+              onClick={() => downloadCSV("activity-feed.csv", activity.map((a) => ({ Type: a.type, Text: a.text, Time: a.time })))}
+              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
               View all <ChevronRight size={11}/>
             </button>
           </div>
@@ -558,6 +606,13 @@ export default function Dashboard() {
                       <Clock size={8}/> {item.time}
                     </p>
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeActivity(item.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-rose-400 transition-all flex-shrink-0 p-1"
+                    aria-label="Dismiss activity"
+                  >
+                    <Trash2 size={11}/>
+                  </button>
                 </motion.div>
               );
             })}

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { kvlAnalytics } from "@/lib/tracking/sdk/client";
+import { submitWebFormLead } from "@/lib/actions/webFormSubmissions";
 import MissedCallBanner from "@/components/marketing/MissedCallBanner";
 import TruecallerButton from "@/components/marketing/TruecallerButton";
 
@@ -66,8 +67,9 @@ export default function ContactPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    kvlAnalytics.track("form_submit", { form: "contact", subject: form.subject });
-    kvlAnalytics.identify({ name: form.name, email: form.email });
+    kvlAnalytics.track("form_submit", { form: "contact", subject: form.subject, message: form.message });
+    kvlAnalytics.identify({ name: form.name, email: form.email, company: form.company });
+    submitWebFormLead({ name: form.name, email: form.email, company: form.company, message: `[${form.subject}] ${form.message}` }).catch(() => {});
     setTimeout(() => { setLoading(false); setSubmitted(true); }, 1200);
   };
 

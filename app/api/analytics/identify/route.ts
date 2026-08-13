@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       name: str(traits.name, 200),
       email: str(traits.email, 200),
       phone: str(traits.phone, 40),
+      company: str(traits.company, 200),
     };
 
     const [, , resolution] = await Promise.all([

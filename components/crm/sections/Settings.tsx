@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { User, Bell, Shield, Palette, Globe, Key, Zap, Database, ChevronRight, ChevronDown, Check, Copy, Eye, EyeOff, Moon, Sun, Building2, Lock, Layers, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
+import { downloadCSV } from "@/lib/export";
 
 const inputCls = "w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-crm-border text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-blue-500/50 transition-colors";
 
@@ -41,6 +42,23 @@ export default function Settings() {
   const [apiVisible, setApiVisible] = useState(false);
   const [copied, setCopied] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+  const [pwError, setPwError] = useState("");
+  const [dataDeleted, setDataDeleted] = useState(false);
+  const [ssoProviders, setSsoProviders] = useState([
+    { name: "Google Workspace", color: "#4285F4", letter: "G", active: true },
+    { name: "Microsoft Azure", color: "#0078D4", letter: "M", active: false },
+    { name: "Okta SAML", color: "#007DC1", letter: "O", active: false },
+  ]);
+  const [ssoConfigured, setSsoConfigured] = useState(false);
+  const [whiteLabel, setWhiteLabel] = useState({ domain: "", brandName: "", supportEmail: "" });
+  const [wlApplied, setWlApplied] = useState(false);
+  const [workspaces, setWorkspaces] = useState([
+    { name: "FreedomWithAI — Main", plan: "Enterprise", active: true },
+    { name: "Demo Environment", plan: "Growth", active: false },
+    { name: "Client Portal — Beta", plan: "Starter", active: false },
+  ]);
 
   const apiKey = "sk-crm-freedomwithai-••••••••••••••••••••";
   const apiKeyFull = "sk-crm-freedomwithai-x9Kp2mNqRtYuVwZs8jLd";
@@ -51,8 +69,32 @@ export default function Settings() {
   };
 
   const copyKey = () => {
+    navigator.clipboard?.writeText(apiKeyFull).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const savePassword = () => {
+    if (pwForm.next.length < 6) { setPwError("New password must be at least 6 characters"); return; }
+    if (pwForm.next !== pwForm.confirm) { setPwError("Passwords do not match"); return; }
+    setPwError("");
+    setPwOpen(false);
+  };
+
+  const exportAllData = () => {
+    downloadCSV("account-data-export.csv", [
+      { field: "Name", value: profile.name },
+      { field: "Email", value: profile.email },
+      { field: "Phone", value: profile.phone },
+      { field: "Role", value: profile.role },
+      ...notifSettings.map(({ label, key }) => ({ field: `Notification: ${label}`, value: notifs[key] ? "on" : "off" })),
+      ...apps.map((a) => ({ field: `Integration: ${a.name}`, value: a.connected ? "connected" : "disconnected" })),
+    ]);
+  };
+
+  const deleteAccountData = () => {
+    if (!confirm("Permanently delete all account data? This cannot be undone.")) return;
+    setDataDeleted(true);
   };
 
   const toggleApp = (name: string) => {
@@ -90,7 +132,7 @@ export default function Settings() {
                 </div>
                 <span className="badge bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
               </div>
-              <button className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Change Password →</button>
+              <button onClick={() => { setPwForm({ current: "", next: "", confirm: "" }); setPwError(""); setPwOpen(true); }} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Change Password →</button>
             </div>
           ),
         },
@@ -200,8 +242,10 @@ export default function Settings() {
                 <p className="text-xs text-slate-300">Data Retention</p>
                 <span className="text-xs text-slate-400">12 months</span>
               </div>
-              <button className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Export all data →</button>
-              <button className="text-xs text-rose-400 hover:text-rose-300 transition-colors">Delete account data →</button>
+              <button onClick={exportAllData} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Export all data →</button>
+              <button onClick={deleteAccountData} disabled={dataDeleted} className="text-xs text-rose-400 hover:text-rose-300 transition-colors disabled:opacity-50 disabled:pointer-events-none">
+                {dataDeleted ? "Deletion scheduled ✓" : "Delete account data →"}
+              </button>
             </div>
           ),
         },
@@ -216,12 +260,8 @@ export default function Settings() {
             <div className="space-y-3 pt-2 pb-1">
               <p className="text-[10px] text-slate-500">Enable SSO to let your team log in with your company identity provider.</p>
               <div className="grid grid-cols-3 gap-2">
-                {[
-                  { name:"Google Workspace", color:"#4285F4", letter:"G", active: true },
-                  { name:"Microsoft Azure",  color:"#0078D4", letter:"M", active: false },
-                  { name:"Okta SAML",        color:"#007DC1", letter:"O", active: false },
-                ].map(p => (
-                  <div key={p.name} className={cn("rounded-xl p-3 text-center border transition-all cursor-pointer",
+                {ssoProviders.map(p => (
+                  <div key={p.name} onClick={() => setSsoProviders((prev) => prev.map((x) => ({ ...x, active: x.name === p.name })))} className={cn("rounded-xl p-3 text-center border transition-all cursor-pointer",
                     p.active ? "border-blue-500/40 bg-blue-500/10" : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]")}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-1.5 text-xs font-black text-white"
                       style={{ background: p.color + "40" }}>{p.letter}</div>
@@ -238,8 +278,8 @@ export default function Settings() {
                   </div>
                 ))}
               </div>
-              <button className="px-3 py-1.5 rounded-lg text-[10px] font-semibold text-white" style={{ background:"linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
-                Configure SSO →
+              <button onClick={() => { setSsoConfigured(true); setTimeout(() => setSsoConfigured(false), 2000); }} className="px-3 py-1.5 rounded-lg text-[10px] font-semibold text-white" style={{ background:"linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
+                {ssoConfigured ? "Configured ✓" : "Configure SSO →"}
               </button>
             </div>
           ),
@@ -251,13 +291,13 @@ export default function Settings() {
               <p className="text-[10px] text-slate-500">Replace KVl branding with your own. Available on Enterprise plan.</p>
               <div className="space-y-2">
                 {[
-                  { label:"Custom Domain",    placeholder:"crm.yourdomain.com",  val:"" },
-                  { label:"Brand Name",       placeholder:"Your CRM Name",       val:"" },
-                  { label:"Support Email",    placeholder:"support@company.com", val:"" },
+                  { label:"Custom Domain",    placeholder:"crm.yourdomain.com",  key:"domain" as const },
+                  { label:"Brand Name",       placeholder:"Your CRM Name",       key:"brandName" as const },
+                  { label:"Support Email",    placeholder:"support@company.com", key:"supportEmail" as const },
                 ].map(f => (
                   <div key={f.label}>
                     <p className="text-[10px] text-slate-500 mb-1">{f.label}</p>
-                    <input placeholder={f.placeholder} className="w-full px-3 py-2 rounded-xl text-xs bg-white/[0.04] border border-white/[0.07] text-slate-200 outline-none placeholder-slate-600 focus:border-amber-500/40" />
+                    <input placeholder={f.placeholder} value={whiteLabel[f.key]} onChange={(e) => setWhiteLabel((p) => ({ ...p, [f.key]: e.target.value }))} className="w-full px-3 py-2 rounded-xl text-xs bg-white/[0.04] border border-white/[0.07] text-slate-200 outline-none placeholder-slate-600 focus:border-amber-500/40" />
                   </div>
                 ))}
               </div>
@@ -271,8 +311,8 @@ export default function Settings() {
                   <span className="text-[10px] text-slate-400">Accent Color</span>
                 </div>
               </div>
-              <button className="px-3 py-1.5 rounded-lg text-[10px] font-semibold text-black" style={{ background:"linear-gradient(135deg,#D4AF37,#F5C842)" }}>
-                Apply White Label →
+              <button onClick={() => { setWlApplied(true); setTimeout(() => setWlApplied(false), 2000); }} className="px-3 py-1.5 rounded-lg text-[10px] font-semibold text-black" style={{ background:"linear-gradient(135deg,#D4AF37,#F5C842)" }}>
+                {wlApplied ? "Applied ✓" : "Apply White Label →"}
               </button>
             </div>
           ),
@@ -283,11 +323,7 @@ export default function Settings() {
             <div className="space-y-3 pt-2 pb-1">
               <p className="text-[10px] text-slate-500">Switch between workspaces without logging out. Each workspace has isolated data.</p>
               <div className="space-y-2">
-                {[
-                  { name:"FreedomWithAI — Main",   plan:"Enterprise", active: true },
-                  { name:"Demo Environment",        plan:"Growth",     active: false },
-                  { name:"Client Portal — Beta",    plan:"Starter",    active: false },
-                ].map(ws => (
+                {workspaces.map(ws => (
                   <div key={ws.name} className={cn("flex items-center justify-between p-3 rounded-xl border transition-all",
                     ws.active ? "border-amber-500/30 bg-amber-500/05" : "border-white/[0.06] bg-white/[0.02]")}>
                     <div className="flex items-center gap-2.5">
@@ -302,11 +338,11 @@ export default function Settings() {
                     </div>
                     {ws.active
                       ? <span className="text-[10px] text-amber-400 font-bold">Current</span>
-                      : <button className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold transition-colors">Switch →</button>}
+                      : <button onClick={() => setWorkspaces((prev) => prev.map((w) => ({ ...w, active: w.name === ws.name })))} className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold transition-colors">Switch →</button>}
                   </div>
                 ))}
               </div>
-              <button className="w-full py-2 rounded-xl text-[10px] font-semibold text-slate-400 border border-dashed border-white/[0.08] hover:border-white/[0.15] transition-colors">
+              <button onClick={() => setWorkspaces((prev) => [...prev, { name: `New Workspace ${prev.length + 1}`, plan: "Starter", active: false }])} className="w-full py-2 rounded-xl text-[10px] font-semibold text-slate-400 border border-dashed border-white/[0.08] hover:border-white/[0.15] transition-colors">
                 + Add New Workspace
               </button>
             </div>
@@ -409,6 +445,29 @@ export default function Settings() {
           <div className="flex gap-2 pt-2">
             <button onClick={() => setEditOpen(false)} className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors">Cancel</button>
             <button onClick={saveProfile} className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium">Save Changes</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal open={pwOpen} onClose={() => setPwOpen(false)} title="Change Password">
+        <div className="space-y-3">
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Current Password</label>
+            <input className={inputCls} type="password" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">New Password</label>
+            <input className={inputCls} type="password" value={pwForm.next} onChange={(e) => setPwForm((p) => ({ ...p, next: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Confirm New Password</label>
+            <input className={inputCls} type="password" value={pwForm.confirm} onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))} />
+          </div>
+          {pwError && <p className="text-xs text-rose-400">{pwError}</p>}
+          <div className="flex gap-2 pt-2">
+            <button onClick={() => setPwOpen(false)} className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors">Cancel</button>
+            <button onClick={savePassword} className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium">Update Password</button>
           </div>
         </div>
       </Modal>

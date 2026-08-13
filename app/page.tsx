@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Globe, AlertTriangle } from "lucide-react";
 import Sidebar from "@/components/crm/Sidebar";
 import TopNav from "@/components/crm/TopNav";
 import AIAssistant from "@/components/crm/AIAssistant";
@@ -116,6 +117,19 @@ export default function CRMApp() {
   /* Wait for localStorage check before rendering anything */
   if (!authChecked) return null;
 
+  /* ── Global kill switch: disabling this blocks all logins ── */
+  if (!saConfig.globalEnabled && user?.role !== "Super Admin") {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#080c14] text-center px-6">
+        <div className="max-w-sm">
+          <Globe size={40} className="mx-auto mb-4 text-red-400" />
+          <h1 className="text-lg font-black text-white mb-2">Platform Unavailable</h1>
+          <p className="text-sm text-slate-500">This platform has been temporarily disabled by the administrator. Please check back later.</p>
+        </div>
+      </div>
+    );
+  }
+
   /* ── Landing Page ── */
   if (view === "landing") {
     return (
@@ -143,6 +157,19 @@ export default function CRMApp() {
           <Auth onAuth={(u) => { setUser(u); setView("app"); }} onBack={() => setView("landing")} />
         </motion.div>
       </AnimatePresence>
+    );
+  }
+
+  /* ── Maintenance mode: shows maintenance page to all non-super-admin users ── */
+  if (saConfig.maintenanceMode && user?.role !== "Super Admin") {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#080c14] text-center px-6">
+        <div className="max-w-sm">
+          <AlertTriangle size={40} className="mx-auto mb-4 text-amber-400" />
+          <h1 className="text-lg font-black text-white mb-2">Under Maintenance</h1>
+          <p className="text-sm text-slate-500">We&apos;re performing scheduled maintenance. Please check back shortly.</p>
+        </div>
+      </div>
     );
   }
 

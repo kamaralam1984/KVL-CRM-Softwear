@@ -786,16 +786,15 @@ export default function SuperAdminPanel() {
 
           <Card title="Client Accounts" icon={Users}>
             <div className="space-y-2 text-xs">
-              {[
-                { email: "kamaralamjdu@gmail.com", plan: "Enterprise" },
-                { email: "sarah@aicrmpro.com",        plan: "Growth" },
-                { email: "demo@crm.com",              plan: "Starter" },
-              ].map(r => (
-                <div key={r.email} className="flex items-center justify-between py-2 border-b border-white/[0.05]">
-                  <span className="font-mono text-slate-400">{r.email}</span>
-                  <span className="font-bold text-slate-300">{r.plan}</span>
+              {allUsers.map(u => (
+                <div key={u.id} className="flex items-center justify-between py-2 border-b border-white/[0.05]">
+                  <span className="font-mono text-slate-400">{u.email}</span>
+                  <span className="font-bold text-slate-300">{PLAN_LABELS[cfg.userPlans[u.id]?.planId ?? "starter"]}</span>
                 </div>
               ))}
+              {allUsers.length === 0 && (
+                <p className="text-slate-600 py-2">No client accounts yet.</p>
+              )}
             </div>
           </Card>
 

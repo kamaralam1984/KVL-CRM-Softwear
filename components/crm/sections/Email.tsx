@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Mail, Send, Eye, MousePointer, Plus, TrendingUp } from "lucide-react";
+import { Mail, Send, Eye, MousePointer, Plus, TrendingUp, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { emailCampaigns as initialCampaigns } from "@/lib/data";
-import { getEmailCampaigns, createEmailCampaign } from "@/lib/actions/emailCampaigns";
+import { getEmailCampaigns, createEmailCampaign, updateEmailCampaign, deleteEmailCampaign } from "@/lib/actions/emailCampaigns";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -26,6 +26,8 @@ export default function Email() {
   const [showModal, setShowModal] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
   const [form, setForm] = useState<CampForm>(emptyForm);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   // Load from Supabase on mount; falls back to seed data in demo mode
   useEffect(() => {
@@ -37,6 +39,22 @@ export default function Email() {
 
   const addCampaign = () => {
     if (!form.name.trim()) return;
+
+    if (editingId !== null) {
+      const patch = {
+        name: form.name,
+        status: form.status as "sent" | "scheduled" | "draft",
+        date: form.date || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      };
+      setCampaigns((prev) => prev.map((c) => (c.id === editingId ? { ...c, ...patch } : c)));
+      // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+      updateEmailCampaign(editingId, patch).catch(() => {});
+      setShowModal(false);
+      setForm(emptyForm);
+      setEditingId(null);
+      return;
+    }
+
     const newCampaign = {
       id: Date.now(),
       name: form.name,
@@ -57,15 +75,39 @@ export default function Email() {
     setForm(emptyForm);
   };
 
+  const openEdit = (c: (typeof campaigns)[number]) => {
+    setForm({ name: c.name, status: c.status, date: c.date });
+    setEditingId(c.id);
+    setOpenMenuId(null);
+    setShowModal(true);
+  };
+
+  const removeCampaign = (id: number) => {
+    setCampaigns((prev) => prev.filter((c) => c.id !== id));
+    setOpenMenuId(null);
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    deleteEmailCampaign(id).catch(() => {});
+  };
+
+  const sentCampaigns = campaigns.filter((c) => c.status === "sent" && c.sent > 0);
+  const avgOpenRate = sentCampaigns.length
+    ? sentCampaigns.reduce((sum, c) => sum + c.openRate, 0) / sentCampaigns.length
+    : 0;
+  const avgClickRate = sentCampaigns.length
+    ? sentCampaigns.reduce((sum, c) => sum + c.clickRate, 0) / sentCampaigns.length
+    : 0;
+  const totalSubscribers = Math.max(0, ...campaigns.map((c) => c.sent));
+  const campaignWord = sentCampaigns.length === 1 ? "campaign" : "campaigns";
+
   return (
     <>
       <div className="p-5 h-full overflow-y-auto space-y-4">
         <div className="grid grid-cols-4 gap-3">
           {[
             { label: "Campaigns Sent", value: String(campaigns.filter((c) => c.status === "sent").length), icon: Mail, color: "text-blue-400", sub: "This month" },
-            { label: "Avg Open Rate", value: "49.1%", icon: Eye, color: "text-emerald-400", sub: "+8% vs last" },
-            { label: "Avg Click Rate", value: "12.2%", icon: MousePointer, color: "text-violet-400", sub: "+3% vs last" },
-            { label: "Subscribers", value: "14,842", icon: TrendingUp, color: "text-cyan-400", sub: "+124 this week" },
+            { label: "Avg Open Rate", value: `${avgOpenRate.toFixed(1)}%`, icon: Eye, color: "text-emerald-400", sub: `Across ${sentCampaigns.length} sent ${campaignWord}` },
+            { label: "Avg Click Rate", value: `${avgClickRate.toFixed(1)}%`, icon: MousePointer, color: "text-violet-400", sub: `Across ${sentCampaigns.length} sent ${campaignWord}` },
+            { label: "Subscribers", value: totalSubscribers.toLocaleString(), icon: TrendingUp, color: "text-cyan-400", sub: "Largest campaign reach" },
           ].map((s) => {
             const Icon = s.icon;
             return (
@@ -84,7 +126,7 @@ export default function Email() {
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-200">Campaigns</h3>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => { setEditingId(null); setForm(emptyForm); setShowModal(true); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg gradient-bg text-white text-xs"
           >
             <Plus size={12} /> New Campaign
@@ -92,13 +134,14 @@ export default function Email() {
         </div>
 
         <div className="glass-card rounded-2xl border border-crm-border overflow-hidden">
-          <div className="grid grid-cols-7 gap-3 px-4 py-2.5 border-b border-crm-border text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+          <div className="grid grid-cols-8 gap-3 px-4 py-2.5 border-b border-crm-border text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
             <div className="col-span-2">Campaign</div>
             <div className="text-center">Status</div>
             <div className="text-center">Sent</div>
             <div className="text-center">Open Rate</div>
             <div className="text-center">Click Rate</div>
             <div className="text-center">Date</div>
+            <div className="text-center"></div>
           </div>
           {campaigns.map((c, i) => {
             const st = statusStyles[c.status];
@@ -108,7 +151,7 @@ export default function Email() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.06 }}
-                className="grid grid-cols-7 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                className="grid grid-cols-8 gap-3 px-4 py-3 border-b border-crm-border/50 last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer group"
               >
                 <div className="col-span-2 flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center flex-shrink-0">
@@ -143,6 +186,30 @@ export default function Email() {
                   ) : <span className="text-xs text-slate-600">—</span>}
                 </div>
                 <div className="flex items-center justify-center text-xs text-slate-500">{c.date}</div>
+                <div className="flex items-center justify-center relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setOpenMenuId((id) => (id === c.id ? null : c.id)); }}
+                    className="text-slate-600 opacity-0 group-hover:opacity-100 hover:text-slate-300 transition-opacity"
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                  {openMenuId === c.id && (
+                    <div className="absolute right-0 top-5 z-10 w-28 rounded-lg border border-crm-border bg-[#0a1628] shadow-lg overflow-hidden">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openEdit(c); }}
+                        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/[0.06]"
+                      >
+                        <Pencil size={11} /> Edit
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removeCampaign(c.id); }}
+                        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-rose-400 hover:bg-white/[0.06]"
+                      >
+                        <Trash2 size={11} /> Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
               </motion.div>
             );
           })}
@@ -168,8 +235,12 @@ export default function Email() {
         </div>
       </div>
 
-      {/* New Campaign Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="New Campaign">
+      {/* New/Edit Campaign Modal */}
+      <Modal
+        open={showModal}
+        onClose={() => { setShowModal(false); setEditingId(null); setForm(emptyForm); }}
+        title={editingId !== null ? "Edit Campaign" : "New Campaign"}
+      >
         <div className="space-y-3">
           <div>
             <label className="text-[11px] text-slate-500 mb-1 block">Campaign Name *</label>
@@ -190,9 +261,14 @@ export default function Email() {
             </div>
           </div>
           <div className="flex gap-2 pt-2">
-            <button onClick={() => setShowModal(false)} className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors">Cancel</button>
+            <button
+              onClick={() => { setShowModal(false); setEditingId(null); setForm(emptyForm); }}
+              className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors"
+            >
+              Cancel
+            </button>
             <button onClick={addCampaign} disabled={!form.name.trim()} className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium disabled:opacity-40">
-              <Send size={11} className="inline mr-1" /> Create Campaign
+              <Send size={11} className="inline mr-1" /> {editingId !== null ? "Save Changes" : "Create Campaign"}
             </button>
           </div>
         </div>

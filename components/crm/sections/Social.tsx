@@ -208,7 +208,7 @@ function SchedulePostTab({ initialContent = "", onPreFill }: { initialContent?: 
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [posted, setPosted] = useState(false);
+  const [posted, setPosted] = useState<null | "scheduled" | "now">(null);
 
   const togglePlatform = (key: PlatformKey) => {
     setSelectedPlatforms((prev) => {
@@ -349,12 +349,14 @@ function SchedulePostTab({ initialContent = "", onPreFill }: { initialContent?: 
         {/* Action buttons */}
         <div className="flex gap-3">
           <button
-            onClick={() => { setPosted(true); setTimeout(() => setPosted(false), 2500); }}
+            onClick={() => { setPosted("scheduled"); setTimeout(() => setPosted(null), 2500); }}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
             style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}>
             <Calendar size={15} /> Schedule Post
           </button>
-          <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
+          <button
+            onClick={() => { setPosted("now"); setTimeout(() => setPosted(null), 2500); }}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
             style={{ background: `linear-gradient(135deg, ${EMERALD}, #007a4d)`, color: "#fff" }}>
             <Zap size={15} /> Post Now
           </button>
@@ -363,7 +365,7 @@ function SchedulePostTab({ initialContent = "", onPreFill }: { initialContent?: 
           {posted && (
             <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className="text-xs text-center font-semibold" style={{ color: EMERALD }}>
-              ✅ Post scheduled successfully!
+              {posted === "scheduled" ? "✅ Post scheduled successfully!" : "✅ Post published successfully!"}
             </motion.p>
           )}
         </AnimatePresence>

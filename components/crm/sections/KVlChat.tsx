@@ -251,6 +251,7 @@ function MessageRow({
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function KVlChat() {
+  const [channels, setChannels]           = useState<Channel[]>(CHANNELS);
   const [activeChannel, setActiveChannel] = useState<string>("sales-team");
   const [activeDM, setActiveDM]           = useState<string | null>(null);
   const [messages, setMessages]           = useState<Message[]>(MESSAGES);
@@ -262,12 +263,15 @@ export default function KVlChat() {
   const [showEmojiHint, setShowEmojiHint] = useState(false);
   const bottomRef   = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const currentChannel = CHANNELS.find((c) => c.id === activeChannel) ?? CHANNELS[0];
+  const currentChannel = channels.find((c) => c.id === activeChannel) ?? channels[0];
   const pinnedMessages = messages.filter((m) => m.isPinned);
 
   function handleReact(id: string, emoji: string) {
@@ -310,6 +314,37 @@ export default function KVlChat() {
       e.preventDefault();
       handleSend();
     }
+  }
+
+  function handleAddChannel() {
+    const name = window.prompt("New channel name")?.trim();
+    if (!name) return;
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || String(Date.now());
+    setChannels((prev) => (prev.some((c) => c.id === id) ? prev : [...prev, { id, name, description: "" }]));
+    setActiveChannel(id);
+    setActiveDM(null);
+  }
+
+  function insertAtCursor(before: string, after = "") {
+    const el = inputRef.current;
+    const start = el?.selectionStart ?? input.length;
+    const end = el?.selectionEnd ?? input.length;
+    const selected = input.slice(start, end);
+    setInput(input.slice(0, start) + before + selected + after + input.slice(end));
+    requestAnimationFrame(() => {
+      el?.focus();
+      const cursor = start + before.length + selected.length + after.length;
+      el?.setSelectionRange(cursor, cursor);
+    });
+  }
+
+  function handleAttachmentSelected(e: React.ChangeEvent<HTMLInputElement>, prefix: string) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setInput((v) => (v ? `${v} ` : "") + `${prefix} ${file.name}`);
+      inputRef.current?.focus();
+    }
+    e.target.value = "";
   }
 
   // Group consecutive messages from same user
@@ -380,7 +415,7 @@ export default function KVlChat() {
                   transition={{ duration: 0.2 }}
                   className="overflow-hidden"
                 >
-                  {CHANNELS.map((ch) => {
+                  {channels.map((ch) => {
                     const isActive = activeChannel === ch.id && activeDM === null;
                     return (
                       <button
@@ -407,7 +442,8 @@ export default function KVlChat() {
                     );
                   })}
                   <button
-                    className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors"
+                    onClick={handleAddChannel}
+                    className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors hover:bg-white/5"
                     style={{ color: "#4b5563" }}
                   >
                     <Plus size={13} />
@@ -617,10 +653,11 @@ export default function KVlChat() {
               className="flex items-center gap-1 px-3 py-1.5"
               style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
             >
-              {[{ icon: Bold, label: "Bold" }, { icon: Italic, label: "Italic" }, { icon: Code, label: "Code" }].map(({ icon: Icon, label }) => (
+              {[{ icon: Bold, label: "Bold", before: "**", after: "**" }, { icon: Italic, label: "Italic", before: "_", after: "_" }, { icon: Code, label: "Code", before: "`", after: "`" }].map(({ icon: Icon, label, before, after }) => (
                 <button
                   key={label}
                   title={label}
+                  onClick={() => insertAtCursor(before, after)}
                   className="p-1 rounded transition-colors hover:bg-white/10"
                   style={{ color: "#4b5563" }}
                 >
@@ -629,6 +666,8 @@ export default function KVlChat() {
               ))}
               <div className="w-px h-4 mx-1" style={{ background: "rgba(255,255,255,0.08)" }} />
               <button
+                title="Mention"
+                onClick={() => insertAtCursor("@")}
                 className="p-1 rounded transition-colors hover:bg-white/10 text-xs font-medium"
                 style={{ color: "#4b5563" }}
               >
@@ -661,25 +700,48 @@ export default function KVlChat() {
                 </button>
                 <button
                   title="Attach file"
+                  onClick={() => fileInputRef.current?.click()}
                   className="p-1.5 rounded transition-colors hover:bg-white/10"
                   style={{ color: "#4b5563" }}
                 >
                   <Paperclip size={16} />
                 </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => handleAttachmentSelected(e, "📎")}
+                />
                 <button
                   title="Image"
+                  onClick={() => imageInputRef.current?.click()}
                   className="p-1.5 rounded transition-colors hover:bg-white/10"
                   style={{ color: "#4b5563" }}
                 >
                   <Image size={16} />
                 </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleAttachmentSelected(e, "🖼️")}
+                />
                 <button
                   title="Audio"
+                  onClick={() => audioInputRef.current?.click()}
                   className="p-1.5 rounded transition-colors hover:bg-white/10"
                   style={{ color: "#4b5563" }}
                 >
                   <Mic size={16} />
                 </button>
+                <input
+                  ref={audioInputRef}
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={(e) => handleAttachmentSelected(e, "🎤")}
+                />
                 {showEmojiHint && (
                   <motion.span
                     initial={{ opacity: 0, x: -6 }}

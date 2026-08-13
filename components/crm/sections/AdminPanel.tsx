@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   type AppConfig, type SaasPlan, type ManagedUser, type RolePermissions, type ActivityEntry,
-  loadConfig, saveConfig, loadUsers, saveUsers, loadPermissions, savePermissions,
+  loadConfig, saveConfig, resetConfig, loadUsers, saveUsers, loadPermissions, savePermissions, resetPermissions,
   loadLogs, clearLogs, ALL_SECTIONS,
 } from "@/lib/appConfig";
 import { getAcquisitionSettings, updateAcquisitionSetting } from "@/lib/actions/acquisitionSettings";
@@ -61,7 +61,7 @@ function Card({ title, icon: Icon, children, className = "" }: { title: string; 
   );
 }
 
-const ROLES = ["Admin", "Manager", "Senior AE", "Sales Rep", "Marketing", "Finance", "Support", "Viewer"];
+const ROLES = ["Super Admin", "Admin", "Manager", "Senior AE", "Sales Rep", "Marketing", "Finance", "Support", "Viewer"];
 
 const SECTION_LABELS: Record<string, string> = {
   dashboard: "Dashboard", leads: "Leads", customers: "Customers", deals: "Deals",
@@ -767,7 +767,7 @@ export default function AdminPanel() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500">Toggle which sections each role can access. Changes apply immediately on next login.</p>
-                <button onClick={() => savePermsState(loadPermissions())} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                <button onClick={() => savePermsState(resetPermissions())} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
                   <RefreshCw size={11} /> Reset defaults
                 </button>
               </div>
@@ -820,7 +820,7 @@ export default function AdminPanel() {
                     { label: "Full Access",    desc: "All sections on",    action: () => savePermsState(Object.fromEntries(ROLES.map(r => [r, Object.fromEntries(ALL_SECTIONS.map(s => [s, true]))]))) },
                     { label: "Restricted",     desc: "Viewers: dashboard only", action: () => savePermsState({ ...perms, Viewer: Object.fromEntries(ALL_SECTIONS.map(s => [s, s === "dashboard"])) }) },
                     { label: "Sales Only",     desc: "Sales sections on",  action: () => savePermsState({ ...perms, "Sales Rep": Object.fromEntries(ALL_SECTIONS.map(s => [s, ["dashboard","leads","deals","pipeline","tasks"].includes(s)])) }) },
-                    { label: "Reset All",      desc: "Back to defaults",   action: () => { savePermissions(loadPermissions()); setPerms(loadPermissions()); } },
+                    { label: "Reset All",      desc: "Back to defaults",   action: () => savePermsState(resetPermissions()) },
                   ].map(p => (
                     <button key={p.label} onClick={p.action}
                       className="text-left p-3 rounded-xl border border-white/[0.07] bg-white/[0.02] hover:border-blue-500/30 hover:bg-blue-500/5 transition-all">
@@ -1083,7 +1083,7 @@ export default function AdminPanel() {
               </Card>
               <Card title="Danger Zone" icon={AlertTriangle} className="border-rose-500/20">
                 <div className="space-y-2">
-                  <button onClick={() => { if (confirm("Reset all config to defaults?")) { const def = loadConfig(); saveConfig(def); setConfig(def); }}}
+                  <button onClick={() => { if (confirm("Reset all config to defaults?")) { const def = resetConfig(); saveConfig(def); setConfig(def); }}}
                     className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-400 text-sm hover:bg-rose-500/10 transition-colors">
                     <RefreshCw size={14} /> Reset Config to Defaults
                   </button>

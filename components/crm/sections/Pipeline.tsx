@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Plus, MoreHorizontal, TrendingUp, Clock } from "lucide-react";
 import { deals as initialDeals } from "@/lib/data";
-import { getDeals as fetchDeals, createDeal } from "@/lib/actions/deals";
+import { getDeals as fetchDeals, createDeal, updateDeal, deleteDeal } from "@/lib/actions/deals";
 import { cn, formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -25,6 +25,7 @@ export default function Pipeline() {
   const [dealList, setDealList] = useState(initialDeals);
   const [modalStage, setModalStage] = useState<string | null>(null);
   const [form, setForm] = useState<DealForm>(emptyForm);
+  const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
 
   // Load from Supabase on mount; falls back to seed data in demo mode
   useEffect(() => {
@@ -66,6 +67,23 @@ export default function Pipeline() {
   };
 
   const stageName = stages.find((s) => s.id === modalStage)?.label || "";
+
+  const advanceStage = (dealId: number, currentStage: string) => {
+    const idx = stages.findIndex((s) => s.id === currentStage);
+    const next = stages[idx + 1]?.id;
+    if (!next) return;
+    setDealList((prev) => prev.map((d) => (d.id === dealId ? { ...d, stage: next } : d)));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+    updateDeal(dealId, { stage: next }).catch(() => {});
+    setMenuOpenId(null);
+  };
+
+  const removeDeal = (dealId: number) => {
+    setDealList((prev) => prev.filter((d) => d.id !== dealId));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    deleteDeal(dealId).catch(() => {});
+    setMenuOpenId(null);
+  };
 
   return (
     <>
@@ -115,7 +133,7 @@ export default function Pipeline() {
                       transition={{ delay: i * 0.05 }}
                       className="glass-card rounded-xl border border-crm-border p-3 cursor-pointer hover:border-blue-500/30 hover:bg-white/[0.06] transition-all group"
                     >
-                      <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-start justify-between mb-2 relative">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-lg gradient-bg flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
                             {deal.avatar}
@@ -125,7 +143,33 @@ export default function Pipeline() {
                             <p className="text-[10px] text-slate-500">{deal.company}</p>
                           </div>
                         </div>
-                        <MoreHorizontal size={13} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === deal.id ? null : deal.id); }}
+                          className="text-slate-600 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        >
+                          <MoreHorizontal size={13} />
+                        </button>
+                        {menuOpenId === deal.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 top-5 z-10 w-36 rounded-lg border border-crm-border bg-[#0a1628] shadow-xl py-1"
+                          >
+                            {stage.id !== "Closed Won" && (
+                              <button
+                                onClick={() => advanceStage(deal.id, deal.stage)}
+                                className="w-full text-left px-3 py-1.5 text-[11px] text-slate-300 hover:bg-white/[0.06]"
+                              >
+                                Advance Stage
+                              </button>
+                            )}
+                            <button
+                              onClick={() => removeDeal(deal.id)}
+                              className="w-full text-left px-3 py-1.5 text-[11px] text-red-400 hover:bg-red-500/10"
+                            >
+                              Delete Deal
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between text-xs mb-2">

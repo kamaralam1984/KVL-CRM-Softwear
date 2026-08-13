@@ -48,6 +48,7 @@ export async function resolveIdentity(
     name: string;
     email: string;
     phone: string;
+    company?: string;
   },
   siteId: string
 ): Promise<IdentityResolution | null> {
@@ -104,7 +105,7 @@ export async function resolveIdentity(
       const score = 50;
       const created = await createLead({
         name,
-        company: "",
+        company: input.company?.trim() || "",
         email,
         phone: input.phone.trim(),
         score,
@@ -125,7 +126,7 @@ export async function resolveIdentity(
 
       // Reuse the existing Lead Nurture automation (spec §19: form_submitted → create
       // lead, assign owner, create follow-up task) — no separate workflow needed.
-      triggerLeadCreated({ name, company: "", score, owner });
+      triggerLeadCreated({ name, company: input.company?.trim() || "", score, owner });
     }
 
     await db.from("visitor_identity_links").insert({

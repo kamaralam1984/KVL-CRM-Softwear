@@ -414,12 +414,12 @@ IT Strategy, FutureWorks K.K.`,
 ];
 
 const FOLDERS = [
-  { id: "inbox", label: "Inbox", icon: Inbox, count: 12 },
-  { id: "starred", label: "Starred", icon: Star, count: 0 },
-  { id: "sent", label: "Sent", icon: Send, count: 0 },
-  { id: "drafts", label: "Drafts", icon: FileText, count: 3 },
-  { id: "spam", label: "Spam", icon: AlertTriangle, count: 0 },
-  { id: "trash", label: "Trash", icon: Trash2, count: 0 },
+  { id: "inbox", label: "Inbox", icon: Inbox },
+  { id: "starred", label: "Starred", icon: Star },
+  { id: "sent", label: "Sent", icon: Send },
+  { id: "drafts", label: "Drafts", icon: FileText },
+  { id: "spam", label: "Spam", icon: AlertTriangle },
+  { id: "trash", label: "Trash", icon: Trash2 },
 ];
 
 const LABELS = [
@@ -447,7 +447,23 @@ function Avatar({ name, size = 36 }: { name: string; size?: number }) {
 }
 
 /* ─── Compose Modal ─── */
-function ComposeModal({ onClose }: { onClose: () => void }) {
+interface ComposeData {
+  to: string;
+  cc: string;
+  bcc: string;
+  subject: string;
+  body: string;
+}
+
+function ComposeModal({
+  onClose,
+  onSend,
+  onSaveDraft,
+}: {
+  onClose: () => void;
+  onSend: (data: ComposeData) => void;
+  onSaveDraft: (data: ComposeData) => void;
+}) {
   const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
@@ -556,12 +572,20 @@ function ComposeModal({ onClose }: { onClose: () => void }) {
           {/* Footer */}
           <div className="flex items-center justify-between px-5 py-4 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-black transition-all hover:opacity-90"
+              <button
+                onClick={() => {
+                  if (!to.trim()) return;
+                  onSend({ to, cc, bcc, subject, body });
+                }}
+                disabled={!to.trim()}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-black transition-all hover:opacity-90 disabled:opacity-40"
                 style={{ background: "linear-gradient(135deg,#D4AF37,#B8963E)" }}>
                 <Send size={14} />
                 Send
               </button>
-              <button className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-colors">
+              <button
+                onClick={() => onSaveDraft({ to, cc, bcc, subject, body })}
+                className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-colors">
                 Save Draft
               </button>
             </div>
@@ -624,9 +648,17 @@ function EmailRow({
 function EmailPreview({
   email,
   onReply,
+  onSendReply,
+  onArchive,
+  onDelete,
+  onToggleStar,
 }: {
   email: Email;
   onReply: () => void;
+  onSendReply: (text: string) => void;
+  onArchive: () => void;
+  onDelete: () => void;
+  onToggleStar: () => void;
 }) {
   const [threadExpanded, setThreadExpanded] = useState<Record<string, boolean>>({});
   const [replyText, setReplyText] = useState("");
@@ -634,13 +666,19 @@ function EmailPreview({
   const toggleThread = (id: string) =>
     setThreadExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  const handleSendReply = () => {
+    if (!replyText.trim()) return;
+    onSendReply(replyText);
+    setReplyText("");
+  };
+
   const actions = [
     { icon: Reply, label: "Reply", onClick: onReply },
     { icon: ReplyAll, label: "Reply All", onClick: onReply },
     { icon: Forward, label: "Forward", onClick: onReply },
-    { icon: Archive, label: "Archive", onClick: () => {} },
-    { icon: Trash2, label: "Delete", onClick: () => {} },
-    { icon: Star, label: "Star", onClick: () => {} },
+    { icon: Archive, label: "Archive", onClick: onArchive },
+    { icon: Trash2, label: "Delete", onClick: onDelete },
+    { icon: Star, label: "Star", onClick: onToggleStar },
   ];
 
   return (
@@ -751,7 +789,9 @@ function EmailPreview({
               ))}
             </div>
             <button
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-black transition-all hover:opacity-90"
+              onClick={handleSendReply}
+              disabled={!replyText.trim()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-black transition-all hover:opacity-90 disabled:opacity-40"
               style={{ background: "linear-gradient(135deg,#D4AF37,#B8963E)" }}
             >
               <Send size={12} />
@@ -766,15 +806,87 @@ function EmailPreview({
 
 /* ─── Main Component ─── */
 export default function KVlMail() {
+  const [emails, setEmails] = useState<Email[]>(DEMO_EMAILS);
   const [activeFolder, setActiveFolder] = useState("inbox");
   const [selectedEmailId, setSelectedEmailId] = useState<string>("1");
   const [filter, setFilter] = useState<FilterType>("all");
   const [search, setSearch] = useState("");
   const [composing, setComposing] = useState(false);
 
-  const selectedEmail = DEMO_EMAILS.find((e) => e.id === selectedEmailId) ?? null;
+  const selectedEmail = emails.find((e) => e.id === selectedEmailId) ?? null;
 
-  const filteredEmails = DEMO_EMAILS.filter((e) => {
+  const inboxUnreadCount = emails.filter((e) => e.folder === "inbox" && e.unread).length;
+  const draftsCount = emails.filter((e) => e.folder === "drafts").length;
+
+  function handleComposeSend(data: ComposeData) {
+    const newEmail: Email = {
+      id: `sent-${Date.now()}`,
+      from: "You",
+      fromEmail: "me@kvlcrm.com",
+      to: data.to,
+      subject: data.subject || "(no subject)",
+      preview: data.body.slice(0, 120),
+      body: data.body,
+      time: "Just now",
+      date: "Today",
+      unread: false,
+      starred: false,
+      hasAttachment: false,
+      folder: "sent",
+    };
+    setEmails((prev) => [newEmail, ...prev]);
+    setComposing(false);
+  }
+
+  function handleComposeSaveDraft(data: ComposeData) {
+    const draftEmail: Email = {
+      id: `draft-${Date.now()}`,
+      from: "You",
+      fromEmail: "me@kvlcrm.com",
+      to: data.to,
+      subject: data.subject || "(no subject)",
+      preview: data.body.slice(0, 120),
+      body: data.body,
+      time: "Just now",
+      date: "Today",
+      unread: false,
+      starred: false,
+      hasAttachment: false,
+      folder: "drafts",
+    };
+    setEmails((prev) => [draftEmail, ...prev]);
+    setComposing(false);
+  }
+
+  function handleSendReply(id: string, text: string) {
+    setEmails((prev) =>
+      prev.map((e) =>
+        e.id === id
+          ? {
+              ...e,
+              thread: [
+                ...(e.thread ?? []),
+                { id: `reply-${Date.now()}`, from: "You", fromEmail: "me@kvlcrm.com", time: "Just now", body: text, expanded: true },
+              ],
+            }
+          : e
+      )
+    );
+  }
+
+  function handleArchive(id: string) {
+    setEmails((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  function handleDelete(id: string) {
+    setEmails((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  function handleToggleStar(id: string) {
+    setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, starred: !e.starred } : e)));
+  }
+
+  const filteredEmails = emails.filter((e) => {
     if (activeFolder === "starred") return e.starred;
     if (activeFolder !== "inbox") return false;
     if (filter === "unread") return e.unread;
@@ -822,8 +934,9 @@ export default function KVlMail() {
         {/* Folders */}
         <nav className="flex-1 px-2 overflow-y-auto">
           <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 px-2 mb-1.5">Folders</p>
-          {FOLDERS.map(({ id, label, icon: Icon, count }) => {
+          {FOLDERS.map(({ id, label, icon: Icon }) => {
             const active = activeFolder === id;
+            const badgeCount = id === "inbox" ? inboxUnreadCount : id === "drafts" ? draftsCount : 0;
             return (
               <button
                 key={id}
@@ -836,14 +949,14 @@ export default function KVlMail() {
               >
                 <Icon size={14} className="flex-shrink-0" style={{ color: active ? "#D4AF37" : undefined }} />
                 <span className="flex-1 text-xs font-medium truncate">{label}</span>
-                {count > 0 && id === "inbox" && (
+                {badgeCount > 0 && id === "inbox" && (
                   <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: "rgba(212,175,55,0.15)", color: "#D4AF37" }}>
-                    {count}
+                    {badgeCount}
                   </span>
                 )}
-                {id === "drafts" && (
+                {id === "drafts" && badgeCount > 0 && (
                   <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.07)", color: "#64748b" }}>
-                    3
+                    {badgeCount}
                   </span>
                 )}
               </button>
@@ -971,7 +1084,14 @@ export default function KVlMail() {
               transition={{ duration: 0.18 }}
               className="h-full"
             >
-              <EmailPreview email={selectedEmail} onReply={() => setComposing(true)} />
+              <EmailPreview
+                email={selectedEmail}
+                onReply={() => setComposing(true)}
+                onSendReply={(text) => handleSendReply(selectedEmail.id, text)}
+                onArchive={() => handleArchive(selectedEmail.id)}
+                onDelete={() => handleDelete(selectedEmail.id)}
+                onToggleStar={() => handleToggleStar(selectedEmail.id)}
+              />
             </motion.div>
           </AnimatePresence>
         ) : (
@@ -989,7 +1109,13 @@ export default function KVlMail() {
       </div>
 
       {/* ── Compose Modal ── */}
-      {composing && <ComposeModal onClose={() => setComposing(false)} />}
+      {composing && (
+        <ComposeModal
+          onClose={() => setComposing(false)}
+          onSend={handleComposeSend}
+          onSaveDraft={handleComposeSaveDraft}
+        />
+      )}
     </div>
   );
 }

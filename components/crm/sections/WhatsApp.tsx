@@ -9,7 +9,8 @@ import {
   Calendar, MicOff, VideoOff, ScreenShare,
 } from "lucide-react";
 import { whatsappConversations } from "@/lib/data";
-import { getWhatsappConversations } from "@/lib/actions/whatsapp";
+import { getWhatsappConversations, updateWhatsappConversation, deleteWhatsappConversation } from "@/lib/actions/whatsapp";
+import { createEvent } from "@/lib/actions/calendarEvents";
 import { cn } from "@/lib/utils";
 
 const inputCls = "w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-crm-border text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-blue-500/50 transition-colors";
@@ -50,6 +51,24 @@ const initialRules: AutoRule[] = [
   { id: 4, trigger: "bye / goodbye", response: "Thanks for chatting with us! Have a wonderful day. Feel free to reach out anytime. 😊", active: true, hits: 8 },
 ];
 
+type CallItem = { name: string; type: "out" | "in" | "missed"; dur: string; time: string; status: string };
+const initialCalls: CallItem[] = [
+  { name:"Priya Sharma",   type:"out",    dur:"5:12", time:"Today 10:23", status:"Answered" },
+  { name:"John Smith",     type:"in",     dur:"2:45", time:"Today 09:11", status:"Answered" },
+  { name:"Michael Torres", type:"missed", dur:"—",    time:"Yesterday",   status:"Missed"   },
+  { name:"Sarah Chen",     type:"out",    dur:"8:30", time:"Yesterday",   status:"Answered" },
+  { name:"David Chen",     type:"in",     dur:"1:05", time:"Mon 14:20",   status:"Answered" },
+  { name:"Emma Wilson",    type:"missed", dur:"—",    time:"Sun 16:45",   status:"Missed"   },
+];
+
+type MeetingItem = { title: string; with: string; time: string; dur: string; platform: string; link: boolean };
+const initialMeetings: MeetingItem[] = [
+  { title:"Product Demo — TechFlow Inc",  with:"Sarah Chen",      time:"Today 2:00 PM",    dur:"45 min", platform:"Zoom",  link:true },
+  { title:"Renewal Discussion",            with:"Priya Patel",     time:"Tomorrow 11:00 AM",dur:"30 min", platform:"Google Meet", link:true },
+  { title:"Onboarding Call — RetailPro",  with:"James Okafor",    time:"Thu 3:30 PM",      dur:"60 min", platform:"KVl Meet", link:false },
+  { title:"Quarterly Business Review",    with:"Marcus Williams", time:"Fri 10:00 AM",     dur:"90 min", platform:"Zoom",  link:true },
+];
+
 export default function WhatsApp() {
   // Load conversations from Supabase on mount; falls back to seed data in demo mode
   const [convos, setConvos] = useState(whatsappConversations);
@@ -77,13 +96,67 @@ export default function WhatsApp() {
   const [newTrigger, setNewTrigger]   = useState("");
   const [newResponse, setNewResponse] = useState("");
 
+  // Voice calls / meetings state
+  const [calls, setCalls]             = useState(initialCalls);
+  const [meetings, setMeetings]       = useState(initialMeetings);
+  const [quickJoin, setQuickJoin]     = useState("");
+
   const conv    = convos.find((c) => c.id === activeConv);
-  const messages = localMsgs[activeConv] || [];
+  const messages = localMsgs[activeConv] ?? (conv ? [{ role: "in" as const, text: conv.message, time: conv.time }] : []);
+
+  const openConv = (id: number) => {
+    setActiveConv(id);
+    const target = convos.find((c) => c.id === id);
+    if (target && target.unread > 0) {
+      setConvos((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
+      // Persist to Supabase when configured; demo mode throws → ignored (optimistic edit stays)
+      updateWhatsappConversation(id, { unread: 0 }).catch(() => {});
+    }
+  };
+
+  const removeConv = (id: number) => {
+    setConvos((prev) => prev.filter((c) => c.id !== id));
+    setActiveConv((prev) => (prev === id ? (convos.find((c) => c.id !== id)?.id ?? 0) : prev));
+    // Persist to Supabase when configured; demo mode throws → ignored (optimistic remove stays)
+    deleteWhatsappConversation(id).catch(() => {});
+  };
 
   const sendMsg = () => {
     if (!input.trim()) return;
-    setLocalMsgs(p => ({ ...p, [activeConv]: [...(p[activeConv] || []), { role: "out", text: input, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }] }));
+    const text = input;
+    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    setLocalMsgs(p => ({ ...p, [activeConv]: [...(p[activeConv] || []), { role: "out", text, time }] }));
+    setConvos((prev) => prev.map((c) => (c.id === activeConv ? { ...c, message: text, time: "Just now" } : c)));
+    updateWhatsappConversation(activeConv, { message: text, time: "Just now" }).catch(() => {});
     setInput("");
+  };
+
+  const startCall = (name?: string) => {
+    const target = name ?? conv?.contact ?? contacts[0]?.name ?? "Unknown";
+    setCalls((prev) => [{ name: target, type: "out", dur: "0:00", time: "Just now", status: "Answered" }, ...prev]);
+  };
+
+  const scheduleMeeting = () => {
+    const withName = conv?.contact ?? contacts[0]?.name ?? "New Contact";
+    setMeetings((prev) => [{ title: `Meeting with ${withName}`, with: withName, time: "Tomorrow 10:00 AM", dur: "30 min", platform: "KVl Meet", link: false }, ...prev]);
+  };
+
+  const joinMeeting = (platform: string) => {
+    const url = platform === "Zoom" ? "https://zoom.us/join" : platform === "Google Meet" ? "https://meet.google.com" : "";
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const addToCalendar = (m: { title: string; time: string }) => {
+    const now = new Date();
+    createEvent({ day: now.getDate(), month: now.getMonth(), year: now.getFullYear(), title: m.title, time: m.time, type: "meeting", color: "violet" }).catch(() => {});
+  };
+
+  const joinQuick = () => {
+    const val = quickJoin.trim();
+    if (!val) return;
+    const url = /^https?:\/\//i.test(val) ? val : `https://meet.google.com/${val}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+    setQuickJoin("");
   };
 
   const toggleContact = (id: number) => setSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
@@ -142,25 +215,30 @@ export default function WhatsApp() {
             </div>
             <div className="flex-1 space-y-1 overflow-y-auto">
               {convos.map((c) => (
-                <button key={c.id} onClick={() => setActiveConv(c.id)}
-                  className={cn("w-full flex items-start gap-3 px-3 py-2.5 rounded-xl transition-all text-left", activeConv === c.id ? "bg-white/[0.07] border border-blue-500/20" : "hover:bg-white/[0.04]")}
+                <div key={c.id}
+                  className={cn("group w-full flex items-start gap-3 px-3 py-2.5 rounded-xl transition-all text-left", activeConv === c.id ? "bg-white/[0.07] border border-blue-500/20" : "hover:bg-white/[0.04]")}
                 >
-                  <div className="w-9 h-9 rounded-full gradient-bg flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-                    {c.avatar}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-medium text-slate-200 truncate">{c.contact}</p>
-                      <p className="text-[10px] text-slate-600 flex-shrink-0">{c.time}</p>
+                  <button onClick={() => openConv(c.id)} className="flex items-start gap-3 flex-1 min-w-0 text-left">
+                    <div className="w-9 h-9 rounded-full gradient-bg flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                      {c.avatar}
                     </div>
-                    <p className="text-[11px] text-slate-500 truncate">{c.message}</p>
-                  </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-medium text-slate-200 truncate">{c.contact}</p>
+                        <p className="text-[10px] text-slate-600 flex-shrink-0">{c.time}</p>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate">{c.message}</p>
+                    </div>
+                  </button>
                   {c.unread > 0 && (
                     <span className="w-4 h-4 rounded-full gradient-bg flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0">
                       {c.unread}
                     </span>
                   )}
-                </button>
+                  <button onClick={() => removeConv(c.id)} className="p-1 rounded text-slate-600 opacity-0 group-hover:opacity-100 hover:text-rose-400 transition-all flex-shrink-0">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -452,19 +530,12 @@ export default function WhatsApp() {
           <div className="glass-card rounded-2xl border border-crm-border overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border">
               <p className="text-xs font-bold text-slate-200">Recent Calls</p>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-black" style={{ background:"linear-gradient(135deg,#D4AF37,#F5C842)" }}>
+              <button onClick={() => startCall()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-black" style={{ background:"linear-gradient(135deg,#D4AF37,#F5C842)" }}>
                 <PhoneCall size={12} /> New Call
               </button>
             </div>
             <div className="divide-y divide-white/[0.04]">
-              {[
-                { name:"Priya Sharma",   type:"out",    dur:"5:12", time:"Today 10:23", status:"Answered" },
-                { name:"John Smith",     type:"in",     dur:"2:45", time:"Today 09:11", status:"Answered" },
-                { name:"Michael Torres",type:"missed",  dur:"—",    time:"Yesterday",   status:"Missed"   },
-                { name:"Sarah Chen",     type:"out",    dur:"8:30", time:"Yesterday",   status:"Answered" },
-                { name:"David Chen",     type:"in",     dur:"1:05", time:"Mon 14:20",   status:"Answered" },
-                { name:"Emma Wilson",    type:"missed",  dur:"—",    time:"Sun 16:45",   status:"Missed"   },
-              ].map((c, i) => {
+              {calls.map((c, i) => {
                 const Icon = c.type === "out" ? PhoneOutgoing : c.type === "missed" ? PhoneMissed : PhoneIncoming;
                 const col  = c.type === "out" ? "#3b82f6" : c.type === "missed" ? "#ef4444" : "#00A86B";
                 return (
@@ -480,7 +551,7 @@ export default function WhatsApp() {
                       <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", c.status === "Missed" ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400")}>{c.status}</span>
                       <p className="text-[10px] text-slate-500 mt-0.5">{c.dur}</p>
                     </div>
-                    <button className="ml-2 w-7 h-7 rounded-lg bg-white/[0.04] border border-crm-border flex items-center justify-center hover:bg-white/[0.08] transition-colors">
+                    <button onClick={() => startCall(c.name)} className="ml-2 w-7 h-7 rounded-lg bg-white/[0.04] border border-crm-border flex items-center justify-center hover:bg-white/[0.08] transition-colors">
                       <Phone size={11} className="text-slate-400" />
                     </button>
                   </div>
@@ -511,17 +582,12 @@ export default function WhatsApp() {
           <div className="glass-card rounded-2xl border border-crm-border overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border">
               <p className="text-xs font-bold text-slate-200">Upcoming Meetings</p>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-black" style={{ background:"linear-gradient(135deg,#8b5cf6,#7c3aed)" }}>
+              <button onClick={scheduleMeeting} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-black" style={{ background:"linear-gradient(135deg,#8b5cf6,#7c3aed)" }}>
                 <Video size={12} className="text-white" /> <span className="text-white">Schedule Meeting</span>
               </button>
             </div>
             <div className="divide-y divide-white/[0.04]">
-              {[
-                { title:"Product Demo — TechFlow Inc",  with:"Sarah Chen",      time:"Today 2:00 PM",    dur:"45 min", platform:"Zoom",  link:true },
-                { title:"Renewal Discussion",            with:"Priya Patel",     time:"Tomorrow 11:00 AM",dur:"30 min", platform:"Google Meet", link:true },
-                { title:"Onboarding Call — RetailPro",  with:"James Okafor",    time:"Thu 3:30 PM",      dur:"60 min", platform:"KVl Meet", link:false },
-                { title:"Quarterly Business Review",    with:"Marcus Williams", time:"Fri 10:00 AM",     dur:"90 min", platform:"Zoom",  link:true },
-              ].map((m, i) => (
+              {meetings.map((m, i) => (
                 <div key={i} className="px-4 py-3 hover:bg-white/[0.02] transition-colors">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
@@ -539,11 +605,11 @@ export default function WhatsApp() {
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
                       {m.link && (
-                        <button className="px-2.5 py-1 rounded-lg text-[10px] font-semibold text-white" style={{ background:"linear-gradient(135deg,#8b5cf6,#7c3aed)" }}>
+                        <button onClick={() => joinMeeting(m.platform)} className="px-2.5 py-1 rounded-lg text-[10px] font-semibold text-white" style={{ background:"linear-gradient(135deg,#8b5cf6,#7c3aed)" }}>
                           Join
                         </button>
                       )}
-                      <button className="px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-crm-border text-slate-400 hover:text-slate-200 transition-colors">
+                      <button onClick={() => addToCalendar(m)} className="px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-crm-border text-slate-400 hover:text-slate-200 transition-colors">
                         <Calendar size={10} />
                       </button>
                     </div>
@@ -556,8 +622,11 @@ export default function WhatsApp() {
           <div className="glass-card rounded-xl p-4 border border-crm-border flex items-center gap-3">
             <Video size={16} className="text-violet-400 flex-shrink-0" />
             <input placeholder="Paste meeting link or ID to join instantly…"
+              value={quickJoin}
+              onChange={(e) => setQuickJoin(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && joinQuick()}
               className="flex-1 bg-transparent text-xs text-slate-200 placeholder-slate-600 outline-none" />
-            <button className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background:"linear-gradient(135deg,#8b5cf6,#7c3aed)" }}>Join Now</button>
+            <button onClick={joinQuick} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background:"linear-gradient(135deg,#8b5cf6,#7c3aed)" }}>Join Now</button>
           </div>
         </div>
       )}
