@@ -1,11 +1,11 @@
 ---
 name: deploy
-description: Verify and ship KVL CRM to production — runs the full check pipeline, then commits and pushes to main so Vercel's GitHub integration deploys it automatically.
+description: Verify and ship KVL CRM — runs the full check pipeline, commits, pushes to main, and gives the exact VPS redeploy command for crm.kvlbusinesssolutions.com.
 ---
 
 # Deploy KVL CRM
 
-Invoked when the user says things like "deploy karo", "deploy kr do", "ship it", or explicitly runs `/deploy`. The goal: get the current working tree live in production with no further steps from the user, other than the one-time Vercel connection described below (which only they can do — it requires their Vercel account).
+Invoked when the user says things like "deploy karo", "deploy kr do", "ship it", or explicitly runs `/deploy`. Production target is the user's own Hostinger VPS (`crm.kvlbusinesssolutions.com`, PM2 process `kvl-crm`, port 3105, reverse-proxied by Nginx) — **not** Vercel; that path was considered and dropped in favor of the VPS the user already runs a dozen other sites on.
 
 ## Steps
 
@@ -20,12 +20,17 @@ Invoked when the user says things like "deploy karo", "deploy kr do", "ship it",
 
 4. **Push** to `origin main`.
 
-5. **Tell the user what happens next**, based on whether Vercel is already connected:
-   - If they've confirmed Vercel's GitHub integration is connected to this repo: the push you just made already triggered a production deployment — nothing else to do. Mention they can watch it at their Vercel dashboard.
-   - If it's not connected yet (or you don't know): explain this is a **one-time manual step only they can do** — go to vercel.com → Add New Project → Import `kamaralam1984/KVL-CRM-Softwear` from GitHub → add the environment variables from `.env.local` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and any Wave 9/10 optional vars — VAPID keys, `MISSED_CALL_WEBHOOK_SECRET`, Truecaller keys — if those features are wanted live) in Vercel's Project Settings → Environment Variables. After that one-time setup, every future push to `main` — including the ones this skill makes — deploys automatically with zero further action from either of you.
+5. **Give the user the VPS command to run themselves** — Claude has no SSH/remote access to the VPS in this environment, so the code-side (commit+push) is fully automated by this skill, but the VPS-side pull+rebuild is not. Two cases:
+   - **First deploy** (no `/var/www/kvl-crm` on the VPS yet): give the full setup script — clone, write `.env.local`, `npm install`, `npm run build`, `pm2 start ... --name kvl-crm -- run start -- -p 3105`, `pm2 save`, write a new Nginx site file for `crm.kvlbusinesssolutions.com` (never touch existing sites-available/sites-enabled files), `nginx -t` before `systemctl reload nginx` (reload, never restart), then `certbot --nginx -d crm.kvlbusinesssolutions.com`.
+   - **Redeploy** (app already running there): a short pull-and-restart script:
+     ```bash
+     cd /var/www/kvl-crm && git pull origin main && npm install && npm run build && pm2 restart kvl-crm
+     ```
+   - If it's unclear which case applies, ask, or give both and let the user pick.
 
 ## What this skill deliberately does NOT do
 
-- Does not call the Vercel CLI or hit Vercel's API — no Vercel token exists in this environment, and there's no safe way to authenticate non-interactively. Deployment is triggered entirely by the `git push`, via Vercel's own GitHub integration.
-- Does not touch Supabase directly (no schema migrations, no data writes). If `lib/supabase/schema.sql` changed, remind the user they still need to run it in the Supabase SQL editor themselves — this skill doesn't have Supabase credentials to do that on their behalf, and running arbitrary SQL against their live database isn't something to do without them present.
+- Does not SSH into the VPS or run anything there directly — no credentials/connection exist in this environment for that. Every VPS-side step is a command handed to the user to run themselves.
+- Does not touch any other Nginx site, PM2 process, or Docker container on the VPS. The VPS already hosts a dozen+ other live sites (8rupiya.in, aapkaplot.com, balratnoil.in, bodytracker.kvlbusinesssolutions.com, growthos.kvlbusinesssolutions.com, kvl-school, kvltrack.kvlbusinesssolutions.com, superai.kvlbusinesssolutions.com, restro, gravity, vidyt, and kvlbusinesssolutions.com itself) — "no other website goes down" is a hard constraint, not a nice-to-have. Any script given always uses a new, isolated app dir, PM2 name, port, and Nginx file.
+- Does not touch Supabase directly (no schema migrations, no data writes). If `lib/supabase/schema.sql` changed, remind the user they still need to run it in the Supabase SQL editor themselves.
 - Does not force-push, skip hooks, or bypass any check in `scripts/deploy.sh` to "make it green" — a failing check means the deploy stops, not that the check gets weakened.

@@ -9,10 +9,9 @@ import {
   Target, Rocket, Award, GitBranch, Wallet,
   Users, CheckSquare, UserPlus, UserCheck, Bell,
   MessageSquare, Inbox, Lock, Key, Eye, Server,
-  Calendar, FileText, Phone, Mic, Sparkles,
+  Calendar, Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { loadConfig, type AppMode } from "@/lib/appConfig";
 import ModuleDetailModal from "@/components/crm/ModuleDetailModal";
 import { MODULE_CONTENT, type ModuleContent } from "@/lib/moduleContent";
 import AnalyticsTracker from "@/lib/tracking/sdk/AnalyticsTracker";
@@ -172,19 +171,6 @@ function Particles({ dark }: { dark: boolean }) {
 /* ══════════════════════════════════════════════
    HELPERS
 ══════════════════════════════════════════════ */
-function Counter({ end, suffix = "", decimals = 0 }: { end: number; suffix?: string; decimals?: number }) {
-  const [val, setVal] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true });
-  useEffect(() => {
-    if (!inView) return;
-    let s = 0; const step = end / 80;
-    const t = setInterval(() => { s += step; if (s >= end) { setVal(end); clearInterval(t); } else setVal(s); }, 14);
-    return () => clearInterval(t);
-  }, [inView, end]);
-  return <span ref={ref}>{decimals > 0 ? val.toFixed(decimals) : Math.floor(val)}{suffix}</span>;
-}
-
 function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
@@ -200,24 +186,10 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
    DATA
 ══════════════════════════════════════════════ */
 
-const stats = [
-  { value: 2400, suffix: "+", label: "Companies Worldwide" },
-  { value: 98,   suffix: "%", label: "Customer Satisfaction" },
-  { value: 3.2,  suffix: "×", label: "Revenue Growth Avg", decimals: 1 },
-  { value: 40,   suffix: "%", label: "Faster Deal Closing" },
-];
-
 const testimonials = [
   { name: "Marcus Williams", role: "CEO, GrowthBridge",         img: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=80&h=80&fit=crop&q=80", text: "We tried 6 different platforms over 3 years. Nothing came close. The WhatsApp integration and automation workflows are game-changers for our team of 30+ reps." },
   { name: "Sarah Chen",      role: "VP Sales, TechFlow Inc",    img: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&q=80", text: "Our pipeline is now 3× larger and we close deals 40% faster. The revenue intelligence alone paid for the subscription in the first week." },
   { name: "Priya Patel",     role: "Head of Revenue, CloudScale",img: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&q=80", text: "The churn risk alert caught our biggest account two weeks before we would have noticed. That one insight saved us $180K in annual recurring revenue." },
-];
-
-const plans = [
-  { name: "Starter",    price: 29,  features: ["Up to 5 users","1,000 contacts","Pipeline management","Email campaigns","Standard reports","Email support"],                                                                                              cta: "Start Free Trial" },
-  { name: "Growth",     price: 79,  features: ["Up to 25 users","25,000 contacts","Advanced pipeline","WhatsApp CRM","Automation workflows","Finance module","Priority support"],                           popular: true,                                cta: "Start Free Trial" },
-  { name: "Scale",      price: 149, features: ["Up to 100 users","250,000 contacts","All Growth features","Custom automations","AI-powered insights","Advanced analytics","Dedicated onboarding","SLA support"],                                         cta: "Start Free Trial" },
-  { name: "Enterprise", price: 0,   features: ["Unlimited users","Unlimited contacts","Custom workflows","White-label option","Custom integrations","99.99% SLA","24/7 dedicated support"],                custom: true,                                  cta: "Contact Sales" },
 ];
 
 const steps = [
@@ -316,84 +288,6 @@ const securityBadges = [
   { icon: Key,    title: "256-bit AES",    desc: "All data encrypted at rest" },
   { icon: Eye,    title: "Audit Trails",   desc: "Every action logged & tracked" },
   { icon: Server, title: "99.99% Uptime",  desc: "SLA-backed infrastructure" },
-];
-
-/* Real brand SVG logos — monochrome, scale to theme */
-const BRAND_LOGOS = [
-  {
-    name: "Salesforce",
-    svg: (op: number) => (
-      <svg height="26" viewBox="0 0 101 70" fill="none" xmlns="http://www.w3.org/2000/svg" opacity={op}>
-        <path d="M42.3 7.2C46.8 2.6 53 0 59.8 0c9.3 0 17.4 5.1 21.7 12.6 3.6-1.6 7.6-2.5 11.8-2.5C105.2 10.1 116 21 116 34.4S105.2 58.7 92.3 58.7H14.1C6.3 58.7 0 52.4 0 44.6s6.2-14 13.9-14.2c-.6-2-.9-4.1-.9-6.3 0-10.5 8.3-19 18.6-19 5.5 0 10.4 2.3 13.9 6 0 0-3.2-3.9-3.2-3.9z" fill="currentColor"/>
-      </svg>
-    ),
-  },
-  {
-    name: "HubSpot",
-    svg: (op: number) => (
-      <svg height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" opacity={op}>
-        <path d="M63.5 37.3V22.8a8.4 8.4 0 0 0 4.9-7.6C68.4 10.4 64 6 58.6 6s-9.8 4.4-9.8 9.8c0 3.3 1.6 6.2 4.1 8v14.5c-3.9.6-7.5 2.4-10.3 5L18.8 23.9a9.4 9.4 0 1 0-4.6 5.7l23.4 19a24.6 24.6 0 0 0-3.5 12.7c0 13.6 11 24.7 24.7 24.7S83.5 74.9 83.5 61.3c0-11.2-7.5-20.7-20-24zM58.8 78.6c-9.5 0-17.3-7.7-17.3-17.3s7.7-17.3 17.3-17.3 17.3 7.7 17.3 17.3-7.8 17.3-17.3 17.3z" fill="currentColor"/>
-      </svg>
-    ),
-  },
-  {
-    name: "Pipedrive",
-    svg: (op: number) => (
-      <svg height="26" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" opacity={op}>
-        <path d="M50 0C22.4 0 0 22.4 0 50s22.4 50 50 50 50-22.4 50-50S77.6 0 50 0zm0 88C28.5 88 12 71.5 12 50S28.5 12 50 12s38 17 38 38-17 38-38 38zm0-64C36.2 24 25 35.2 25 49v27h12V49c0-7.2 5.8-13 13-13s13 5.8 13 13-5.8 13-13 13v12c13.8 0 25-11.2 25-25S63.8 24 50 24z" fill="currentColor"/>
-      </svg>
-    ),
-  },
-  {
-    name: "Zoho",
-    svg: (op: number) => (
-      <svg height="22" viewBox="0 0 120 36" fill="none" xmlns="http://www.w3.org/2000/svg" opacity={op}>
-        <text x="0" y="28" fontFamily="Georgia, serif" fontWeight="700" fontSize="32" fill="currentColor">Zoho</text>
-      </svg>
-    ),
-  },
-  {
-    name: "Monday",
-    svg: (op: number) => (
-      <svg height="28" viewBox="0 0 100 28" fill="none" xmlns="http://www.w3.org/2000/svg" opacity={op}>
-        <circle cx="14" cy="14" r="14" fill="#F84B4B" opacity={op}/>
-        <circle cx="50" cy="14" r="14" fill="#FFCB00" opacity={op}/>
-        <circle cx="86" cy="14" r="14" fill="#00CA72" opacity={op}/>
-      </svg>
-    ),
-  },
-  {
-    name: "Notion",
-    svg: (op: number) => (
-      <svg height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" opacity={op}>
-        <path d="M12 8.5c-3.5 2.8-5 4.2-5 6.8v54c0 3.8 2.7 5.2 7 4.5l58-8.5c3.7-.5 5-2.5 5-5.5V18c0-2.7-1.5-4.5-5-4L17 21.5v-7.5c0-2 .8-3.2 2.8-4.5L59 3.5c5-3 10.5.5 10.5 5.5v71c0 4.3-2.5 7-7 7.5L8 95c-4 .5-8-2-8-7V22c0-4 2-6.5 6-7.5L78 3" fill="currentColor"/>
-        <path d="M38 30L65 28v6L38 36v-6zM38 44l27-2v6L38 50v-6zM38 58l20-1v6L38 64v-6z" fill="currentColor"/>
-      </svg>
-    ),
-  },
-  {
-    name: "Slack",
-    svg: (op: number) => (
-      <svg height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" opacity={op}>
-        <path d="M21.9 63.3a10.8 10.8 0 0 1-10.9 10.8 10.8 10.8 0 0 1-10.8-10.8 10.8 10.8 0 0 1 10.8-10.8h10.9v10.8z" fill="#E01E5A" opacity={op}/>
-        <path d="M27.4 63.3a10.8 10.8 0 0 1 10.8-10.8 10.8 10.8 0 0 1 10.8 10.8v27a10.8 10.8 0 0 1-10.8 10.8 10.8 10.8 0 0 1-10.8-10.8v-27z" fill="#E01E5A" opacity={op}/>
-        <path d="M38.2 21.9A10.8 10.8 0 0 1 27.4 11.1 10.8 10.8 0 0 1 38.2.3a10.8 10.8 0 0 1 10.8 10.8v10.8H38.2z" fill="#36C5F0" opacity={op}/>
-        <path d="M38.2 27.4A10.8 10.8 0 0 1 49 38.2a10.8 10.8 0 0 1-10.8 10.8H11.1A10.8 10.8 0 0 1 .3 38.2a10.8 10.8 0 0 1 10.8-10.8h27.1z" fill="#36C5F0" opacity={op}/>
-        <path d="M79.5 38.2a10.8 10.8 0 0 1 10.8-10.8 10.8 10.8 0 0 1 10.8 10.8 10.8 10.8 0 0 1-10.8 10.8H79.5V38.2z" fill="#2EB67D" opacity={op}/>
-        <path d="M74 38.2a10.8 10.8 0 0 1-10.8 10.8A10.8 10.8 0 0 1 52.4 38.2V11.1A10.8 10.8 0 0 1 63.2.3 10.8 10.8 0 0 1 74 11.1v27.1z" fill="#2EB67D" opacity={op}/>
-        <path d="M63.2 79.5A10.8 10.8 0 0 1 74 90.3a10.8 10.8 0 0 1-10.8 10.8A10.8 10.8 0 0 1 52.4 90.3V79.5h10.8z" fill="#ECB22E" opacity={op}/>
-        <path d="M63.2 74a10.8 10.8 0 0 1 10.8-10.8h27a10.8 10.8 0 0 1 10.8 10.8 10.8 10.8 0 0 1-10.8 10.8H74A10.8 10.8 0 0 1 63.2 74z" fill="#ECB22E" opacity={op}/>
-      </svg>
-    ),
-  },
-  {
-    name: "Stripe",
-    svg: (op: number) => (
-      <svg height="26" viewBox="0 0 120 50" fill="none" xmlns="http://www.w3.org/2000/svg" opacity={op}>
-        <path d="M55.5 19.2c0-2.4 2-3.3 5.2-3.3 4.7 0 10.6 1.4 15.3 3.9V6.3C71.2 4.1 66.4 3 61.5 3c-11.4 0-19 6-19 16 0 15.6 21.5 13.1 21.5 19.8 0 2.8-2.5 3.7-5.9 3.7-5.1 0-11.6-2.1-16.7-4.9v13.6C45.5 53.2 51 55 57.1 55c11.7 0 19.7-5.8 19.7-15.9-.1-16.9-21.3-13.9-21.3-19.9zM0 56.5l13.3-2.8L13.4 7l-13.4 2.8zM22.1 0L9.8 2.7l-.1 48.5 12.4-2.6zM101.3 7.7l-.8 3.7S96.7 6.7 91 6.7c-9.7 0-18.4 12.3-18.4 26.5 0 9.1 4.5 18.5 14.1 18.5 6.2 0 9.7-3.5 9.7-3.5l-.7 3h12.1L117.4 4.7l-16.1 3zm-3 31.5c-2.2 2.8-5 4.4-7.9 4.4-4 0-5.9-3.3-5.9-8.2 0-8.1 3.8-17.4 10-17.4 2.7 0 4.4 1.4 5.2 2.5l-1.4 18.7z" fill="currentColor"/>
-      </svg>
-    ),
-  },
 ];
 
 /* ══════════════════════════════════════════════
@@ -582,8 +476,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [scrolled,      setScrolled]      = useState(false);
   const [videoOpen,     setVideoOpen]     = useState(false);
-  const [billingAnnual, setBillingAnnual] = useState(false);
-  const [appMode,       setAppMode]       = useState<AppMode>("saas");
   const [activeModule,  setActiveModule]  = useState<ModuleContent | null>(null);
   const [demoOpen,      setDemoOpen]      = useState(false);
   const [demoSent,      setDemoSent]      = useState(false);
@@ -605,7 +497,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
     localStorage.setItem("kvl_theme", next ? "dark" : "light");
   };
 
-  useEffect(() => { setAppMode(loadConfig().mode); }, []);
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", fn);
@@ -616,7 +507,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
   // Gold gradient stays same in both modes
   const goldGrad   = "linear-gradient(135deg,#D4AF37,#F5C842)"; // red — CTAs, buttons
-  const greenGrad  = "linear-gradient(135deg,#006B3C,#00843D)"; // green — stats, pipeline
   const goldShadow = "0 8px 32px rgba(212,175,55,0.35)";
 
   return (
@@ -772,47 +662,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         </motion.div>
       </section>
 
-      {/* ── LOGO MARQUEE ──────────────────────────────────────── */}
-      <div className="py-10 overflow-hidden border-y transition-colors duration-300" style={{ borderColor: T.divider, background: dark ? "rgba(212,175,55,0.015)" : "rgba(0,0,0,0.02)" }}>
-        <p className="text-center text-[11px] uppercase tracking-widest mb-7" style={{ color: T.text3 }}>Trusted by teams switching from</p>
-        <div className="relative">
-          {/* Fade edges */}
-          <div className="absolute inset-y-0 left-0 w-32 z-10 pointer-events-none"
-            style={{ background: `linear-gradient(to right, ${T.bg}, transparent)` }} />
-          <div className="absolute inset-y-0 right-0 w-32 z-10 pointer-events-none"
-            style={{ background: `linear-gradient(to left, ${T.bg}, transparent)` }} />
-          <motion.div
-            animate={{ x: ["0%", "-50%"] }}
-            transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
-            className="flex items-center gap-14 whitespace-nowrap"
-          >
-            {[...BRAND_LOGOS, ...BRAND_LOGOS].map((logo, i) => (
-              <div key={i} className="flex items-center gap-2 flex-shrink-0"
-                style={{ color: dark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)" }}>
-                {logo.svg(1)}
-                <span className="text-sm font-semibold" style={{ color: dark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.28)" }}>
-                  {logo.name}
-                </span>
-              </div>
-            ))}
-          </motion.div>
-        </div>
-      </div>
-
-      {/* ── STATS ─────────────────────────────────────────────── */}
-      <section className="py-24 transition-colors duration-300" style={{ background: T.statsBg }}>
-        <div className="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {stats.map((s,i) => (
-            <FadeIn key={s.label} delay={i*0.1}>
-              <div className="text-5xl font-black mb-2" style={{ background: greenGrad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
-                <Counter end={s.value} suffix={s.suffix} decimals={s.decimals} />
-              </div>
-              <p className="text-sm" style={{ color: T.text2 }}>{s.label}</p>
-            </FadeIn>
-          ))}
-        </div>
-      </section>
-
       {/* ── PLATFORM MODULES ─────────────────────────────────── */}
       <section className="py-24 transition-colors duration-300" style={{ background: dark ? "rgba(212,175,55,0.015)" : "rgba(212,175,55,0.025)" }}>
         <div className="max-w-7xl mx-auto px-6">
@@ -843,45 +692,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               );
             })}
           </div>
-        </div>
-      </section>
-
-      {/* ── AI CAPABILITIES ──────────────────────────────────── */}
-      <section className="py-28 max-w-7xl mx-auto px-6">
-        <FadeIn className="text-center mb-16">
-          <span className="text-xs font-bold uppercase tracking-widest" style={{ color:"#D4AF37" }}>AI Sales Copilot</span>
-          <h2 className="text-4xl md:text-5xl font-black mt-3 mb-4" style={{ color: T.text1 }}>AI That Thinks Like Your<br />Best Sales Rep</h2>
-          <p className="text-lg max-w-2xl mx-auto" style={{ color: T.text2 }}>6 powerful AI tools built directly into your CRM — no third-party subscriptions, no copy-pasting between apps.</p>
-        </FadeIn>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mb-14">
-          {[
-            { icon: Mail,      color:"#3b82f6", title:"AI Email Writer",        desc:"Generate personalized sales emails in one click. AI analyzes the lead's industry, deal stage, and past interactions to craft the perfect message." },
-            { icon: MessageCircle, color:"#25D366", title:"AI WhatsApp Reply",  desc:"Suggest smart WhatsApp replies based on conversation context. Reply to 50 customers in the time it takes to write 5 manually." },
-            { icon: FileText,  color:"#8b5cf6", title:"AI Meeting Notes",       desc:"Automatically transcribe and summarize meeting recordings. Extract action items, next steps, and key decisions — delivered to your CRM instantly." },
-            { icon: Mic,       color:"#ef4444", title:"AI Call Summary",         desc:"Log calls and get an AI-generated summary with sentiment analysis, objection tracking, and recommended next actions within seconds." },
-            { icon: Sparkles,  color:"#D4AF37", title:"AI Proposal Generator",  desc:"Generate professional, personalized proposals in minutes. AI pulls deal data, company research, and pricing to create compelling business proposals." },
-            { icon: TrendingUp,color:"#00A86B", title:"AI Sales Forecast",       desc:"ML-powered revenue forecasting with confidence intervals. Predict next quarter's revenue based on pipeline quality, team performance, and seasonal trends." },
-          ].map((f, i) => {
-            const Icon = f.icon;
-            return (
-              <FadeIn key={f.title} delay={i * 0.07}>
-                <motion.div whileHover={{ y:-6 }} transition={{ duration:0.2 }}
-                  className="rounded-2xl p-6 h-full transition-all"
-                  style={{ border:`1px solid ${T.cardBorder}`, background: T.cardBg }}
-                  onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = f.color + "55"; el.style.background = f.color + "08"; }}
-                  onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = T.cardBorder; el.style.background = T.cardBg; }}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: f.color + "18", border:`1px solid ${f.color}33` }}>
-                      <Icon size={20} style={{ color: f.color }} />
-                    </div>
-                    <h3 className="text-sm font-bold" style={{ color: T.text1 }}>{f.title}</h3>
-                  </div>
-                  <p className="text-xs leading-relaxed" style={{ color: T.text2 }}>{f.desc}</p>
-                </motion.div>
-              </FadeIn>
-            );
-          })}
         </div>
       </section>
 
@@ -1163,71 +973,6 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </FadeIn>
         </div>
       </section>
-
-      {/* ── PRICING ───────────────────────────────────────────── */}
-      {appMode === "saas" && (
-        <section id="pricing" className="py-28 transition-colors duration-300" style={{ background: T.pricingBg }}>
-          <div className="max-w-5xl mx-auto px-6">
-            <FadeIn className="text-center mb-6">
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color:"#D4AF37" }}>Transparent Pricing</span>
-              <h2 className="text-4xl md:text-5xl font-black mt-3 mb-4" style={{ color: T.text1 }}>Invest in Your Revenue</h2>
-              <p className="text-lg max-w-xl mx-auto" style={{ color: T.text2 }}>Every plan includes a 14-day free trial. No credit card required.</p>
-            </FadeIn>
-            <FadeIn className="flex items-center justify-center gap-3 mb-14">
-              <span className="text-sm" style={{ color: !billingAnnual ? T.text1 : T.text3 }}>Monthly</span>
-              <button onClick={() => setBillingAnnual(!billingAnnual)} className="relative w-12 h-6 rounded-full transition-colors"
-                style={{ background: billingAnnual ? "#D4AF37" : T.switchOff }}>
-                <motion.div animate={{ x: billingAnnual ? 24 : 2 }} transition={{ type:"spring", stiffness:500, damping:30 }} className="absolute top-1 w-4 h-4 rounded-full bg-white" />
-              </button>
-              <span className="text-sm" style={{ color: billingAnnual ? T.text1 : T.text3 }}>Annual</span>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
-                style={{ background:"rgba(212,175,55,0.15)", color:"#D4AF37", border:"1px solid rgba(212,175,55,0.3)" }}>Save 30%</span>
-            </FadeIn>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-              {plans.map((p,i) => (
-                <FadeIn key={p.name} delay={i*0.08}>
-                  <motion.div whileHover={{ y:-8 }} transition={{ duration:0.22 }}
-                    className="relative rounded-2xl p-6 transition-all h-full flex flex-col"
-                    style={{
-                      border: p.popular ? "1px solid rgba(212,175,55,0.45)" : `1px solid ${T.pricingCardBrd}`,
-                      background: p.popular ? T.pricingPopBg : T.pricingCardBg,
-                      boxShadow: p.popular ? T.pricingPopShadow : "none",
-                      backdropFilter: dark ? "none" : "blur(8px)",
-                    }}>
-                    {p.popular && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                        <span className="px-4 py-1 text-[11px] font-black rounded-full text-black" style={{ background: goldGrad }}>Most Popular</span>
-                      </div>
-                    )}
-                    <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: p.popular ? "#D4AF37" : T.text2 }}>{p.name}</p>
-                    <div className="flex items-baseline gap-1 mb-6">
-                      {(p as any).custom
-                        ? <span className="text-3xl font-black" style={{ color: T.text1 }}>Custom</span>
-                        : <><span className="text-4xl font-black" style={{ color: T.text1 }}>${billingAnnual ? Math.floor(p.price*0.7) : p.price}</span><span className="text-sm" style={{ color: T.text2 }}>/mo</span></>
-                      }
-                    </div>
-                    <ul className="space-y-2.5 mb-7 flex-1">
-                      {p.features.map((f) => (
-                        <li key={f} className="flex items-center gap-2 text-xs" style={{ color: T.text2 }}>
-                          <Check size={13} style={{ color:"#00843D", flexShrink:0 }} />{f}
-                        </li>
-                      ))}
-                    </ul>
-                    <motion.button whileHover={{ scale:1.03 }} whileTap={{ scale:0.97 }}
-                      onClick={onGetStarted}
-                      className="w-full py-3 rounded-xl text-sm font-bold transition-all mt-auto"
-                      style={p.popular
-                        ? { background: goldGrad, color:"#000", boxShadow:"0 4px 20px rgba(212,175,55,0.3)" }
-                        : { border:`1px solid ${T.cardBorder}`, background: T.cardBg, color: T.text2 }}>
-                      {p.cta}
-                    </motion.button>
-                  </motion.div>
-                </FadeIn>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* ── FINAL CTA ─────────────────────────────────────────── */}
       <section className="py-28 max-w-4xl mx-auto px-6 text-center">
