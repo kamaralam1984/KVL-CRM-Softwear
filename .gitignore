@@ -40,5 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Claude Code local state
-.claude/
+# Claude Code local state — skills are project automation and meant to be
+# shared/versioned, so they're the one exception kept out of this ignore.
+.claude/*
+!.claude/skills/
