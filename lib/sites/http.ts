@@ -7,7 +7,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSiteBySiteId, DEFAULT_SITE_ID } from "./store";
 import type { Site } from "./types";
 
-const SITE_ID_PATTERN = /^(kvl-default|KVL-SITE-[A-F0-9]{6,32})$/;
+// Accepts either the runtime-generated format (KVL-SITE-<hex>, from
+// lib/sites/store.ts's generateSiteId()) or a readable kebab-case slug — for
+// permanently-seeded sites like 'kvl-default' or a named client site added
+// directly in schema.sql, not just ones created ad-hoc via the Admin Panel.
+const SITE_ID_PATTERN = /^([a-z][a-z0-9-]{2,48}|KVL-SITE-[A-F0-9]{6,32})$/;
 
 export function isValidSiteId(value: unknown): value is string {
   return typeof value === "string" && SITE_ID_PATTERN.test(value);

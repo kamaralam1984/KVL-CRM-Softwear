@@ -469,6 +469,14 @@ insert into sites (site_id, name, domains) values
   ('kvl-default', 'KVL CRM (default)', '{}')
 on conflict (site_id) do nothing;
 
+-- Permanently seeded (not created ad-hoc via the Admin Panel) so it survives
+-- a fresh migration on any Supabase project this schema is run against —
+-- kvlbusinesssolutions.com belongs to this same owner and should always have
+-- an isolated, embeddable site ready, with zero manual setup required.
+insert into sites (site_id, name, domains) values
+  ('kvl-business-solutions', 'KVL Business Solutions', '{https://kvlbusinesssolutions.com,https://www.kvlbusinesssolutions.com}')
+on conflict (site_id) do nothing;
+
 -- ── site_id columns (Phase 17, Wave 10) ─────────────────────────────────────
 -- Every column defaults to 'kvl-default' so existing rows and any code path
 -- that doesn't yet pass a siteId keep behaving exactly as before this
