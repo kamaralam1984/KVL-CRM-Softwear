@@ -7,6 +7,7 @@ import {
   Globe, AlertTriangle, Edit2,
   Star, BarChart3, X, Info, Palette, Building2,
   Mail, Phone, MapPin, Link, Type, FileText,
+  Layers, Plus, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -19,6 +20,9 @@ import {
 } from "@/lib/superAdmin";
 import PricingManager from "@/components/crm/sections/PricingManager";
 import { loadUsers, type ManagedUser } from "@/lib/appConfig";
+import Modal from "@/components/ui/modal";
+import { getTenants, saveTenant, deleteTenant } from "@/lib/whitelabel/store";
+import type { Tenant } from "@/lib/whitelabel/types";
 
 /* ── small helpers ── */
 function Toggle({ on, onChange, color = "#3b82f6" }: { on: boolean; onChange: (v: boolean) => void; color?: string }) {
@@ -84,9 +88,25 @@ const TABS = [
   { id: "matrix",      label: "Plan Matrix",   icon: BarChart3 },
   { id: "pricing",     label: "Pricing",       icon: Star },
   { id: "whitelabel",  label: "White Label",   icon: Palette },
+  { id: "tenants",     label: "Workspaces",    icon: Layers },
   { id: "system",      label: "System",        icon: Settings },
 ] as const;
 type TabId = typeof TABS[number]["id"];
+
+/* ── Tenants (multi-workspace) form shape ── */
+type TenantFormState = {
+  slug: string;
+  brandName: string;
+  tagline: string;
+  domain: string;
+  supportEmail: string;
+  plan: string;
+  primaryColor: string;
+};
+const emptyTenantForm: TenantFormState = {
+  slug: "", brandName: "", tagline: "", domain: "", supportEmail: "", plan: "", primaryColor: "",
+};
+const tenantInputCls = "w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500/50 transition-colors";
 
 /* ═══════════════════════════════════════════════════════════
    MAIN COMPONENT
@@ -102,10 +122,16 @@ export default function SuperAdminPanel() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
 
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [showTenantModal, setShowTenantModal] = useState(false);
+  const [tenantForm, setTenantForm] = useState<TenantFormState>(emptyTenantForm);
+  const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
+
   useEffect(() => {
     setCfg(loadSAConfig());
     setWl(loadWhiteLabel());
     setUsers(loadUsers());
+    setTenants(getTenants());
   }, []);
 
   const handleSave = () => {
@@ -190,6 +216,72 @@ export default function SuperAdminPanel() {
         [planId]: { ...c.planMatrix[planId], [feature]: !c.planMatrix[planId][feature] },
       },
     }));
+  }
+
+  /* ── tenant (workspace) helpers ── */
+  function refreshTenants() {
+    setTenants(getTenants());
+  }
+
+  function openAddTenant() {
+    setEditingTenantId(null);
+    setTenantForm(emptyTenantForm);
+    setShowTenantModal(true);
+  }
+
+  function openEditTenant(t: Tenant) {
+    setEditingTenantId(t.id);
+    setTenantForm({
+      slug: t.slug,
+      brandName: t.brandName,
+      tagline: t.tagline ?? "",
+      domain: t.domain ?? "",
+      supportEmail: t.supportEmail ?? "",
+      plan: t.plan ?? "",
+      primaryColor: t.primaryColor ?? "",
+    });
+    setShowTenantModal(true);
+  }
+
+  function closeTenantModal() {
+    setShowTenantModal(false);
+    setTenantForm(emptyTenantForm);
+    setEditingTenantId(null);
+  }
+
+  const setTenantField = (k: keyof TenantFormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setTenantForm(f => ({ ...f, [k]: e.target.value }));
+
+  function saveTenantForm() {
+    if (!tenantForm.slug.trim() || !tenantForm.brandName.trim()) return;
+    const existing = editingTenantId ? tenants.find(t => t.id === editingTenantId) : undefined;
+    const tenant: Tenant = {
+      id: editingTenantId ?? `t_${Date.now()}_${tenantForm.slug.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      slug: tenantForm.slug.trim(),
+      brandName: tenantForm.brandName.trim(),
+      tagline: tenantForm.tagline.trim() || undefined,
+      domain: tenantForm.domain.trim() || undefined,
+      supportEmail: tenantForm.supportEmail.trim() || undefined,
+      plan: tenantForm.plan.trim() || undefined,
+      primaryColor: tenantForm.primaryColor.trim() || undefined,
+      active: existing?.active ?? true,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+    saveTenant(tenant);
+    refreshTenants();
+    closeTenantModal();
+  }
+
+  function removeTenant(t: Tenant) {
+    if (t.id === "default") return;
+    if (!window.confirm(`Delete tenant "${t.brandName}"? This cannot be undone.`)) return;
+    deleteTenant(t.id);
+    refreshTenants();
+  }
+
+  function toggleTenantActive(t: Tenant) {
+    saveTenant({ ...t, active: !t.active });
+    refreshTenants();
   }
 
   /* ─────────────────────────────────────────────────────── */
@@ -737,6 +829,109 @@ export default function SuperAdminPanel() {
         </div>
       )}
 
+      {/* ══════════════ TENANTS / WORKSPACES ══════════════ */}
+      {tab === "tenants" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-violet-500/05 border border-violet-500/20 flex-1 min-w-[240px]">
+              <Info size={14} className="text-violet-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-violet-300">
+                Manage multiple branded workspaces (tenants) running under this CRM instance. The <strong>Default</strong> workspace mirrors the global White Label config and cannot be deleted.
+              </p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+              onClick={openAddTenant}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white gradient-bg flex-shrink-0"
+            >
+              <Plus size={14} /> Add Tenant
+            </motion.button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {tenants.map(t => {
+              const isDefault = t.id === "default";
+              return (
+                <div
+                  key={t.id}
+                  className={cn(
+                    "rounded-2xl border p-4",
+                    isDefault ? "border-amber-500/25 bg-amber-500/[0.03]" : "border-white/[0.07] bg-white/[0.025]",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black text-white flex-shrink-0"
+                        style={{ background: t.primaryColor || "linear-gradient(135deg,#7c3aed,#a78bfa)" }}
+                      >
+                        {(t.brandName || t.slug || "T").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-200 truncate flex items-center gap-1.5">
+                          {t.brandName}
+                          {isDefault && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                              DEFAULT
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate">/{t.slug}</p>
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        "px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0",
+                        t.active
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          : "bg-red-500/10 text-red-400 border-red-500/20",
+                      )}
+                    >
+                      {t.active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 text-[11px] text-slate-500 mb-3">
+                    {t.domain && (
+                      <p className="flex items-center gap-1.5"><Globe size={10} /> {t.domain}</p>
+                    )}
+                    {t.supportEmail && (
+                      <p className="flex items-center gap-1.5"><Mail size={10} /> {t.supportEmail}</p>
+                    )}
+                    {t.plan && (
+                      <p className="flex items-center gap-1.5"><Star size={10} /> {t.plan}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-white/[0.05]">
+                    <Toggle on={t.active} onChange={() => toggleTenantActive(t)} color="#00843D" />
+                    <span className="text-[10px] text-slate-500 flex-1">{t.active ? "Enabled" : "Disabled"}</span>
+                    <button
+                      onClick={() => openEditTenant(t)}
+                      className="w-7 h-7 rounded-lg bg-slate-500/15 border border-slate-500/20 flex items-center justify-center hover:bg-slate-500/25 transition-colors"
+                    >
+                      <Edit2 size={11} className="text-slate-400" />
+                    </button>
+                    {!isDefault && (
+                      <button
+                        onClick={() => removeTenant(t)}
+                        className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/20 flex items-center justify-center hover:bg-rose-500/25 transition-colors"
+                      >
+                        <Trash2 size={11} className="text-rose-400" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {tenants.length === 0 && (
+            <div className="text-center py-10 text-slate-600 text-sm">No tenants yet.</div>
+          )}
+        </div>
+      )}
+
       {/* ══════════════ SYSTEM ══════════════ */}
       {tab === "system" && (
         <div className="space-y-4">
@@ -808,6 +1003,75 @@ export default function SuperAdminPanel() {
           )}
         </div>
       )}
+
+      {/* ── Add / Edit Tenant modal ── */}
+      <Modal
+        open={showTenantModal}
+        onClose={closeTenantModal}
+        title={editingTenantId ? "Edit Tenant" : "Add Tenant"}
+        wide
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Slug *</label>
+              <input className={tenantInputCls} placeholder="acme-co" value={tenantForm.slug} onChange={setTenantField("slug")} />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Brand Name *</label>
+              <input className={tenantInputCls} placeholder="Acme Co" value={tenantForm.brandName} onChange={setTenantField("brandName")} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Tagline</label>
+              <input className={tenantInputCls} placeholder="Premium Sales Suite" value={tenantForm.tagline} onChange={setTenantField("tagline")} />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Domain</label>
+              <input className={tenantInputCls} placeholder="acme.kvlcrm.com" value={tenantForm.domain} onChange={setTenantField("domain")} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Support Email</label>
+              <input className={tenantInputCls} placeholder="support@acme.com" type="email" value={tenantForm.supportEmail} onChange={setTenantField("supportEmail")} />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Plan</label>
+              <input className={tenantInputCls} placeholder="growth" value={tenantForm.plan} onChange={setTenantField("plan")} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Primary Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(tenantForm.primaryColor) ? tenantForm.primaryColor : "#7c3aed"}
+                onChange={setTenantField("primaryColor")}
+                className="w-9 h-9 rounded-lg border border-white/[0.08] bg-transparent cursor-pointer flex-shrink-0"
+              />
+              <input className={tenantInputCls} placeholder="#7c3aed" value={tenantForm.primaryColor} onChange={setTenantField("primaryColor")} />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={closeTenantModal}
+              className="flex-1 py-2 rounded-xl border border-white/[0.08] text-xs text-slate-400 hover:bg-white/[0.04] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveTenantForm}
+              disabled={!tenantForm.slug.trim() || !tenantForm.brandName.trim()}
+              className="flex-1 py-2 rounded-xl text-xs font-bold text-black disabled:opacity-40"
+              style={{ background: "linear-gradient(135deg,#D4AF37,#F5C842)" }}
+            >
+              {editingTenantId ? "Save Changes" : "Add Tenant"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

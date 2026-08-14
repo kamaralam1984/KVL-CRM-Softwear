@@ -8,6 +8,20 @@ import {
   BarChart2, AlertTriangle, ThumbsUp, Minus, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  generateEmailDraft,
+  generateWhatsAppReplies,
+  generateMeetingNotes,
+  generateCallSummary,
+  generateProposalDraft,
+  generateSalesForecast,
+  type EmailDraft,
+  type WhatsAppReplyOption,
+  type MeetingNotesResult,
+  type CallSummaryResult,
+  type ProposalSection,
+  type SalesForecastResult,
+} from "@/lib/actions/aiInsights";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TabId = "email" | "whatsapp" | "meeting" | "call" | "proposal" | "forecast";
@@ -22,6 +36,17 @@ const DEMO_LEADS = [
   { id: "l2", name: "Alex Morgan", company: "TechNova Inc.", deal: "$45K" },
   { id: "l3", name: "Ryan O'Brien", company: "RetailPro", deal: "$67K" },
 ];
+
+// Turns a display string like "$128K" into a raw number (128000) so it can be
+// passed to the server actions as real numeric context.
+function parseDealString(s: string): number {
+  const m = s.replace(/[$,]/g, "").match(/^([\d.]+)\s*([KMB]?)$/i);
+  if (!m) return 0;
+  const num = parseFloat(m[1]);
+  const suffix = m[2].toUpperCase();
+  const mult = suffix === "K" ? 1_000 : suffix === "M" ? 1_000_000 : suffix === "B" ? 1_000_000_000 : 1;
+  return num * mult;
+}
 
 const EMAIL_TYPES = ["Follow-up", "Cold Outreach", "Proposal", "Reminder"];
 
@@ -179,38 +204,26 @@ function EmailWriter() {
   const [leadId, setLeadId] = useState("l1");
   const [emailType, setEmailType] = useState("Follow-up");
   const [loading, setLoading] = useState(false);
-  const [output, setOutput] = useState<{ subject: string; body: string } | null>(null);
+  const [output, setOutput] = useState<EmailDraft | null>(null);
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(false);
 
   const lead = DEMO_LEADS.find((l) => l.id === leadId)!;
 
-  const EMAILS: Record<string, { subject: string; body: string }> = {
-    "Follow-up": {
-      subject: `Following up on our conversation — ${lead.company}`,
-      body: `Hi ${lead.name.split(" ")[0]},\n\nI hope you're having a great week! I wanted to follow up on our recent conversation about how our CRM platform can help ${lead.company} streamline your sales pipeline.\n\nBased on your team's goals, I believe our AI Insights module could help you identify high-value opportunities faster and reduce manual follow-up time by up to 40%.\n\nWould you be open to a 20-minute call this week to explore the specifics? I have availability on Thursday or Friday afternoon.\n\nLooking forward to connecting,\n\nBest regards,\nYour Name`,
-    },
-    "Cold Outreach": {
-      subject: `${lead.company} × [Your Company] — Increase Revenue by 30%`,
-      body: `Hi ${lead.name.split(" ")[0]},\n\nI came across ${lead.company} and was impressed by your recent growth in the market. Companies like yours are using our AI-powered CRM to close deals 2× faster.\n\nHere's what we've delivered for similar teams:\n• 35% increase in qualified pipeline\n• 22% reduction in sales cycle length\n• Real-time AI lead scoring\n\nI'd love to show you a 15-minute personalized demo — no pitch, just value.\n\nAre you free next Tuesday or Wednesday?\n\nBest,\nYour Name`,
-    },
-    Proposal: {
-      subject: `Proposal for ${lead.company} — CRM Solution (${lead.deal})`,
-      body: `Hi ${lead.name.split(" ")[0]},\n\nThank you for the productive conversations we've had. As promised, I've prepared a tailored proposal for ${lead.company}.\n\n📋 EXECUTIVE SUMMARY\nBased on your requirements, we propose a comprehensive CRM implementation valued at ${lead.deal}, covering AI-powered sales automation, analytics, and onboarding support.\n\n🔑 KEY DELIVERABLES\n• Full CRM deployment within 2 weeks\n• Dedicated onboarding specialist\n• 90-day success guarantee\n• Monthly strategic reviews\n\nI've attached the full proposal document. Shall we schedule a call to walk through it together?\n\nWarm regards,\nYour Name`,
-    },
-    Reminder: {
-      subject: `Quick reminder — ${lead.company} proposal expiring soon`,
-      body: `Hi ${lead.name.split(" ")[0]},\n\nJust a friendly reminder that the proposal we sent for ${lead.company} is valid until end of this month.\n\nI know things get busy, so I wanted to make sure it doesn't slip through the cracks. Our team is ready to get started as soon as you give the green light.\n\nIf you have any questions or need adjustments, I'm happy to jump on a quick call.\n\nBest,\nYour Name`,
-    },
-  };
-
-  function generate() {
+  async function generate() {
     setLoading(true);
     setOutput(null);
-    setTimeout(() => {
-      setOutput(EMAILS[emailType]);
+    try {
+      const result = await generateEmailDraft({
+        leadName: lead.name,
+        company: lead.company,
+        dealValue: String(parseDealString(lead.deal)),
+        emailType,
+      });
+      setOutput(result);
+    } finally {
       setLoading(false);
-    }, 1200);
+    }
   }
 
   function copyEmail() {
@@ -286,41 +299,41 @@ function EmailWriter() {
   );
 }
 
+const WHATSAPP_TONE_COLORS: Record<string, string> = {
+  Formal: "text-blue-400 border-blue-500/30 bg-blue-500/5",
+  Friendly: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5",
+  "Follow-up": "text-yellow-400 border-yellow-500/30 bg-yellow-500/5",
+};
+const WHATSAPP_CONTACT = DEMO_LEADS[0]; // Lisa Zhang — HealthTech AI, matches the sample inbound message below
+const WHATSAPP_INCOMING_MESSAGE =
+  "Hi, I saw your message about the CRM demo. Sounds interesting! Can we schedule something for this week? Also, do you have pricing info you can share beforehand?";
+
 // ─── 2. WhatsApp Reply ────────────────────────────────────────────────────────
 function WhatsAppReply() {
   const [context, setContext] = useState("");
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState(false);
+  const [replies, setReplies] = useState<WhatsAppReplyOption[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const replies = [
-    {
-      tone: "Formal",
-      color: "text-blue-400 border-blue-500/30 bg-blue-500/5",
-      text: "Thank you for reaching out. I'd be happy to arrange a product demonstration at your earliest convenience. Please let me know your preferred date and time, and I will confirm accordingly.",
-    },
-    {
-      tone: "Friendly",
-      color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5",
-      text: "Hey! Great to hear from you 😊 Absolutely, let's set up a quick demo — it'll only take 20 mins and I think you'll love what we've built. When works best for you this week?",
-    },
-    {
-      tone: "Follow-up",
-      color: "text-yellow-400 border-yellow-500/30 bg-yellow-500/5",
-      text: "Hi! Thanks for getting back to me. I just wanted to make sure we don't lose momentum — I've reserved a demo slot for Thursday 3pm. Does that work, or should I find another time?",
-    },
-  ];
-
-  function generate() {
+  async function generate() {
     setLoading(true);
     setOutput(false);
     setSelected(null);
-    setTimeout(() => {
+    try {
+      const result = await generateWhatsAppReplies({
+        contactName: WHATSAPP_CONTACT.name,
+        company: WHATSAPP_CONTACT.company,
+        incomingMessage: WHATSAPP_INCOMING_MESSAGE,
+        context: context || undefined,
+      });
+      setReplies(result);
       setOutput(true);
+    } finally {
       setLoading(false);
-    }, 1200);
+    }
   }
 
   function copyReply() {
@@ -338,16 +351,16 @@ function WhatsAppReply() {
 
   return (
     <div className="space-y-4">
-      {/* Fake incoming message */}
+      {/* Sample incoming message — fixed demo scenario, passed as real input to the reply generator below */}
       <div className="rounded-xl border border-white/10 p-4 bg-white/[0.03]">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
             style={{ background: "linear-gradient(135deg,#25D366,#128C7E)" }}>
-            LZ
+            {WHATSAPP_CONTACT.name.split(" ").map((n) => n[0]).join("")}
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-200">Lisa Zhang</p>
-            <p className="text-[10px] text-slate-500">HealthTech AI · 2m ago</p>
+            <p className="text-xs font-semibold text-slate-200">{WHATSAPP_CONTACT.name}</p>
+            <p className="text-[10px] text-slate-500">{WHATSAPP_CONTACT.company} · 2m ago</p>
           </div>
           <div className="ml-auto flex items-center gap-1 text-[10px] text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -356,7 +369,7 @@ function WhatsAppReply() {
         </div>
         <div className="rounded-lg px-3 py-2 text-sm text-slate-300 inline-block"
           style={{ background: "rgba(37,211,102,0.08)", borderLeft: "3px solid #25D366" }}>
-          Hi, I saw your message about the CRM demo. Sounds interesting! Can we schedule something for this week? Also, do you have pricing info you can share beforehand?
+          {WHATSAPP_INCOMING_MESSAGE}
         </div>
       </div>
 
@@ -386,7 +399,7 @@ function WhatsAppReply() {
               onClick={() => setSelected(i)}
               className={cn(
                 "w-full text-left rounded-xl border p-3 transition-all",
-                r.color,
+                WHATSAPP_TONE_COLORS[r.tone] ?? "text-slate-300 border-white/10 bg-white/[0.03]",
                 selected === i ? "ring-2 ring-yellow-500/50" : "hover:bg-white/[0.04]",
               )}
             >
@@ -429,26 +442,26 @@ function MeetingNotes() {
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState(false);
 
+  const [notes, setNotes] = useState<MeetingNotesResult | null>(null);
+
   function toggleTopic(t: string) {
     setTopics((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]);
   }
 
-  function generate() {
+  async function generate() {
     setLoading(true);
     setOutput(false);
-    setTimeout(() => { setOutput(true); setLoading(false); }, 1200);
+    setNotes(null);
+    try {
+      const result = await generateMeetingNotes({ attendees, duration, topics });
+      setNotes(result);
+      setOutput(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const lead = "Lisa Zhang";
-  const company = "HealthTech AI";
-
-  const actionItems = [
-    `Send pricing deck to ${lead} by EOD tomorrow`,
-    `Schedule technical deep-dive with ${company} engineering team`,
-    `Prepare ROI analysis based on their current workflow`,
-    topics.includes("Objections") ? "Address security compliance concerns in follow-up email" : null,
-    topics.includes("Next Steps") ? "Set up 30-day trial account by Friday" : null,
-  ].filter(Boolean) as string[];
+  const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   return (
     <div className="space-y-4">
@@ -488,62 +501,68 @@ function MeetingNotes() {
       <GoldButton onClick={generate} loading={loading}>
         Generate Meeting Notes
       </GoldButton>
-      <OutputBox visible={output && !loading}>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-bold text-yellow-300">Meeting Summary</h4>
-            <span className="text-[10px] text-slate-500 flex items-center gap-1"><Clock size={10} /> {duration} min</span>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-xs">
-            <div className="rounded-lg p-2 bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-slate-500 mb-0.5">Date</p>
-              <p className="text-slate-200 font-medium">Jun 2, 2026</p>
+      <OutputBox visible={output && !loading && !!notes}>
+        {notes && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-bold text-yellow-300">Meeting Summary</h4>
+              <span className="text-[10px] text-slate-500 flex items-center gap-1"><Clock size={10} /> {duration} min</span>
             </div>
-            <div className="rounded-lg p-2 bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-slate-500 mb-0.5">Attendees</p>
-              <p className="text-slate-200 font-medium">{attendees}</p>
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div className="rounded-lg p-2 bg-white/[0.04] border border-white/[0.06]">
+                <p className="text-slate-500 mb-0.5">Date</p>
+                <p className="text-slate-200 font-medium">{today}</p>
+              </div>
+              <div className="rounded-lg p-2 bg-white/[0.04] border border-white/[0.06]">
+                <p className="text-slate-500 mb-0.5">Attendees</p>
+                <p className="text-slate-200 font-medium">{attendees}</p>
+              </div>
+              <div className="rounded-lg p-2 bg-white/[0.04] border border-white/[0.06]">
+                <p className="text-slate-500 mb-0.5">Topics</p>
+                <p className="text-slate-200 font-medium">{topics.join(", ") || "—"}</p>
+              </div>
             </div>
-            <div className="rounded-lg p-2 bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-slate-500 mb-0.5">Topics</p>
-              <p className="text-slate-200 font-medium">{topics.join(", ") || "—"}</p>
+            <div>
+              <p className="text-xs font-semibold text-slate-400 mb-2">Key Discussion Points</p>
+              <ul className="space-y-1.5">
+                {topics.map((t) => (
+                  <li key={t} className="flex items-start gap-2 text-xs text-slate-300">
+                    <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: GOLD }} />
+                    {notes.keyPoints[t] ?? `${t} discussed.`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-400 mb-2">Action Items</p>
+              <ul className="space-y-1.5">
+                {notes.actionItems.map((item, i) => (
+                  <motion.li key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
+                    className="flex items-start gap-2 text-xs text-slate-300">
+                    <div className="w-4 h-4 rounded border border-emerald-500/40 flex items-center justify-center flex-shrink-0 mt-0.5"
+                      style={{ background: "rgba(0,168,107,0.1)" }}>
+                      <ArrowRight size={9} className="text-emerald-400" />
+                    </div>
+                    {item}
+                  </motion.li>
+                ))}
+              </ul>
             </div>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-slate-400 mb-2">Key Discussion Points</p>
-            <ul className="space-y-1.5">
-              {topics.map((t) => (
-                <li key={t} className="flex items-start gap-2 text-xs text-slate-300">
-                  <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: GOLD }} />
-                  {t === "Demo" && "Product demo completed — strong positive reaction to AI Insights module and dashboard."}
-                  {t === "Pricing" && `Pricing discussed: ${company} exploring the ${lead.split(" ")[0]}'s team's budget aligns with Growth plan.`}
-                  {t === "Objections" && "Objection raised around data security and GDPR compliance — to be addressed in writing."}
-                  {t === "Next Steps" && "Agreed on a 30-day pilot starting next week with 5 users."}
-                  {t === "Technical Review" && "Technical architecture reviewed — API integration feasibility confirmed."}
-                  {t === "Contract" && "Contract terms discussed — legal review expected within 5 business days."}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-slate-400 mb-2">Action Items</p>
-            <ul className="space-y-1.5">
-              {actionItems.map((item, i) => (
-                <motion.li key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
-                  className="flex items-start gap-2 text-xs text-slate-300">
-                  <div className="w-4 h-4 rounded border border-emerald-500/40 flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: "rgba(0,168,107,0.1)" }}>
-                    <ArrowRight size={9} className="text-emerald-400" />
-                  </div>
-                  {item}
-                </motion.li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        )}
       </OutputBox>
     </div>
   );
 }
+
+const CALL_SENTIMENT_META: Record<
+  CallSummaryResult["sentiment"],
+  { label: string; color: string; bg: string; icon: React.ElementType }
+> = {
+  positive: { label: "Positive", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30", icon: ThumbsUp },
+  neutral: { label: "Neutral", color: "text-yellow-400", bg: "bg-yellow-500/15 border-yellow-500/30", icon: Minus },
+  negative: { label: "Negative", color: "text-rose-400", bg: "bg-rose-500/15 border-rose-500/30", icon: AlertTriangle },
+};
 
 // ─── 4. Call Summary ──────────────────────────────────────────────────────────
 function CallSummary() {
@@ -552,29 +571,23 @@ function CallSummary() {
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState(false);
 
-  function generate() {
+  const [summary, setSummary] = useState<CallSummaryResult | null>(null);
+
+  async function generate() {
     setLoading(true);
     setOutput(false);
-    setTimeout(() => { setOutput(true); setLoading(false); }, 1200);
+    setSummary(null);
+    try {
+      const result = await generateCallSummary({ duration, callType });
+      setSummary(result);
+      setOutput(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const sentiments: Record<string, { label: string; color: string; icon: React.ElementType; bg: string }> = {
-    Discovery:   { label: "Positive",  color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30", icon: ThumbsUp },
-    Demo:        { label: "Positive",  color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30", icon: ThumbsUp },
-    Negotiation: { label: "Neutral",   color: "text-yellow-400",  bg: "bg-yellow-500/15 border-yellow-500/30",   icon: Minus },
-    Closing:     { label: "Positive",  color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30", icon: ThumbsUp },
-  };
-
-  const summaries: Record<string, { points: string[]; objections: string[]; nextAction: string }> = {
-    Discovery:   { points: ["Prospect confirmed pain points around lead tracking","Team of 12 sales reps currently using spreadsheets","Decision timeline: Q3 2026","Budget range confirmed at $50–80K"], objections: ["Concerned about migration complexity","Wants to see integration with existing HubSpot instance"], nextAction: "Send technical integration overview + schedule demo within 3 days" },
-    Demo:        { points: ["Live demo completed for full product suite","AI Insights resonated strongly with VP of Sales","Analytics dashboard praised for real-time visibility","Competitor comparison requested"], objections: ["Pricing higher than current tool","Needs approval from CFO"], nextAction: "Prepare ROI calculator and CFO-facing business case document" },
-    Negotiation: { points: ["Pricing discussion — requested 15% discount","Annual contract preferred over monthly","Onboarding timeline discussed: 2 weeks","References from similar companies requested"], objections: ["Budget constrained for this quarter","Legal review may delay signing"], nextAction: "Submit revised proposal with annual pricing + customer references by EOD" },
-    Closing:     { points: ["All stakeholders aligned on go-ahead","Contract terms finalized","Kick-off call scheduled for next Monday","Onboarding team introduced"], objections: ["Minor clause on data portability to be updated"], nextAction: "Update contract clause, send DocuSign by tomorrow 9am" },
-  };
-
-  const s = sentiments[callType];
-  const d = summaries[callType];
-  const SentimentIcon = s.icon;
+  const s = summary ? CALL_SENTIMENT_META[summary.sentiment] : null;
+  const SentimentIcon = s?.icon;
 
   return (
     <div className="space-y-4">
@@ -595,52 +608,54 @@ function CallSummary() {
       <GoldButton onClick={generate} loading={loading}>
         Generate Call Summary
       </GoldButton>
-      <OutputBox visible={output && !loading}>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-bold text-yellow-300">{callType} Call Summary</h4>
-            <div className="flex items-center gap-1.5">
-              <Clock size={11} className="text-slate-500" />
-              <span className="text-xs text-slate-500">{duration} min</span>
+      <OutputBox visible={output && !loading && !!summary}>
+        {summary && s && SentimentIcon && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-bold text-yellow-300">{callType} Call Summary</h4>
+              <div className="flex items-center gap-1.5">
+                <Clock size={11} className="text-slate-500" />
+                <span className="text-xs text-slate-500">{duration} min</span>
+              </div>
             </div>
-          </div>
-          <div>
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Key Points</p>
-            <ul className="space-y-1.5">
-              {d.points.map((pt, i) => (
-                <motion.li key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
-                  className="flex items-start gap-2 text-xs text-slate-300">
-                  <span className="w-1 h-1 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
-                  {pt}
-                </motion.li>
-              ))}
-            </ul>
-          </div>
-          {d.objections.length > 0 && (
-            <div className="rounded-lg border border-rose-500/20 p-3 bg-rose-500/5">
-              <p className="text-[10px] text-rose-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                <AlertTriangle size={10} /> Objections Raised
-              </p>
-              <ul className="space-y-1">
-                {d.objections.map((o, i) => (
-                  <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
-                    <span className="text-rose-500 mt-0.5">•</span>{o}
-                  </li>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Key Points</p>
+              <ul className="space-y-1.5">
+                {summary.points.map((pt, i) => (
+                  <motion.li key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
+                    className="flex items-start gap-2 text-xs text-slate-300">
+                    <span className="w-1 h-1 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
+                    {pt}
+                  </motion.li>
                 ))}
               </ul>
             </div>
-          )}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex-1 rounded-lg border p-3 bg-white/[0.03]" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Next Action</p>
-              <p className="text-xs text-slate-200 leading-relaxed">{d.nextAction}</p>
-            </div>
-            <div className={cn("flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold flex-shrink-0", s.bg, s.color)}>
-              <SentimentIcon size={13} />
-              {s.label}
+            {summary.objections.length > 0 && (
+              <div className="rounded-lg border border-rose-500/20 p-3 bg-rose-500/5">
+                <p className="text-[10px] text-rose-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <AlertTriangle size={10} /> Objections Raised
+                </p>
+                <ul className="space-y-1">
+                  {summary.objections.map((o, i) => (
+                    <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
+                      <span className="text-rose-500 mt-0.5">•</span>{o}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 rounded-lg border p-3 bg-white/[0.03]" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Next Action</p>
+                <p className="text-xs text-slate-200 leading-relaxed">{summary.nextAction}</p>
+              </div>
+              <div className={cn("flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold flex-shrink-0", s.bg, s.color)}>
+                <SentimentIcon size={13} />
+                {s.label}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </OutputBox>
     </div>
   );
@@ -656,38 +671,23 @@ function ProposalGenerator() {
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(false);
 
+  const [sections, setSections] = useState<ProposalSection[]>([]);
+
   function toggleModule(m: string) {
     setModules((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
   }
 
-  function generate() {
+  async function generate() {
     setLoading(true);
     setOutput(false);
-    setTimeout(() => { setOutput(true); setLoading(false); }, 1200);
+    try {
+      const result = await generateProposalDraft({ company, dealValue, modules });
+      setSections(result.sections);
+      setOutput(true);
+    } finally {
+      setLoading(false);
+    }
   }
-
-  const formatted = Number(dealValue).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-
-  const sections = [
-    {
-      title: "Executive Summary",
-      content: `We are pleased to present this proposal to ${company} for an AI-powered CRM solution designed to accelerate your sales growth. Based on our discovery sessions, we have tailored a solution that directly addresses your pipeline visibility and automation needs.`,
-    },
-    {
-      title: "Solution Overview",
-      content: modules.length
-        ? `Your package includes: ${modules.join(", ")}. Each module is fully integrated, with unified reporting and a single sign-on experience for your entire team.`
-        : "Please select modules above to include in this section.",
-    },
-    {
-      title: "Pricing",
-      content: `Total investment: ${formatted}\n• Annual contract (save 20% vs monthly)\n• Includes onboarding, training & 12-month support\n• ${modules.length} modules as selected above`,
-    },
-    {
-      title: "Next Steps",
-      content: "1. Review and sign proposal (DocuSign link)\n2. Kick-off call within 48 hours of signing\n3. Full deployment live within 14 business days\n4. 30-day hypercare support included",
-    },
-  ];
 
   function copyProposal() {
     const text = `${company} — Commercial Proposal\n\n${sections.map((s) => `${s.title}\n${s.content}`).join("\n\n")}`;
@@ -735,13 +735,15 @@ function ProposalGenerator() {
       <GoldButton onClick={generate} loading={loading}>
         Generate Proposal
       </GoldButton>
-      <OutputBox visible={output && !loading}>
+      <OutputBox visible={output && !loading && sections.length > 0}>
         <div className="space-y-4">
           {/* Header */}
           <div className="text-center pb-3 border-b border-white/[0.07]">
             <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Commercial Proposal</div>
             <h4 className="text-base font-black" style={{ color: GOLD }}>{company}</h4>
-            <p className="text-xs text-slate-500 mt-0.5">Prepared Jun 2, 2026 · Valid 30 days</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Prepared {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Valid 30 days
+            </p>
           </div>
           {/* Sections */}
           {sections.map((sec, i) => (
@@ -772,6 +774,13 @@ function ProposalGenerator() {
   );
 }
 
+const FORECAST_BAR_COLORS: Record<string, string> = {
+  Qualified: "#3b82f6",
+  Proposal: "#8b5cf6",
+  Negotiation: "#f59e0b",
+  Closing: EMERALD,
+};
+
 // ─── 6. Sales Forecast ────────────────────────────────────────────────────────
 function SalesForecast() {
   const [period, setPeriod] = useState("This Month");
@@ -779,46 +788,20 @@ function SalesForecast() {
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState(false);
 
-  function generate() {
+  const [data, setData] = useState<SalesForecastResult | null>(null);
+
+  async function generate() {
     setLoading(true);
     setOutput(false);
-    setTimeout(() => { setOutput(true); setLoading(false); }, 1200);
+    setData(null);
+    try {
+      const result = await generateSalesForecast({ period, confidence });
+      setData(result);
+      setOutput(true);
+    } finally {
+      setLoading(false);
+    }
   }
-
-  const forecastData: Record<string, {
-    revenue: string; pipeline: string; winRate: number; atRisk: string;
-    bars: { label: string; value: number; color: string }[];
-  }> = {
-    "This Month": {
-      revenue: "$167,400", pipeline: "$2.4M", winRate: 62, atRisk: "$186K",
-      bars: [
-        { label: "Qualified",    value: 88, color: "#3b82f6" },
-        { label: "Proposal",     value: 65, color: "#8b5cf6" },
-        { label: "Negotiation",  value: 45, color: "#f59e0b" },
-        { label: "Closing",      value: 28, color: EMERALD },
-      ],
-    },
-    "This Quarter": {
-      revenue: "$512,000", pipeline: "$7.1M", winRate: 58, atRisk: "$340K",
-      bars: [
-        { label: "Qualified",    value: 92, color: "#3b82f6" },
-        { label: "Proposal",     value: 71, color: "#8b5cf6" },
-        { label: "Negotiation",  value: 52, color: "#f59e0b" },
-        { label: "Closing",      value: 38, color: EMERALD },
-      ],
-    },
-    "This Year": {
-      revenue: "$1,840,000", pipeline: "$24.3M", winRate: 55, atRisk: "$920K",
-      bars: [
-        { label: "Qualified",    value: 95, color: "#3b82f6" },
-        { label: "Proposal",     value: 78, color: "#8b5cf6" },
-        { label: "Negotiation",  value: 61, color: "#f59e0b" },
-        { label: "Closing",      value: 44, color: EMERALD },
-      ],
-    },
-  };
-
-  const data = forecastData[period];
 
   return (
     <div className="space-y-4">
@@ -839,59 +822,64 @@ function SalesForecast() {
       <GoldButton onClick={generate} loading={loading}>
         Generate Forecast
       </GoldButton>
-      <OutputBox visible={output && !loading}>
-        <div className="space-y-5">
-          {/* KPI cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: "Predicted Revenue", value: data.revenue, color: GOLD, icon: DollarSign },
-              { label: "Pipeline Coverage", value: data.pipeline, color: "#3b82f6", icon: BarChart2 },
-              { label: "Win Rate", value: `${data.winRate}%`, color: EMERALD, icon: TrendingUp },
-              { label: "At-Risk Deals", value: data.atRisk, color: "#ef4444", icon: AlertTriangle },
-            ].map((kpi, i) => {
-              const KpiIcon = kpi.icon;
-              return (
-                <motion.div key={kpi.label} initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.08 }}
-                  className="rounded-xl border border-white/[0.07] p-3 bg-white/[0.03] text-center">
-                  <KpiIcon size={14} className="mx-auto mb-1" style={{ color: kpi.color }} />
-                  <p className="text-base font-black" style={{ color: kpi.color }}>{kpi.value}</p>
-                  <p className="text-[10px] text-slate-500 leading-tight mt-0.5">{kpi.label}</p>
-                </motion.div>
-              );
-            })}
-          </div>
-          {/* Pipeline stage bars */}
-          <div>
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">Pipeline by Stage ({period})</p>
-            <div className="space-y-3">
-              {data.bars.map((bar, i) => (
-                <div key={bar.label}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-slate-400">{bar.label}</span>
-                    <span className="text-xs font-bold" style={{ color: bar.color }}>{bar.value}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${bar.value}%` }}
-                      transition={{ duration: 0.8, delay: 0.2 + i * 0.1, ease: "easeOut" }}
-                      className="h-full rounded-full"
-                      style={{
-                        background: `linear-gradient(90deg, ${bar.color}, ${bar.color}99)`,
-                        boxShadow: `0 0 8px ${bar.color}60`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+      <OutputBox visible={output && !loading && !!data}>
+        {data && (
+          <div className="space-y-5">
+            {/* KPI cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: "Predicted Revenue", value: data.revenue, color: GOLD, icon: DollarSign },
+                { label: "Pipeline Coverage", value: data.pipeline, color: "#3b82f6", icon: BarChart2 },
+                { label: "Win Rate", value: `${data.winRate}%`, color: EMERALD, icon: TrendingUp },
+                { label: "At-Risk Deals", value: data.atRisk, color: "#ef4444", icon: AlertTriangle },
+              ].map((kpi, i) => {
+                const KpiIcon = kpi.icon;
+                return (
+                  <motion.div key={kpi.label} initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.08 }}
+                    className="rounded-xl border border-white/[0.07] p-3 bg-white/[0.03] text-center">
+                    <KpiIcon size={14} className="mx-auto mb-1" style={{ color: kpi.color }} />
+                    <p className="text-base font-black" style={{ color: kpi.color }}>{kpi.value}</p>
+                    <p className="text-[10px] text-slate-500 leading-tight mt-0.5">{kpi.label}</p>
+                  </motion.div>
+                );
+              })}
+            </div>
+            {/* Pipeline stage bars */}
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">Pipeline by Stage ({period})</p>
+              <div className="space-y-3">
+                {data.bars.map((bar, i) => {
+                  const color = FORECAST_BAR_COLORS[bar.label] ?? "#94a3b8";
+                  return (
+                    <div key={bar.label}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-slate-400">{bar.label}</span>
+                        <span className="text-xs font-bold" style={{ color }}>{bar.value}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${bar.value}%` }}
+                          transition={{ duration: 0.8, delay: 0.2 + i * 0.1, ease: "easeOut" }}
+                          className="h-full rounded-full"
+                          style={{
+                            background: `linear-gradient(90deg, ${color}, ${color}99)`,
+                            boxShadow: `0 0 8px ${color}60`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Confidence note */}
+            <div className="rounded-lg border border-white/[0.07] px-3 py-2 flex items-center justify-between bg-white/[0.02]">
+              <span className="text-xs text-slate-500">AI Confidence Level</span>
+              <span className="text-sm font-black" style={{ color: GOLD }}>{confidence}%</span>
             </div>
           </div>
-          {/* Confidence note */}
-          <div className="rounded-lg border border-white/[0.07] px-3 py-2 flex items-center justify-between bg-white/[0.02]">
-            <span className="text-xs text-slate-500">AI Confidence Level</span>
-            <span className="text-sm font-black" style={{ color: GOLD }}>{confidence}%</span>
-          </div>
-        </div>
+        )}
       </OutputBox>
     </div>
   );

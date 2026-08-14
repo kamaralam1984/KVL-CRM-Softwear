@@ -154,6 +154,23 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
     onAuth(user);
   };
 
+  const handleOAuth = async (provider: "google" | "github") => {
+    setError("");
+    if (!isSupabaseConfigured()) {
+      setError(`Demo mode: ${provider === "google" ? "Google" : "GitHub"} sign-in needs Supabase configured with an OAuth provider. Use email + password instead.`);
+      return;
+    }
+    setLoading(true);
+    const supabase = getSupabaseClient();
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: `${window.location.origin}/api/auth/callback` },
+    });
+    setLoading(false);
+    if (err) setError(err.message);
+    // On success the browser is redirected to the provider — no further action here.
+  };
+
   const handleForgotPassword = async () => {
     setError("");
     if (!lEmail) { setError("Enter your email above, then click \"Forgot password?\" to get a reset link."); return; }
@@ -366,8 +383,9 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
                     {[["Google", Globe], ["GitHub", Code]].map(([label, Icon]) => {
                       const I = Icon as React.ElementType;
                       return (
-                        <button key={label as string} type="button"
-                          className="flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-medium transition-all"
+                        <button key={label as string} type="button" disabled={loading}
+                          onClick={() => handleOAuth(label === "Google" ? "google" : "github")}
+                          className="flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-medium transition-all disabled:opacity-60"
                           style={{ background: inputBg, borderColor: inputBrd, color: text2 }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#D4AF37"; (e.currentTarget as HTMLElement).style.color = text1; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = inputBrd; (e.currentTarget as HTMLElement).style.color = text2; }}>
@@ -489,8 +507,9 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
                     {[["Google", Globe], ["GitHub", Code]].map(([label, Icon]) => {
                       const I = Icon as React.ElementType;
                       return (
-                        <button key={label as string} type="button"
-                          className="flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-medium transition-all"
+                        <button key={label as string} type="button" disabled={loading}
+                          onClick={() => handleOAuth(label === "Google" ? "google" : "github")}
+                          className="flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-medium transition-all disabled:opacity-60"
                           style={{ background: inputBg, borderColor: inputBrd, color: text2 }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#D4AF37"; (e.currentTarget as HTMLElement).style.color = text1; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = inputBrd; (e.currentTarget as HTMLElement).style.color = text2; }}>

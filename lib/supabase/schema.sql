@@ -92,6 +92,21 @@ create table if not exists customers (
 alter table customers enable row level security;
 create policy "Authenticated users can CRUD customers" on customers for all using (auth.role() = 'authenticated');
 
+-- ── Customer NPS responses ───────────────────────────────────────────────────
+-- Manually-logged Net Promoter Score responses (see components/crm/sections/
+-- Customers.tsx NPSManagementTab / lib/actions/nps.ts). No seed/demo fallback —
+-- an empty table is the honest state until real responses are logged.
+create table if not exists customer_nps_responses (
+  id            bigserial primary key,
+  customer_name text not null default '',
+  score         int  not null check (score between 0 and 10),
+  comment       text default '',
+  created_at    timestamptz not null default now()
+);
+create index if not exists customer_nps_responses_created_idx on customer_nps_responses (created_at);
+alter table customer_nps_responses enable row level security;
+create policy "Authenticated users can CRUD customer_nps_responses" on customer_nps_responses for all using (auth.role() = 'authenticated');
+
 -- ── Deals ──────────────────────────────────────────────────────────────────
 create table if not exists deals (
   id             bigserial primary key,
@@ -140,6 +155,20 @@ create table if not exists calendar_events (
 );
 alter table calendar_events enable row level security;
 create policy "Authenticated users can CRUD calendar_events" on calendar_events for all using (auth.role() = 'authenticated');
+
+-- ── Integration connections (OAuth-connected third-party apps) ──────────────
+-- One row per connected provider (e.g. Razorpay Connect). access_token is the
+-- provider's OAuth token, never exposed to the browser — only read/written by
+-- server actions and the OAuth callback route.
+create table if not exists integration_connections (
+  id                bigserial primary key,
+  provider          text not null unique,
+  access_token      text default '',
+  account_ref       text default '',
+  connected_at      timestamptz not null default now()
+);
+alter table integration_connections enable row level security;
+create policy "Authenticated users can CRUD integration_connections" on integration_connections for all using (auth.role() = 'authenticated');
 
 -- ── Invoices ───────────────────────────────────────────────────────────────
 create table if not exists invoices (

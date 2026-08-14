@@ -11,6 +11,7 @@ import {
 import { customers as initialCustomers } from "@/lib/data";
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from "@/lib/actions/customers";
 import { createTask } from "@/lib/actions/tasks";
+import { getNpsResponses, submitNpsResponse, type NpsResponse } from "@/lib/actions/nps";
 import { cn, formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -45,34 +46,23 @@ const journeyStages = [
   { stage: "Champion",   icon: Award,         date: "May 28, 2024", duration: "Ongoing", actions: ["Case study signed","Referral submitted","NPS 10"] },
 ];
 
-const churnRiskData = [
-  { id: 1, name: "DataFlow Inc",    score: 78, payment: true,  usage: true,  tickets: false, engagement: true,  mrr: 8400  },
-  { id: 2, name: "CloudBase Ltd",   score: 62, payment: false, usage: true,  tickets: true,  engagement: true,  mrr: 5200  },
-  { id: 3, name: "NexaTech",        score: 45, payment: false, usage: false, tickets: true,  engagement: false, mrr: 3100  },
-  { id: 4, name: "Orbit Systems",   score: 21, payment: false, usage: false, tickets: false, engagement: false, mrr: 12000 },
-  { id: 5, name: "Pulse Analytics", score: 15, payment: false, usage: false, tickets: false, engagement: false, mrr: 7800  },
-  { id: 6, name: "Vertex Corp",     score: 55, payment: true,  usage: false, tickets: false, engagement: true,  mrr: 4500  },
-];
-
-const npsResponses = [
-  { name: "Sarah K.",    score: 10, comment: "Absolutely love the product — transformed our workflow completely.", date: "Jun 1" },
-  { name: "Marcus T.",   score: 9,  comment: "Great support team and the dashboard is incredibly intuitive.",      date: "May 29" },
-  { name: "Priya R.",    score: 7,  comment: "Good product, onboarding could be smoother.",                       date: "May 27" },
-  { name: "James L.",    score: 4,  comment: "Too many bugs in the reporting module. Needs attention.",            date: "May 25" },
-  { name: "Anita W.",    score: 6,  comment: "Decent, but pricing feels a bit steep for the feature set.",        date: "May 22" },
-];
-const npsTrend = [
-  { month: "Jan", score: 61 }, { month: "Feb", score: 65 }, { month: "Mar", score: 68 },
-  { month: "Apr", score: 70 }, { month: "May", score: 69 }, { month: "Jun", score: 72 },
-];
-
-const renewalsData = [
-  { id: 1, name: "Acme Corp",      value: 48000,  date: "Jun 18, 2024", health: 91, owner: "Alex M.",   daysLeft: 16 },
-  { id: 2, name: "GlobalTech",     value: 120000, date: "Jul 2, 2024",  health: 74, owner: "Priya S.",  daysLeft: 30 },
-  { id: 3, name: "StackHouse",     value: 36000,  date: "Jul 14, 2024", health: 88, owner: "Jordan K.", daysLeft: 42 },
-  { id: 4, name: "BrightPath Ltd", value: 72000,  date: "Aug 3, 2024",  health: 65, owner: "Sam T.",    daysLeft: 62 },
-  { id: 5, name: "Nexus Media",    value: 24000,  date: "Aug 20, 2024", health: 83, owner: "Alex M.",   daysLeft: 79 },
-];
+// ─── date helpers (renewals) ────────────────────────────────────────────────────
+// Real `nextRenewal` values are freeform labels like "Dec 2025" (see lib/data.ts /
+// lib/supabase/schema.sql `next_renewal`), not ISO dates. Parse that one known
+// format deterministically to end-of-month; anything else is left unparsed rather
+// than guessing.
+const MONTH_ABBRS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+function parseRenewalLabel(label?: string): Date | null {
+  if (!label) return null;
+  const m = label.trim().match(/^([A-Za-z]+)\.?\s+(\d{4})$/);
+  if (!m) return null;
+  const idx = MONTH_ABBRS.indexOf(m[1].toLowerCase().slice(0, 3));
+  if (idx === -1) return null;
+  const year = parseInt(m[2], 10);
+  // last day of that month
+  return new Date(year, idx + 1, 0);
+}
+const daysUntil = (d: Date) => Math.ceil((d.getTime() - Date.now()) / 86400000);
 
 // ─── sub-components ────────────────────────────────────────────────────────────
 
@@ -195,13 +185,34 @@ function CustomerJourneyTab({ customers }: { customers: typeof initialCustomers 
   );
 }
 
-function ChurnRiskTab() {
-  const [taskAdded, setTaskAdded] = useState<Set<number>>(new Set());
-  const safe  = churnRiskData.filter((c) => c.score < 30).length;
-  const watch = churnRiskData.filter((c) => c.score >= 30 && c.score < 60).length;
-  const atRisk = churnRiskData.filter((c) => c.score >= 60).length;
+// Deterministic churn-risk score computed purely from real customer fields —
+// no fabricated sub-signals. Churned accounts are excluded: they're already
+// lost, not "at risk of" churning.
+function computeChurnRisk(c: (typeof initialCustomers)[number]) {
+  let score = 100 - c.health;
+  if (c.status === "at-risk") score += 20;
+  score = Math.max(0, Math.min(100, score));
 
-  const addTask = (c: (typeof churnRiskData)[number]) => {
+  const factors: string[] = [];
+  if (c.health < 60) factors.push("Low Health Score");
+  if (c.status === "at-risk") factors.push("At-Risk Status");
+
+  return { score, factors };
+}
+
+function ChurnRiskTab({ customers }: { customers: typeof initialCustomers }) {
+  const [taskAdded, setTaskAdded] = useState<Set<number>>(new Set());
+
+  const scored = customers
+    .filter((c) => c.status !== "churned")
+    .map((c) => ({ ...c, ...computeChurnRisk(c) }))
+    .sort((a, b) => b.score - a.score);
+
+  const safe   = scored.filter((c) => c.score < 30).length;
+  const watch  = scored.filter((c) => c.score >= 30 && c.score < 60).length;
+  const atRisk = scored.filter((c) => c.score >= 60).length;
+
+  const addTask = (c: (typeof scored)[number]) => {
     createTask({
       title: `Follow up with ${c.name} on churn risk`,
       priority: c.score >= 60 ? "high" : c.score >= 30 ? "medium" : "low",
@@ -218,10 +229,6 @@ function ChurnRiskTab() {
     s >= 60 ? { bar: "#f43f5e", badge: "bg-rose-500/15 text-rose-400 border-rose-500/25", label: "At Risk" }
     : s >= 30 ? { bar: "#f59e0b", badge: "bg-amber-500/15 text-amber-400 border-amber-500/25", label: "Watch" }
     : { bar: "#00A86B", badge: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25", label: "Safe" };
-
-  const riskFactorLabel: Record<string, string> = {
-    payment: "Payment Delays", usage: "Low Usage", tickets: "Support Tickets", engagement: "Engagement Drop"
-  };
 
   return (
     <div className="space-y-4">
@@ -252,11 +259,12 @@ function ChurnRiskTab() {
             ))}
           </div>
 
-          {churnRiskData.map((c, i) => {
+          {scored.length === 0 && (
+            <div className="col-span-4 px-4 py-8 text-center text-xs text-slate-500">No active accounts to assess.</div>
+          )}
+
+          {scored.map((c, i) => {
             const rc = riskColor(c.score);
-            const factors = (Object.entries({ payment: c.payment, usage: c.usage, tickets: c.tickets, engagement: c.engagement }) as [string, boolean][])
-              .filter(([, v]) => v)
-              .map(([k]) => riskFactorLabel[k]);
             return (
               <motion.div
                 key={c.id}
@@ -268,7 +276,7 @@ function ChurnRiskTab() {
                 {/* Name */}
                 <div>
                   <p className="text-xs font-semibold text-slate-200">{c.name}</p>
-                  <p className="text-[10px] text-slate-500">{formatCurrency(c.mrr)}/mo</p>
+                  <p className="text-[10px] text-slate-500">{formatCurrency(c.value)} contract</p>
                 </div>
 
                 {/* Score bar */}
@@ -287,9 +295,9 @@ function ChurnRiskTab() {
 
                 {/* Factors */}
                 <div className="flex flex-wrap gap-1">
-                  {factors.length === 0
+                  {c.factors.length === 0
                     ? <span className="text-[10px] text-slate-600">No active flags</span>
-                    : factors.map((f) => (
+                    : c.factors.map((f) => (
                         <span key={f} className="px-1.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-[9px] text-rose-400">{f}</span>
                       ))
                   }
@@ -317,16 +325,64 @@ function ChurnRiskTab() {
   );
 }
 
-function NPSManagementTab() {
-  const [surveySent, setSurveySent] = useState(false);
-  const nps = 72;
-  const promoters  = 58;
-  const passives   = 28;
-  const detractors = 14;
-  const maxTrend = Math.max(...npsTrend.map((t) => t.score));
+type NpsLogForm = { customerName: string; score: string; comment: string };
+const emptyNpsForm: NpsLogForm = { customerName: "", score: "8", comment: "" };
+
+function NPSManagementTab({ customers }: { customers: typeof initialCustomers }) {
+  const [responses, setResponses] = useState<NpsResponse[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logForm, setLogForm] = useState<NpsLogForm>(emptyNpsForm);
+  const [submitting, setSubmitting] = useState(false);
+
+  const refresh = () => {
+    getNpsResponses().then((rows) => { setResponses(rows); setLoaded(true); }).catch(() => setLoaded(true));
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const total = responses.length;
+  const promotersCount  = responses.filter((r) => r.score >= 9).length;
+  const passivesCount   = responses.filter((r) => r.score >= 7 && r.score < 9).length;
+  const detractorsCount = responses.filter((r) => r.score <= 6).length;
+  const promotersPct  = total ? Math.round((promotersCount  / total) * 100) : 0;
+  const passivesPct   = total ? Math.round((passivesCount   / total) * 100) : 0;
+  const detractorsPct = total ? Math.round((detractorsCount / total) * 100) : 0;
+  const nps = total ? Math.round(promotersPct - detractorsPct) : null;
+
+  // Group responses by calendar month for a real trend line — only rendered
+  // once there's more than one distinct month of data to actually trend across.
+  const monthBuckets = new Map<string, { sortKey: number; promoters: number; detractors: number; total: number }>();
+  for (const r of responses) {
+    const d = new Date(r.date);
+    if (isNaN(d.getTime())) continue;
+    const key = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const bucket = monthBuckets.get(key) ?? { sortKey: new Date(d.getFullYear(), d.getMonth(), 1).getTime(), promoters: 0, detractors: 0, total: 0 };
+    bucket.total += 1;
+    if (r.score >= 9) bucket.promoters += 1;
+    else if (r.score <= 6) bucket.detractors += 1;
+    monthBuckets.set(key, bucket);
+  }
+  const trend = Array.from(monthBuckets.entries())
+    .map(([month, b]) => ({ month, score: Math.round((b.promoters / b.total) * 100 - (b.detractors / b.total) * 100), sortKey: b.sortKey }))
+    .sort((a, b) => a.sortKey - b.sortKey);
+  const maxTrend = trend.length ? Math.max(...trend.map((t) => Math.abs(t.score)), 1) : 1;
 
   const scoreColor = (s: number) =>
     s >= 9 ? "text-emerald-400" : s >= 7 ? "text-amber-400" : "text-rose-400";
+
+  const submitLog = async () => {
+    if (!logForm.customerName.trim()) return;
+    const score = Math.max(0, Math.min(10, parseInt(logForm.score, 10) || 0));
+    setSubmitting(true);
+    try {
+      await submitNpsResponse({ customerName: logForm.customerName.trim(), score, comment: logForm.comment.trim() });
+      refresh();
+      setShowLogModal(false);
+      setLogForm(emptyNpsForm);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -335,31 +391,42 @@ function NPSManagementTab() {
         {/* Big NPS number */}
         <div className="glass-card rounded-2xl border border-crm-border p-5 flex flex-col items-center justify-center col-span-1">
           <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">NPS Score</p>
-          <motion.p
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 200 }}
-            className="text-6xl font-black"
-            style={{ color: "#D4AF37" }}
-          >
-            {nps}
-          </motion.p>
-          {/* Gauge bar */}
-          <div className="w-full mt-3 h-2.5 rounded-full overflow-hidden bg-white/[0.06]">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${(nps + 100) / 2}%` }}
-              transition={{ duration: 0.8 }}
-              className="h-full rounded-full"
-              style={{ background: "linear-gradient(90deg,#f43f5e,#f59e0b,#00A86B)" }}
-            />
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1.5">World-class (&gt;70)</p>
+          {nps === null ? (
+            <>
+              <p className="text-4xl font-black text-slate-600">N/A</p>
+              <p className="text-[10px] text-slate-500 mt-2 text-center">No responses yet</p>
+            </>
+          ) : (
+            <>
+              <motion.p
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 200 }}
+                className="text-6xl font-black"
+                style={{ color: "#D4AF37" }}
+              >
+                {nps}
+              </motion.p>
+              {/* Gauge bar */}
+              <div className="w-full mt-3 h-2.5 rounded-full overflow-hidden bg-white/[0.06]">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(nps + 100) / 2}%` }}
+                  transition={{ duration: 0.8 }}
+                  className="h-full rounded-full"
+                  style={{ background: "linear-gradient(90deg,#f43f5e,#f59e0b,#00A86B)" }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1.5">
+                {nps > 70 ? "World-class (>70)" : nps > 30 ? "Great (>30)" : nps >= 0 ? "Needs work" : "At risk"}
+              </p>
+            </>
+          )}
           <button
-            onClick={() => { setSurveySent(true); setTimeout(() => setSurveySent(false), 2500); }}
+            onClick={() => setShowLogModal(true)}
             className="mt-4 flex items-center gap-1.5 px-3 py-2 rounded-xl gradient-bg text-white text-[11px] font-medium"
           >
-            {surveySent ? <><CheckCircle size={10} /> Survey Sent</> : <><Send size={10} /> Send NPS Survey</>}
+            <Send size={10} /> Log NPS Response
           </button>
         </div>
 
@@ -367,9 +434,9 @@ function NPSManagementTab() {
         <div className="glass-card rounded-2xl border border-crm-border p-5 col-span-1 space-y-3">
           <p className="text-[11px] text-slate-500 uppercase tracking-wider">Breakdown</p>
           {[
-            { label: "Promoters",   pct: promoters,  color: "#00A86B", icon: ThumbsUp,   range: "Score 9–10" },
-            { label: "Passives",    pct: passives,   color: "#f59e0b", icon: Minus,      range: "Score 7–8"  },
-            { label: "Detractors",  pct: detractors, color: "#f43f5e", icon: ThumbsDown, range: "Score 0–6"  },
+            { label: "Promoters",   pct: promotersPct,  color: "#00A86B", icon: ThumbsUp,   range: "Score 9–10" },
+            { label: "Passives",    pct: passivesPct,   color: "#f59e0b", icon: Minus,      range: "Score 7–8"  },
+            { label: "Detractors",  pct: detractorsPct, color: "#f43f5e", icon: ThumbsDown, range: "Score 0–6"  },
           ].map((item) => (
             <div key={item.label}>
               <div className="flex items-center justify-between mb-1">
@@ -395,22 +462,28 @@ function NPSManagementTab() {
 
         {/* Trend chart */}
         <div className="glass-card rounded-2xl border border-crm-border p-5 col-span-1">
-          <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-4">6-Month Trend</p>
-          <div className="flex items-end gap-2 h-24">
-            {npsTrend.map((t, i) => (
-              <div key={t.month} className="flex flex-col items-center gap-1 flex-1">
-                <span className="text-[9px]" style={{ color: "#D4AF37" }}>{t.score}</span>
-                <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: `${(t.score / maxTrend) * 80}px` }}
-                  transition={{ delay: i * 0.08, duration: 0.5 }}
-                  className="w-full rounded-t-md"
-                  style={{ background: i === npsTrend.length - 1 ? "#D4AF37" : "#D4AF37/40", opacity: 0.4 + i * 0.1 }}
-                />
-                <span className="text-[9px] text-slate-600">{t.month}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-4">Monthly Trend</p>
+          {trend.length < 2 ? (
+            <div className="h-24 flex items-center justify-center">
+              <p className="text-[10px] text-slate-600 text-center px-2">Not enough data yet<br />for a trend</p>
+            </div>
+          ) : (
+            <div className="flex items-end gap-2 h-24">
+              {trend.map((t, i) => (
+                <div key={t.month} className="flex flex-col items-center gap-1 flex-1">
+                  <span className="text-[9px]" style={{ color: "#D4AF37" }}>{t.score}</span>
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${(Math.abs(t.score) / maxTrend) * 80}px` }}
+                    transition={{ delay: i * 0.08, duration: 0.5 }}
+                    className="w-full rounded-t-md"
+                    style={{ background: "#D4AF37", opacity: 0.4 + i * (0.6 / Math.max(trend.length - 1, 1)) }}
+                  />
+                  <span className="text-[9px] text-slate-600">{t.month}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -418,46 +491,127 @@ function NPSManagementTab() {
       <div className="glass-card rounded-2xl border border-crm-border overflow-hidden">
         <div className="px-4 py-3 border-b border-crm-border bg-white/[0.02] flex items-center justify-between">
           <p className="text-xs font-semibold text-slate-300">Recent Responses</p>
-          <span className="text-[10px] text-slate-500">{npsResponses.length} responses</span>
+          <span className="text-[10px] text-slate-500">{total} response{total === 1 ? "" : "s"}</span>
         </div>
-        <div className="divide-y divide-crm-border/50">
-          {npsResponses.map((r, i) => (
-            <motion.div
-              key={r.name}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06 }}
-              className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors"
-            >
-              <div className="w-7 h-7 rounded-lg gradient-bg flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
-                {r.name.split(" ").map((w) => w[0]).join("")}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className="text-xs font-semibold text-slate-200">{r.name}</p>
-                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", scoreColor(r.score),
-                    r.score >= 9 ? "bg-emerald-500/15" : r.score >= 7 ? "bg-amber-500/15" : "bg-rose-500/15"
-                  )}>
-                    {r.score}/10
-                  </span>
-                  <span className="ml-auto text-[10px] text-slate-600 flex-shrink-0">{r.date}</span>
+        {loaded && total === 0 ? (
+          <div className="px-4 py-8 text-center text-xs text-slate-500">No responses yet — log one to get started.</div>
+        ) : (
+          <div className="divide-y divide-crm-border/50">
+            {responses.map((r, i) => (
+              <motion.div
+                key={`${r.name}-${r.date}-${i}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+                className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors"
+              >
+                <div className="w-7 h-7 rounded-lg gradient-bg flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
+                  {r.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
                 </div>
-                <p className="text-[11px] text-slate-400 truncate">{r.comment}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-xs font-semibold text-slate-200">{r.name}</p>
+                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", scoreColor(r.score),
+                      r.score >= 9 ? "bg-emerald-500/15" : r.score >= 7 ? "bg-amber-500/15" : "bg-rose-500/15"
+                    )}>
+                      {r.score}/10
+                    </span>
+                    <span className="ml-auto text-[10px] text-slate-600 flex-shrink-0">{r.date}</span>
+                  </div>
+                  {r.comment && <p className="text-[11px] text-slate-400 truncate">{r.comment}</p>}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Log NPS response modal */}
+      <Modal
+        open={showLogModal}
+        onClose={() => { setShowLogModal(false); setLogForm(emptyNpsForm); }}
+        title="Log NPS Response"
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Customer *</label>
+            <input
+              className={inputCls}
+              list="nps-customer-list"
+              placeholder="Acme Corp"
+              value={logForm.customerName}
+              onChange={(e) => setLogForm((p) => ({ ...p, customerName: e.target.value }))}
+            />
+            <datalist id="nps-customer-list">
+              {customers.map((c) => <option key={c.id} value={c.name} />)}
+            </datalist>
+          </div>
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Score (0–10) *</label>
+            <select
+              className={selectCls}
+              value={logForm.score}
+              onChange={(e) => setLogForm((p) => ({ ...p, score: e.target.value }))}
+            >
+              {Array.from({ length: 11 }, (_, n) => n).map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Comment</label>
+            <input
+              className={inputCls}
+              placeholder="Optional feedback"
+              value={logForm.comment}
+              onChange={(e) => setLogForm((p) => ({ ...p, comment: e.target.value }))}
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => { setShowLogModal(false); setLogForm(emptyNpsForm); }}
+              className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submitLog}
+              disabled={!logForm.customerName.trim() || submitting}
+              className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium disabled:opacity-40"
+            >
+              {submitting ? "Saving…" : "Save Response"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function RenewalsTab() {
+function RenewalsTab({ customers }: { customers: typeof initialCustomers }) {
   const [started, setStarted] = useState<Set<number>>(new Set());
-  const totalValue = renewalsData.reduce((s, r) => s + r.value, 0);
 
-  const urgency = (d: number) =>
-    d < 30
+  // Real renewals = customers that actually have a next-renewal label set.
+  const renewals = customers
+    .filter((c) => c.nextRenewal && c.nextRenewal.trim() !== "")
+    .map((c) => {
+      const renewalDate = parseRenewalLabel(c.nextRenewal);
+      const daysLeft = renewalDate ? daysUntil(renewalDate) : null;
+      return { ...c, daysLeft };
+    })
+    .sort((a, b) => {
+      if (a.daysLeft === null && b.daysLeft === null) return 0;
+      if (a.daysLeft === null) return 1;
+      if (b.daysLeft === null) return -1;
+      return a.daysLeft - b.daysLeft;
+    });
+
+  const totalValue = renewals.reduce((s, r) => s + r.value, 0);
+
+  const urgency = (d: number | null) =>
+    d === null
+      ? { color: "text-slate-500", bg: "bg-white/[0.04]", border: "border-crm-border", label: "Unknown" }
+      : d < 30
       ? { color: "text-rose-400",   bg: "bg-rose-500/10",    border: "border-rose-500/20",    label: "Urgent"  }
       : d < 60
       ? { color: "text-amber-400",  bg: "bg-amber-500/10",   border: "border-amber-500/25",   label: "Soon"    }
@@ -470,12 +624,12 @@ function RenewalsTab() {
         <div className="glass-card rounded-xl border border-crm-border p-4 col-span-1">
           <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total Renewal Value</p>
           <p className="text-2xl font-black text-[#D4AF37] mt-1">{formatCurrency(totalValue)}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">Next 90 days · {renewalsData.length} contracts</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">{renewals.length} contract{renewals.length === 1 ? "" : "s"}</p>
         </div>
         {[
-          { label: "< 30 Days",  count: renewalsData.filter((r) => r.daysLeft < 30).length,              color: "text-rose-400",    icon: AlertTriangle },
-          { label: "30–60 Days", count: renewalsData.filter((r) => r.daysLeft >= 30 && r.daysLeft < 60).length, color: "text-amber-400", icon: Clock },
-          { label: "60–90 Days", count: renewalsData.filter((r) => r.daysLeft >= 60).length,             color: "text-emerald-400", icon: Calendar },
+          { label: "< 30 Days",  count: renewals.filter((r) => r.daysLeft !== null && r.daysLeft < 30).length,                          color: "text-rose-400",    icon: AlertTriangle },
+          { label: "30–60 Days", count: renewals.filter((r) => r.daysLeft !== null && r.daysLeft >= 30 && r.daysLeft < 60).length,       color: "text-amber-400", icon: Clock },
+          { label: "60–90 Days", count: renewals.filter((r) => r.daysLeft !== null && r.daysLeft >= 60 && r.daysLeft < 90).length,       color: "text-emerald-400", icon: Calendar },
         ].map((s) => (
           <div key={s.label} className="glass-card rounded-xl border border-crm-border p-4 flex items-center gap-3">
             <s.icon size={18} className={s.color} />
@@ -490,12 +644,15 @@ function RenewalsTab() {
       {/* Renewals table */}
       <div className="glass-card rounded-2xl border border-crm-border overflow-hidden">
         <div className="px-4 py-2.5 border-b border-crm-border bg-white/[0.02] grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-3">
-          {["Customer","Contract Value","Renewal Date","Health","Owner","Action"].map((h) => (
+          {["Customer","Contract Value","Renewal Date","Health","Contact","Action"].map((h) => (
             <p key={h} className="text-[10px] uppercase tracking-wider text-slate-500">{h}</p>
           ))}
         </div>
+        {renewals.length === 0 && (
+          <div className="px-4 py-8 text-center text-xs text-slate-500">No customers have a renewal date on file.</div>
+        )}
         <div className="divide-y divide-crm-border/50">
-          {renewalsData.map((r, i) => {
+          {renewals.map((r, i) => {
             const u = urgency(r.daysLeft);
             const hc = healthColor(r.health);
             return (
@@ -508,7 +665,7 @@ function RenewalsTab() {
               >
                 {/* Customer */}
                 <div className="flex items-center gap-2">
-                  <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", u.bg, "border", u.border)} style={{ background: u.color.replace("text-","").replace("400","") }} />
+                  <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", u.bg, "border", u.border)} />
                   <p className="text-xs font-semibold text-slate-200 truncate">{r.name}</p>
                 </div>
 
@@ -517,9 +674,9 @@ function RenewalsTab() {
 
                 {/* Date */}
                 <div>
-                  <p className="text-xs text-slate-300">{r.date}</p>
+                  <p className="text-xs text-slate-300">{r.nextRenewal}</p>
                   <span className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded-full border", u.color, u.bg, u.border)}>
-                    {r.daysLeft}d left
+                    {r.daysLeft === null ? "—" : `${r.daysLeft}d left`}
                   </span>
                 </div>
 
@@ -531,8 +688,8 @@ function RenewalsTab() {
                   <span className="text-[10px] font-bold" style={{ color: hc }}>{r.health}</span>
                 </div>
 
-                {/* Owner */}
-                <p className="text-xs text-slate-400 truncate">{r.owner}</p>
+                {/* Contact */}
+                <p className="text-xs text-slate-400 truncate">{r.contact}</p>
 
                 {/* Action */}
                 <button
@@ -841,7 +998,7 @@ export default function Customers() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <ChurnRiskTab />
+              <ChurnRiskTab customers={custList} />
             </motion.div>
           )}
 
@@ -853,7 +1010,7 @@ export default function Customers() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <NPSManagementTab />
+              <NPSManagementTab customers={custList} />
             </motion.div>
           )}
 
@@ -865,7 +1022,7 @@ export default function Customers() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <RenewalsTab />
+              <RenewalsTab customers={custList} />
             </motion.div>
           )}
         </AnimatePresence>

@@ -1,10 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Bell, Shield, Palette, Globe, Key, Zap, Database, ChevronRight, ChevronDown, Check, Copy, Eye, EyeOff, Moon, Sun, Building2, Lock, Layers, LogIn } from "lucide-react";
+import { User, Bell, Shield, Palette, Globe, Key, Zap, Database, ChevronRight, ChevronDown, Check, Copy, Eye, EyeOff, Moon, Sun, Building2, Lock, Layers, LogIn, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 import { downloadCSV } from "@/lib/export";
+import { useTheme } from "@/components/crm/ThemeContext";
+import { startTwoFaEnrollment, confirmTwoFaEnrollment } from "@/lib/actions/twofa";
+import { getRazorpayConnectUrl, disconnectProvider, getConnectedProviders } from "@/lib/actions/integrations";
 
 const inputCls = "w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-crm-border text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-blue-500/50 transition-colors";
 
@@ -29,7 +32,7 @@ const connectedApps = [
   { name: "Slack", connected: true, color: "#4A154B" },
   { name: "Gmail", connected: true, color: "#D44638" },
   { name: "WhatsApp", connected: true, color: "#25D366" },
-  { name: "Stripe", connected: false, color: "#635BFF" },
+  { name: "Razorpay", connected: false, color: "#0C2451" },
 ];
 
 export default function Settings() {
@@ -41,7 +44,7 @@ export default function Settings() {
   const [apps, setApps] = useState(connectedApps);
   const [apiVisible, setApiVisible] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
+  const { darkMode, setDarkMode } = useTheme();
   const [pwOpen, setPwOpen] = useState(false);
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
   const [pwError, setPwError] = useState("");
@@ -59,6 +62,87 @@ export default function Settings() {
     { name: "Demo Environment", plan: "Growth", active: false },
     { name: "Client Portal — Beta", plan: "Starter", active: false },
   ]);
+
+  // ── Two-Factor Authentication (real RFC 6238 TOTP via lib/security/twofa.ts) ──
+  const [twoFaEnabled, setTwoFaEnabled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try { return localStorage.getItem("kvl_2fa_enabled") === "1"; } catch { return false; }
+  });
+  const [twoFaSetupOpen, setTwoFaSetupOpen] = useState(false);
+  const [twoFaPending, setTwoFaPending] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [twoFaCode, setTwoFaCode] = useState("");
+  const [twoFaError, setTwoFaError] = useState("");
+  const [twoFaBusy, setTwoFaBusy] = useState(false);
+
+  // ── Razorpay Connect status banner (reflects ?razorpay= from the OAuth callback) ──
+  const [razorpayMsg, setRazorpayMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("razorpay");
+    if (!status) return;
+    if (status === "connected") {
+      setApps((prev) => prev.map((a) => (a.name === "Razorpay" ? { ...a, connected: true } : a)));
+      setRazorpayMsg({ ok: true, text: "Razorpay connected successfully." });
+    } else {
+      setRazorpayMsg({ ok: false, text: `Razorpay connect failed: ${status.replace(/_/g, " ")}` });
+    }
+    params.delete("razorpay");
+    const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+    window.history.replaceState({}, "", next);
+  }, []);
+
+  useEffect(() => {
+    getConnectedProviders().then((providers) => {
+      if (providers.includes("razorpay")) {
+        setApps((prev) => prev.map((a) => (a.name === "Razorpay" ? { ...a, connected: true } : a)));
+      }
+    }).catch(() => {});
+  }, []);
+
+  const startTwoFa = async () => {
+    setTwoFaError("");
+    setTwoFaCode("");
+    setTwoFaBusy(true);
+    const res = await startTwoFaEnrollment(profile.email);
+    setTwoFaBusy(false);
+    setTwoFaPending(res);
+    setTwoFaSetupOpen(true);
+  };
+
+  const confirmTwoFa = async () => {
+    if (!twoFaPending) return;
+    setTwoFaBusy(true);
+    const ok = await confirmTwoFaEnrollment(twoFaPending.secret, twoFaCode);
+    setTwoFaBusy(false);
+    if (!ok) { setTwoFaError("Invalid code. Check your authenticator app and try again."); return; }
+    setTwoFaEnabled(true);
+    try {
+      localStorage.setItem("kvl_2fa_enabled", "1");
+      localStorage.setItem("kvl_2fa_secret", twoFaPending.secret);
+    } catch { /* ignore */ }
+    setTwoFaSetupOpen(false);
+    setTwoFaPending(null);
+  };
+
+  const disableTwoFa = () => {
+    if (!confirm("Disable Two-Factor Authentication? Your account will be less secure.")) return;
+    setTwoFaEnabled(false);
+    try {
+      localStorage.removeItem("kvl_2fa_enabled");
+      localStorage.removeItem("kvl_2fa_secret");
+    } catch { /* ignore */ }
+  };
+
+  const connectRazorpay = async () => {
+    setRazorpayMsg(null);
+    const res = await getRazorpayConnectUrl(window.location.origin);
+    if (!res.configured || !res.url) {
+      setRazorpayMsg({ ok: false, text: "Razorpay isn't configured on this server yet (missing RAZORPAY_CLIENT_ID)." });
+      return;
+    }
+    window.location.href = res.url;
+  };
 
   const apiKey = "sk-crm-freedomwithai-••••••••••••••••••••";
   const apiKeyFull = "sk-crm-freedomwithai-x9Kp2mNqRtYuVwZs8jLd";
@@ -98,6 +182,17 @@ export default function Settings() {
   };
 
   const toggleApp = (name: string) => {
+    if (name === "Razorpay") {
+      const app = apps.find((a) => a.name === "Razorpay");
+      if (app?.connected) {
+        disconnectProvider("razorpay").catch(() => {});
+        setApps((prev) => prev.map((a) => a.name === "Razorpay" ? { ...a, connected: false } : a));
+        setRazorpayMsg({ ok: true, text: "Razorpay disconnected." });
+      } else {
+        connectRazorpay();
+      }
+      return;
+    }
     setApps((prev) => prev.map((a) => a.name === name ? { ...a, connected: !a.connected } : a));
   };
 
@@ -128,10 +223,15 @@ export default function Settings() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-slate-300">Two-Factor Authentication</p>
-                  <p className="text-[10px] text-slate-500">Enabled via Authenticator App</p>
+                  <p className="text-[10px] text-slate-500">{twoFaEnabled ? "Enabled via Authenticator App" : "Add an extra layer of security to your account"}</p>
                 </div>
-                <span className="badge bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
+                <span className={cn("badge border", twoFaEnabled ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-white/[0.05] text-slate-500 border-crm-border")}>
+                  {twoFaEnabled ? "Active" : "Inactive"}
+                </span>
               </div>
+              <button onClick={twoFaEnabled ? disableTwoFa : startTwoFa} disabled={twoFaBusy} className="text-xs text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50 block">
+                {twoFaEnabled ? "Disable 2FA →" : "Enable 2FA →"}
+              </button>
               <button onClick={() => { setPwForm({ current: "", next: "", confirm: "" }); setPwError(""); setPwOpen(true); }} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Change Password →</button>
             </div>
           ),
@@ -202,7 +302,7 @@ export default function Settings() {
                   <Sun size={12} /> Light
                 </button>
               </div>
-              <p className="text-[10px] text-slate-600">{darkMode ? "Dark mode active" : "Light mode — coming soon"}</p>
+              <p className="text-[10px] text-slate-600">{darkMode ? "Dark mode active" : "Light mode active"}</p>
             </div>
           ),
         },
@@ -215,6 +315,9 @@ export default function Settings() {
           icon: Zap, title: "Integrations", desc: "Connect with third-party tools",
           content: (
             <div className="grid grid-cols-2 gap-2 pt-2 pb-1">
+              {razorpayMsg && (
+                <p className={cn("col-span-2 text-[10px]", razorpayMsg.ok ? "text-emerald-400" : "text-rose-400")}>{razorpayMsg.text}</p>
+              )}
               {apps.map((app) => (
                 <div key={app.name} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-crm-border">
                   <div className="flex items-center gap-2">
@@ -468,6 +571,37 @@ export default function Settings() {
           <div className="flex gap-2 pt-2">
             <button onClick={() => setPwOpen(false)} className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors">Cancel</button>
             <button onClick={savePassword} className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium">Update Password</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Enable 2FA Modal */}
+      <Modal open={twoFaSetupOpen} onClose={() => { setTwoFaSetupOpen(false); setTwoFaPending(null); }} title="Enable Two-Factor Authentication">
+        <div className="space-y-3">
+          <p className="text-xs text-slate-400 flex items-start gap-1.5">
+            <ShieldCheck size={13} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+            Add this key to your authenticator app (Google Authenticator, Authy, 1Password), then enter the 6-digit code it generates.
+          </p>
+          {twoFaPending && (
+            <>
+              <div className="px-3 py-2 rounded-xl bg-white/[0.04] border border-crm-border">
+                <p className="text-[10px] text-slate-500 mb-1">Manual entry key</p>
+                <code className="text-xs text-slate-300 font-mono break-all">{twoFaPending.secret}</code>
+              </div>
+              <div className="px-3 py-2 rounded-xl bg-white/[0.04] border border-crm-border">
+                <p className="text-[10px] text-slate-500 mb-1">Setup URL</p>
+                <code className="text-[10px] text-slate-500 font-mono break-all">{twoFaPending.otpauthUrl}</code>
+              </div>
+            </>
+          )}
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">6-digit code</label>
+            <input className={inputCls} value={twoFaCode} onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" />
+          </div>
+          {twoFaError && <p className="text-xs text-rose-400">{twoFaError}</p>}
+          <div className="flex gap-2 pt-2">
+            <button onClick={() => { setTwoFaSetupOpen(false); setTwoFaPending(null); }} className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors">Cancel</button>
+            <button onClick={confirmTwoFa} disabled={twoFaBusy || twoFaCode.length !== 6} className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium disabled:opacity-50">Verify &amp; Enable</button>
           </div>
         </div>
       </Modal>

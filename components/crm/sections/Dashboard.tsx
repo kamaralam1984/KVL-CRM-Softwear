@@ -134,6 +134,51 @@ function getGreeting() {
 }
 const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
+/* ── Revenue Insight Helper ──
+   Pure, deterministic computation from real deal rows — no fabricated numbers.
+   Mirrors lib/executive/metrics.ts's pipelineValue() (probability-weighted open
+   pipeline: Σ value × probability% over non-closed deals), and additionally
+   breaks out the late-stage (Proposal/Negotiation) count so the AI Insights
+   panel can show a real forecast instead of a hardcoded one. Never throws —
+   worst case (empty/malformed input) is all-zero output. */
+interface DealForInsights {
+  value?: number;
+  probability?: number;
+  stage?: string;
+}
+function computeRevenueInsights(deals: DealForInsights[]): {
+  weightedForecast: number;
+  lateStageCount: number;
+  openPipelineValue: number;
+  openDealsCount: number;
+} {
+  const isClosed = (stage?: string) => /closed/i.test(stage ?? "");
+  const isLateStage = (stage?: string) => stage === "Proposal" || stage === "Negotiation";
+
+  let weightedForecast = 0;
+  let openPipelineValue = 0;
+  let openDealsCount = 0;
+  let lateStageCount = 0;
+
+  for (const d of deals) {
+    if (isClosed(d.stage)) continue;
+    const value = Number(d.value) || 0;
+    const prob = Number(d.probability);
+    const weight = Number.isFinite(prob) ? Math.max(0, Math.min(100, prob)) / 100 : 1;
+    openDealsCount += 1;
+    openPipelineValue += value;
+    weightedForecast += value * weight;
+    if (isLateStage(d.stage)) lateStageCount += 1;
+  }
+
+  return {
+    weightedForecast: Math.round(weightedForecast),
+    lateStageCount,
+    openPipelineValue: Math.round(openPipelineValue),
+    openDealsCount,
+  };
+}
+
 export default function Dashboard() {
   const [period, setPeriod] = useState("1Y");
   // Load real data from Supabase on mount; falls back to seed data in demo mode
@@ -160,7 +205,8 @@ export default function Dashboard() {
   const wonDeals        = deals.filter((d) => /won|closed/i.test(String(d.stage))).length;
   const winRate         = deals.length ? Math.round((wonDeals / deals.length) * 1000) / 10 : 0;
   const tasksCompleted  = tasks.filter((t) => t.status === "completed").length;
-  const hotLeads        = leads.filter((l) => l.status === "hot").length;
+  const hotLeadsList     = leads.filter((l) => l.status === "hot");
+  const hotLeads         = hotLeadsList.length;
   const tasksDue        = tasks.filter((t) => t.status === "pending").length;
   const liveKpiValues   = [totalRevenue, activeLeads, winRate, tasksCompleted];
   const liveKpis        = kpis.map((k, i) => {
@@ -205,10 +251,38 @@ export default function Dashboard() {
     liveBusinessValues[m.label] ? { ...m, value: liveBusinessValues[m.label] } : m
   );
 
+  // Real, computed revenue/lead figures — no fabricated numbers or invented
+  // YoY claims. weightedForecast is a probability-weighted (value × win%) sum
+  // over open deals, the standard honest CRM forecasting method.
+  const revenueInsights  = computeRevenueInsights(deals);
+  const openDealsList    = deals.filter((d) => !/closed/i.test(String(d.stage)));
+  const avgOpenProbability = openDealsList.length
+    ? Math.round(openDealsList.reduce((s, d) => s + (Number(d.probability) || 0), 0) / openDealsList.length)
+    : 0;
+  const avgHotScore      = hotLeadsList.length
+    ? Math.round(hotLeadsList.reduce((s, l) => s + (Number(l.score) || 0), 0) / hotLeadsList.length)
+    : 0;
+  const warmLeadsCount   = leads.filter((l) => l.status === "warm").length;
+
   const aiInsights = [
-    { icon: TrendingUp,   color: "text-emerald-400", bg: "bg-emerald-500/10", text: "Q1 2026 forecast: $1.8M — 14 deals in late stage driving 28.5% YoY growth." },
-    { icon: Flame,        color: "text-amber-400",   bg: "bg-amber-500/10",   text: "3 hot leads (score 88+) idle for 2h — historical data shows 67% drop in conversion." },
-    { icon: Zap,          color: "text-blue-400",    bg: "bg-blue-500/10",    text: "Automate follow-ups for 12 warm leads to save ~4hrs/week and boost conversion +23%." },
+    {
+      icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10",
+      text: revenueInsights.openDealsCount > 0
+        ? `Forecast: ${formatCurrency(revenueInsights.weightedForecast)} probability-weighted — ${revenueInsights.lateStageCount} deal${revenueInsights.lateStageCount === 1 ? "" : "s"} in late stage out of ${revenueInsights.openDealsCount} open (${formatCurrency(revenueInsights.openPipelineValue)} total pipeline).`
+        : "No open deals in the pipeline yet — forecast will populate once deals are added.",
+    },
+    {
+      icon: Flame, color: "text-amber-400", bg: "bg-amber-500/10",
+      text: hotLeadsList.length > 0
+        ? `${hotLeadsList.length} hot lead${hotLeadsList.length === 1 ? "" : "s"} (avg score ${avgHotScore}) — reach out today to keep them engaged.`
+        : "No hot leads right now — keep nurturing warm leads to build the next wave.",
+    },
+    {
+      icon: Zap, color: "text-blue-400", bg: "bg-blue-500/10",
+      text: warmLeadsCount > 0
+        ? `${warmLeadsCount} warm lead${warmLeadsCount === 1 ? "" : "s"} ready for automated follow-up to keep the pipeline moving.`
+        : "No warm leads queued for follow-up right now.",
+    },
   ];
 
   return (
@@ -552,7 +626,7 @@ export default function Dashboard() {
               <p className="text-sm font-bold text-slate-100">AI Revenue Intelligence</p>
               <p className="text-[10px] text-violet-400">Powered by FreedomWithAI</p>
             </div>
-            <span className="ml-auto text-[10px] bg-violet-500/10 text-violet-300 px-2 py-0.5 rounded-full border border-violet-500/20 font-semibold">87% confidence</span>
+            <span className="ml-auto text-[10px] bg-violet-500/10 text-violet-300 px-2 py-0.5 rounded-full border border-violet-500/20 font-semibold">{avgOpenProbability}% avg win probability</span>
           </div>
           <div className="space-y-2.5">
             {aiInsights.map((ins, i) => {

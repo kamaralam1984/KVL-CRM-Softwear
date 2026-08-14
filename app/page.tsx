@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Globe, AlertTriangle } from "lucide-react";
 import Sidebar from "@/components/crm/Sidebar";
 import TopNav from "@/components/crm/TopNav";
+import { ThemeProvider, useTheme } from "@/components/crm/ThemeContext";
 import AIAssistant from "@/components/crm/AIAssistant";
 import Auth, { type AuthUser } from "@/components/crm/Auth";
 import LandingPage from "@/components/crm/LandingPage";
@@ -40,7 +41,21 @@ import SalesAssistant from "@/components/crm/sections/SalesAssistant";
 import ProposalGenerator from "@/components/crm/sections/ProposalGenerator";
 import AcquisitionOverview from "@/components/crm/sections/AcquisitionOverview";
 import PlanGate from "@/components/crm/PlanGate";
+import AccessDenied from "@/components/crm/AccessDenied";
 import { loadSAConfig, getEffectiveFeatures, type FeatureKey } from "@/lib/superAdmin";
+import { can } from "@/lib/security/rbac";
+
+// RBAC is enforced only for these core CRUD resources (mirrors lib/security/rbac.ts's
+// RESOURCES). "settings" is deliberately excluded — it's a personal-account page
+// (profile/password/2FA) every logged-in user needs, not an org-admin resource, so
+// gating it here would regress access rather than fix a gap. "dashboard" is read-
+// granted to every role in ROLE_MATRIX, so including it is a harmless no-op.
+const RBAC_SECTION_LABELS: Record<string, string> = {
+  dashboard: "Dashboard", leads: "Leads", customers: "Customers", deals: "Deals",
+  pipeline: "Sales Pipeline", tasks: "Tasks", calendar: "Calendar", whatsapp: "WhatsApp CRM",
+  email: "Email Marketing", team: "Team", reports: "Reports", finance: "Finance",
+  automation: "Automation", ai: "Smart Insights",
+};
 
 const sectionMap: Record<string, React.ComponentType> = {
   dashboard:   Dashboard,
@@ -87,24 +102,35 @@ const SECTION_FEATURE_MAP: Record<string, FeatureKey> = {
 type AppView = "landing" | "auth" | "app";
 
 export default function CRMApp() {
+  return (
+    <ThemeProvider>
+      <CRMAppInner />
+    </ThemeProvider>
+  );
+}
+
+function CRMAppInner() {
   const [user, setUser]                     = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked]       = useState(false);
   const [view, setView]                     = useState<AppView>("landing");
   const [activeSection, setActiveSection]   = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [aiOpen, setAiOpen]                 = useState(false);
-  const [darkMode, setDarkMode]             = useState(true);
+  const { darkMode, toggleDark } = useTheme();
   const [saConfig, setSaConfig]             = useState(() => loadSAConfig());
 
-  /* Restore session + theme from localStorage on mount */
+  /* Restore session from localStorage on mount (theme itself is restored by ThemeProvider) */
   useEffect(() => {
     try {
       const saved = localStorage.getItem("crm_user");
       if (saved) { setUser(JSON.parse(saved)); setView("app"); }
-      const theme = localStorage.getItem("kvl_theme");
-      if (theme) setDarkMode(theme === "dark");
     } catch { /* ignore */ }
     setAuthChecked(true);
+  }, []);
+
+  /* Land on Settings after the Razorpay Connect OAuth redirect so the connection banner is visible */
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("razorpay")) setActiveSection("settings");
   }, []);
 
   const handleLogout = () => {
@@ -187,6 +213,11 @@ export default function CRMApp() {
 
   const userPlanId = user ? (saConfig.userPlans[user.id]?.planId ?? "starter") : "starter";
 
+  // Role-based access control — checked before the plan gate so an unauthorized
+  // role sees "you don't have permission" rather than an upsell prompt.
+  const rbacLabel = RBAC_SECTION_LABELS[activeSection];
+  const isAccessDenied = rbacLabel != null && user != null && !can(user.role, activeSection, "read");
+
   /* ── CRM App ── */
   return (
     <AnimatePresence mode="wait">
@@ -212,7 +243,7 @@ export default function CRMApp() {
             activeSection={activeSection}
             onToggleAI={() => setAiOpen((p) => !p)}
             darkMode={darkMode}
-            onToggleDark={() => setDarkMode((p) => { localStorage.setItem("kvl_theme", !p ? "dark" : "light"); return !p; })}
+            onToggleDark={toggleDark}
             user={user}
             onLogout={handleLogout}
           />
@@ -227,7 +258,9 @@ export default function CRMApp() {
                 transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
                 className="absolute inset-0 overflow-y-auto"
               >
-                {isPlanLocked && featureKey ? (
+                {isAccessDenied ? (
+                  <AccessDenied section={rbacLabel} role={user?.role ?? "Unknown"} />
+                ) : isPlanLocked && featureKey ? (
                   <PlanGate
                     feature={featureKey}
                     currentPlan={userPlanId}

@@ -9,6 +9,11 @@ import {
 import { useState, useEffect } from "react";
 import type { PlanFeatureMap, FeatureKey } from "@/lib/superAdmin";
 import { loadWhiteLabel, type WhiteLabelConfig, DEFAULT_WHITE_LABEL } from "@/lib/superAdmin";
+import { can, RESOURCES } from "@/lib/security/rbac";
+
+// "settings" is intentionally excluded from the RBAC set here — it's a personal
+// account page every logged-in user needs, not an org-admin resource.
+const RBAC_GATED = new Set<string>(RESOURCES.filter((r) => r !== "settings"));
 
 const SECTION_TO_FEATURE: Record<string, FeatureKey> = {
   leads: "leads", customers: "customers", deals: "deals",
@@ -103,6 +108,11 @@ export default function Sidebar({ activeSection, onSectionChange, collapsed, onT
     if (!fk || !effectiveFeatures) return false;
     return !effectiveFeatures[fk];
   }
+
+  function isRbacBlocked(sectionId: string): boolean {
+    if (!user || !RBAC_GATED.has(sectionId)) return false;
+    return !can(user.role, sectionId, "read");
+  }
   return (
     <motion.aside
       animate={{ width: collapsed ? 72 : 256 }}
@@ -195,13 +205,15 @@ export default function Sidebar({ activeSection, onSectionChange, collapsed, onT
                       </motion.span>
                     )}
                   </AnimatePresence>
-                  {!collapsed && "badge" in item && item.badge && !isLocked(item.id) && (
+                  {!collapsed && "badge" in item && item.badge && !isLocked(item.id) && !isRbacBlocked(item.id) && (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(212,175,55,0.15)", color:"#D4AF37", border:"1px solid rgba(212,175,55,0.3)" }}>
                       {item.badge}
                     </span>
                   )}
-                  {!collapsed && isLocked(item.id) && (
-                    <Lock size={11} className="text-slate-700 flex-shrink-0" />
+                  {!collapsed && (isLocked(item.id) || isRbacBlocked(item.id)) && (
+                    <span title={isRbacBlocked(item.id) ? `Your role (${user?.role}) can't access this` : undefined}>
+                      <Lock size={11} className={cn("flex-shrink-0", isRbacBlocked(item.id) ? "text-rose-700" : "text-slate-700")} />
+                    </span>
                   )}
                 </button>
               );
