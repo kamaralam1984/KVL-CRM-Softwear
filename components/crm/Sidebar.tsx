@@ -5,7 +5,7 @@ import {
   GitBranch, MessageCircle, Mail, UserCheck, BarChart3,
   Wallet, Zap, Brain, Settings, ChevronLeft, ChevronRight,
   TrendingUp, Sparkles, LogOut, Bell, Shield, Lock, Crown, Megaphone, Search, Share2, MessageSquare, Inbox, Headphones, ShoppingBag, Layout, Target, Gauge, Bot, FileText, Radar, Star,
-  GraduationCap, Users2, Webhook, ClipboardList,
+  GraduationCap, Users2, Webhook, ClipboardList, Video,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { PlanFeatureMap, FeatureKey } from "@/lib/superAdmin";
@@ -75,6 +75,7 @@ const menuSections = [
       { id: "affiliates",  label: "Affiliates",   icon: Users2 },
       { id: "velorapages", label: "KVl Pages", icon: Layout },
       { id: "forms",       label: "Forms & Quizzes", icon: ClipboardList },
+      { id: "webinars",    label: "Webinars", icon: Video },
       { id: "developers",  label: "Developers",   icon: Webhook },
       { id: "settings",    label: "Settings",     icon: Settings },
     ],

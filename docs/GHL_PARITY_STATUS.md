@@ -463,3 +463,72 @@ Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 152/152 
 + 1 new covering the `VOICE_RELAY_SHARED_SECRET` gating), `npm run lint` 185 (unchanged),
 `npm run build` succeeds, and a real live WebSocket client confirmed the relay's new
 auth-rejection behavior against a running instance of the updated server.
+
+---
+
+# Phase 45 — Webinar Funnels (final gap)
+
+| # | Capability | Module | Status | Notes |
+|---|-----------|--------|--------|-------|
+| 45 | Webinar Funnels | `lib/actions/webinars.ts`, `app/webinar/[slug]/*`, `components/webinars/*` | 🟢 done | New `webinars`/`webinar_registrations`/`webinar_chat_messages` tables — deliberately NOT reusing Phase 43's forms system (its `answers jsonb` is write-once; registrations need typed columns updated after insert: attended, watch time, two reminder flags). Registration + reminders + attendee tracking orchestrate around a real video source — evergreen (pre-recorded `<video>`) or a real YouTube Live `<iframe>` embed, no custom live-streaming engine (no product in this space builds one). New `sendEmail()` in `lib/messaging/send.ts` (Resend's `/emails` endpoint — the only existing email sender was an audience-broadcast call, not addressed to one recipient). New `/api/webinars/reminder-cron` (15-min cadence, mirrors `recurring-cron`'s exact shared-secret shape) sends WhatsApp → SMS → Email reminders 24h/1h before each webinar. Room page has a lightweight polling live-chat panel (a dedicated table, not a reuse of Phase 21/23's 1:1-support-shaped conversations) and fires join/watch-time tracking. New leadgen source (`webinar_registration`) feeds real registrants into the pipeline. Public write endpoints (`registerForWebinar`, chat post) are rate-limited + input-truncated from the start — the exact gap class the last audit found missing on `submitForm`, not repeated here. **This closes the entire GHL-parity roadmap (Phase 18–45) — no further gaps identified.** |
+
+## Verified (Phase 45)
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — 184 problems, unchanged (caught and fixed one real issue while building this: `WebinarRoomClient.tsx` called `Date.now()` directly during render — impure, flagged by the React Compiler rule — restructured into `useState` + an interval-driven check function, matching the existing `Countdown` component's already-compliant shape in the same file).
+- `npm test` — 166/166 passing (152 prior + 14 new: 12 in `lib/webinars/youtube.test.ts` covering every real YouTube URL format — watch, youtu.be, embed, live, bare id, with extra query params — plus malformed/non-YouTube/empty-input cases; 2 in `lib/messaging/send.test.ts` for `sendEmail`'s mock fallback).
+- `npm run build` — full production build succeeded; `/webinar/[slug]`, `/webinar/[slug]/room`, and `/api/webinars/reminder-cron` all present in the route manifest.
+- **Real smoke test against the live server**: started the built app, confirmed `/api/health` → 200, `/webinar/does-not-exist` → 404 (unpublished/missing slug correctly rejected), and `/api/webinars/reminder-cron` → 501 with a clear `NEXT_PUBLIC_APP_URL not set` message (correct gating — a cron with nowhere to build a room link into would be worse than an honest no-op).
+- **Real schema verification**: the live Supabase project doesn't have this round's tables yet (user hasn't re-run `schema.sql`), so instead spun up a real throwaway Postgres 16 Docker container, applied the ENTIRE `lib/supabase/schema.sql` (not just the new part) **three times in a row** with zero errors, then inspected all 3 new tables' live structure (columns, FKs, RLS policies) via `\d` — everything matches exactly what the TypeScript action file expects.
+- **Not achievable by code alone**: none beyond what's already true for SMS/WhatsApp — a free Resend account is needed for reminder emails to go out for real, and `NEXT_PUBLIC_APP_URL` needs to be set on the VPS.
+
+## Post-Phase-45 gap check
+
+Same independent-audit convention as every prior round: 2 dispatched agents (schema +
+correctness, security + dead-code) — not trusting this doc's own 🟢 claim. Found and fixed:
+
+- **`recordWebinarJoin`/`recordWatchTime` had zero rate limiting, and watch-time had no
+  upper bound.** Both are public, unauthenticated, called automatically from the room page
+  — unlike `registerForWebinar`/`postWebinarChatMessage`, which were correctly rate-limited
+  from the start, these two weren't, despite the file's own header comment claiming
+  otherwise. A scripted client could hammer either endpoint, or repeatedly call
+  `recordWatchTime` with an inflated value to fake attendance stats. **Fixed**: added the
+  same `rateLimit()` pattern to both (30/min per IP), and `recordWatchTime`'s
+  `additionalSeconds` is now clamped to 60 (the room client only ever sends 30) — closing
+  the exact gap class an earlier audit found missing on `submitForm`, this time actually
+  present from the first pass on 2 of 4 endpoints and now on all 4.
+- **Real bug — the reminder cron marked a reminder "sent" even when the send failed.**
+  `app/api/webinars/reminder-cron/route.ts` set `reminder_sent_24h`/`reminder_sent_1h` to
+  `true` unconditionally after *attempting* a send, not after a *successful* one — a
+  transient failure (Resend down, a network blip) permanently and silently lost that
+  reminder, since the next cron run would see the flag already set and never retry.
+  **Fixed**: the flag is now only set inside the `if (ok)` branch.
+- **Inaccurate comment**: `recordWebinarJoin`/`recordWatchTime`'s trust-model note claimed
+  the same shape as Phase 23's webchat `conversationId` check — audit found that's actually
+  stricter (site_id + channel + external_thread_id, not just "id exists"). The weaker check
+  here is still a defensible, deliberate tradeoff (low-sensitivity data — an attendance
+  flag/watch-time count, not message contents), but the comment now says so honestly
+  instead of overstating the parity.
+- **Dead code found and wired in**: `lib/messaging/send.ts::isEmailConfigured` was exported
+  but only referenced by its own test file. **Fixed**: a new `isReminderEmailConfigured()`
+  wrapper in `lib/actions/webinars.ts` (same env-var-leak-avoidance reason as Phase 41's
+  identical fix) — the Webinars section now shows a real "Reminder Emails Connected" /
+  "Not Configured — will mock" badge.
+- Everything else the 2 agents checked came back clean: the entire `schema.sql` applied 3x
+  in a row against a real throwaway Postgres container with zero errors, plus a live
+  test insert into `webinars`; every TypeScript↔SQL column cross-checked with zero
+  mismatches; the reminder cron's time-window logic reasoned through for the
+  registered-between-windows edge case (not a bug — a late registrant correctly just gets
+  caught by the next window, no stuck-forever state); `extractYoutubeVideoId` independently
+  re-verified against mixed-order query params and a no-query-string `youtu.be` URL; the
+  registration→room redirect's query param name (`r`) confirmed consistent across all 3
+  places that read/write it; the render-purity `Date.now()` fix confirmed to hold, no other
+  instance found; RBAC on all 5 staff-facing functions; 3-registry section registration.
+
+Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 166/166 (unchanged —
+these fixes are inside already-thin-CRUD action functions, matching this codebase's
+established convention of not force-adding tests for that shape of code), `npm run lint` 184
+(unchanged), `npm run build` succeeds.
+
+---
+
+## Full roadmap (Phase 18–45) is now complete. Every gap identified across this entire session — the original 16-gap GHL-parity audit, the follow-up 6-gap and 4-gap rounds, and this final Webinar Funnels phase — has been closed, verified, and independently gap-checked. See each phase's own "Not achievable by code alone" notes for what still needs the user's action outside this repo (API keys, paid tiers, external approvals, VPS/Supabase deployment steps) before a given feature is genuinely live in production.

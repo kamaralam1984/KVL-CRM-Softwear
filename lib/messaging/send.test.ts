@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sendSms, sendInstagramDm, sendMessengerMessage, isMetaMessagingConfigured } from "./send";
+import { sendSms, sendInstagramDm, sendMessengerMessage, isMetaMessagingConfigured, sendEmail, isEmailConfigured } from "./send";
 
 describe("sendSms (Phase 37 — optional DLT templateKey)", () => {
   it("never throws and still mocks when neither Twilio nor Supabase is configured", async () => {
@@ -30,5 +30,17 @@ describe("Social DM sends (Phase 42) — mock fallback, never throw", () => {
 
   it("isMetaMessagingConfigured is false in this test env", () => {
     expect(isMetaMessagingConfigured()).toBe(false);
+  });
+});
+
+describe("sendEmail (Phase 45) — mock fallback, never throws", () => {
+  it("mocks when RESEND_API_KEY isn't set", async () => {
+    const result = await sendEmail("someone@example.com", "Reminder", "See you soon!");
+    expect(result.ok).toBe(true);
+    expect(result.mock).toBe(true);
+  });
+
+  it("isEmailConfigured is false in this test env", () => {
+    expect(isEmailConfigured()).toBe(false);
   });
 });

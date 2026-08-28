@@ -142,3 +142,39 @@ export function sendMessengerMessage(recipientId: string, body: string): Promise
 export function isMetaMessagingConfigured(): boolean {
   return Boolean(process.env.META_PAGE_ACCESS_TOKEN && (process.env.META_PAGE_ID || process.env.META_INSTAGRAM_USER_ID));
 }
+
+// Phase 45 — Webinar Funnels. The only existing email sender
+// (lib/marketing/channels.ts::publishEmail) posts to Resend's /broadcasts
+// endpoint — an AUDIENCE broadcast, not addressed to one recipient, so it
+// can't be reused for a single reminder email. This calls Resend's regular
+// /emails endpoint instead, same credentials (RESEND_API_KEY,
+// OUTREACH_FROM_EMAIL), same mock-fallback/never-throw convention.
+export async function sendEmail(to: string, subject: string, body: string): Promise<SendResult> {
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.OUTREACH_FROM_EMAIL ?? process.env.MARKETING_FROM_EMAIL;
+  if (!key || !from) {
+    console.log(`[messaging:email:mock] → ${to} | ${subject}`);
+    return { ok: true, mock: true, detail: "logged (mock) — Resend not configured" };
+  }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to, subject, html: body }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(`[messaging:email] send HTTP ${res.status}`, text);
+      return { ok: false, mock: false, detail: `resend ${res.status}` };
+    }
+    const j = (await res.json()) as { id?: string };
+    return { ok: true, mock: false, providerMessageId: j.id };
+  } catch (err) {
+    console.error("[messaging:email] send error:", err);
+    return { ok: false, mock: false, detail: String(err) };
+  }
+}
+
+export function isEmailConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY && (process.env.OUTREACH_FROM_EMAIL ?? process.env.MARKETING_FROM_EMAIL));
+}

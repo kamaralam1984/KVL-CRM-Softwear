@@ -19,6 +19,7 @@ const DEFAULTS: PipelineConfig = {
   sources: [
     { source: "web_form", queries: [] }, // inbound form leads (highest quality)
     { source: "form_submission", queries: [] }, // Phase 43 — inbound forms/surveys/quizzes
+    { source: "webinar_registration", queries: [] }, // Phase 45 — inbound webinar registrants
     { source: "google_maps", queries: ["dentists in Delhi", "gyms in Mumbai", "digital marketing agencies in Bangalore"] },
     { source: "apollo", queries: ["small business owner"] },
   ],

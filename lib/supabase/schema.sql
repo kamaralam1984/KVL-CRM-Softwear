@@ -1251,3 +1251,65 @@ drop policy if exists "Authenticated can access call_logs" on call_logs;
 create policy "Authenticated can access call_logs" on call_logs for all using (auth.role() = 'authenticated');
 create index if not exists call_logs_tracking_number_idx on call_logs (tracking_number_id);
 create index if not exists call_logs_provider_sid_idx on call_logs (provider_call_sid);
+
+-- ── Phase 45 — Webinar Funnels ───────────────────────────────────────────────
+-- No product in this space builds its own live-video engine — registration,
+-- reminders, and attendee tracking orchestrate AROUND an existing streaming
+-- source (a pre-recorded "evergreen" video, or a real YouTube Live embed).
+-- Deliberately NOT reusing Phase 43's forms/form_submissions: that table's
+-- `answers jsonb` is write-once, but a registration needs typed columns
+-- updated AFTER insert (attended, watch time, reminder flags).
+create table if not exists webinars (
+  id                uuid primary key default gen_random_uuid(),
+  site_id           text not null default 'kvl-default' references sites(site_id),
+  slug              text not null,
+  title             text not null default '',
+  description       text default '',
+  kind              text not null default 'evergreen' check (kind in ('evergreen','youtube_live')),
+  video_url         text default '',
+  youtube_video_id  text default '',
+  scheduled_at      timestamptz,
+  duration_minutes  int not null default 60,
+  reminder_24h      boolean not null default true,
+  reminder_1h       boolean not null default true,
+  published         boolean not null default false,
+  created_at        timestamptz default now(),
+  unique (site_id, slug)
+);
+alter table webinars enable row level security;
+drop policy if exists "Authenticated can access webinars" on webinars;
+create policy "Authenticated can access webinars" on webinars for all using (auth.role() = 'authenticated');
+
+create table if not exists webinar_registrations (
+  id                    uuid primary key default gen_random_uuid(),
+  webinar_id            uuid not null references webinars(id) on delete cascade,
+  name                  text not null default '',
+  email                 text not null default '',
+  phone                 text default '',
+  attended              boolean not null default false,
+  watch_duration_seconds int not null default 0,
+  reminder_sent_24h     boolean not null default false,
+  reminder_sent_1h      boolean not null default false,
+  joined_at             timestamptz,
+  processed             boolean not null default false,
+  created_at            timestamptz default now()
+);
+alter table webinar_registrations enable row level security;
+drop policy if exists "Authenticated can access webinar_registrations" on webinar_registrations;
+create policy "Authenticated can access webinar_registrations" on webinar_registrations for all using (auth.role() = 'authenticated');
+create index if not exists webinar_registrations_webinar_idx on webinar_registrations (webinar_id);
+
+-- A dedicated table, not a reuse of Phase 21/23's conversations/messages —
+-- those are architected for 1:1 support threads, not many-viewer room
+-- broadcast chat, a genuinely different shape.
+create table if not exists webinar_chat_messages (
+  id          uuid primary key default gen_random_uuid(),
+  webinar_id  uuid not null references webinars(id) on delete cascade,
+  name        text not null default 'Guest',
+  body        text not null,
+  created_at  timestamptz default now()
+);
+alter table webinar_chat_messages enable row level security;
+drop policy if exists "Authenticated can access webinar_chat_messages" on webinar_chat_messages;
+create policy "Authenticated can access webinar_chat_messages" on webinar_chat_messages for all using (auth.role() = 'authenticated');
+create index if not exists webinar_chat_messages_webinar_idx on webinar_chat_messages (webinar_id);
