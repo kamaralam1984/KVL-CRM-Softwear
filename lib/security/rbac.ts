@@ -15,6 +15,9 @@ export const RESOURCES = [
   "dashboard", "leads", "customers", "deals", "pipeline", "tasks",
   "calendar", "whatsapp", "email", "team", "reports", "finance",
   "automation", "ai", "settings",
+  // Added Phase 18 — resources introduced by the GHL-parity phases (19-31).
+  "marketing", "social", "commerce", "funnels", "membership",
+  "affiliates", "whitelabel", "helpdesk",
 ] as const;
 
 export type Resource = (typeof RESOURCES)[number];
@@ -66,6 +69,9 @@ export const ROLE_MATRIX: RoleMatrix = {
     leads: CRUD, customers: CRUD, deals: CRUD, pipeline: CRUD,
     tasks: CRUD, calendar: CRUD, whatsapp: RCU, email: RCU,
     team: R, reports: R, finance: R, automation: RCU, ai: R,
+    // Added Phase 18
+    marketing: RCU, social: RCU, commerce: RCU, funnels: RCU,
+    membership: R, affiliates: R, whitelabel: R, helpdesk: RCU,
   },
 
   "Senior AE": {
@@ -83,21 +89,30 @@ export const ROLE_MATRIX: RoleMatrix = {
   Marketing: {
     dashboard: R,
     leads: RCU, customers: R, email: CRUD, automation: RCU, reports: R,
+    // Added Phase 18
+    marketing: CRUD, social: CRUD, funnels: RCU, affiliates: R,
   },
 
   Finance: {
     dashboard: R,
     finance: CRUD, reports: R, deals: R, customers: R,
+    // Added Phase 18
+    commerce: RCU, membership: R, affiliates: R,
   },
 
   Support: {
     dashboard: R,
     customers: RCU, tasks: RCU, calendar: RCU, whatsapp: RCU,
+    // Added Phase 18
+    helpdesk: CRUD,
   },
 
   Viewer: {
     dashboard: R,
     leads: R, customers: R, deals: R, pipeline: R, reports: R,
+    // Added Phase 18
+    marketing: R, social: R, commerce: R, funnels: R,
+    membership: R, affiliates: R, whitelabel: R, helpdesk: R,
   },
 };
 

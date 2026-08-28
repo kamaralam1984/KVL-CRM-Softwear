@@ -1,10 +1,13 @@
 "use server";
 import { getServerClient } from "@/lib/supabase/server";
 import { teamMembers as seedTeam } from "@/lib/data";
+import { assertCan } from "@/lib/security/requireAction";
 
 export type TeamMember = (typeof seedTeam)[number];
 
-export async function getTeamMembers(): Promise<TeamMember[]> {
+export async function getTeamMembers(accessToken?: string): Promise<TeamMember[]> {
+  if (!(await assertCan(accessToken, "team", "read"))) return [];
+
   const db = getServerClient();
   const { data, error } = await db
     .from("team_members")
@@ -15,7 +18,9 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
   return data as TeamMember[];
 }
 
-export async function createTeamMember(member: Omit<TeamMember, "id">): Promise<TeamMember> {
+export async function createTeamMember(member: Omit<TeamMember, "id">, accessToken?: string): Promise<TeamMember> {
+  if (!(await assertCan(accessToken, "team", "create"))) throw new Error("Forbidden");
+
   const db = getServerClient();
   const { data, error } = await db
     .from("team_members")
@@ -26,7 +31,9 @@ export async function createTeamMember(member: Omit<TeamMember, "id">): Promise<
   return data as TeamMember;
 }
 
-export async function updateTeamMember(id: number, patch: Partial<TeamMember>): Promise<TeamMember> {
+export async function updateTeamMember(id: number, patch: Partial<TeamMember>, accessToken?: string): Promise<TeamMember> {
+  if (!(await assertCan(accessToken, "team", "update"))) throw new Error("Forbidden");
+
   const db = getServerClient();
   const { data, error } = await db
     .from("team_members")
@@ -38,7 +45,9 @@ export async function updateTeamMember(id: number, patch: Partial<TeamMember>): 
   return data as TeamMember;
 }
 
-export async function deleteTeamMember(id: number): Promise<void> {
+export async function deleteTeamMember(id: number, accessToken?: string): Promise<void> {
+  if (!(await assertCan(accessToken, "team", "delete"))) throw new Error("Forbidden");
+
   const db = getServerClient();
   const { error } = await db.from("team_members").delete().eq("id", id);
   if (error) throw new Error(error.message);

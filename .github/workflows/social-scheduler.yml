@@ -1,0 +1,22 @@
+name: Social Post Scheduler
+
+# Phase 25 — runs every 15 min (posts have specific scheduled times, unlike
+# leadgen-daily.yml's once-a-day batch). Manual trigger also available.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  publish-due-posts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Publish due social posts
+        env:
+          SOCIAL_CRON_URL: ${{ secrets.SOCIAL_CRON_URL }}
+          SOCIAL_CRON_SECRET: ${{ secrets.SOCIAL_CRON_SECRET }}
+        run: node crm-app/scripts/run-social-publish.mjs

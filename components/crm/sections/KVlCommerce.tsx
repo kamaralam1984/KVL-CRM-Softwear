@@ -1,14 +1,20 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingBag, Package, Users, BarChart3, TrendingUp, TrendingDown,
   Clock, CheckCircle, Truck, AlertTriangle, Plus, Search,
   Download, Printer, Crown, Eye,
   RefreshCw, Send, RotateCcw, Grid, List, Upload, ArrowRight,
-  DollarSign, ShoppingCart, Star, LayoutDashboard,
+  DollarSign, ShoppingCart, Star, LayoutDashboard, Trash2,
 } from "lucide-react";
 import { downloadCSV } from "@/lib/export";
+import { getOrders, updateOrderStatus as updateOrderStatusAction, type OrderWithItems } from "@/lib/actions/orders";
+import { getProducts, createProduct, updateProduct as updateProductAction, deleteProduct as deleteProductAction, type ProductRow } from "@/lib/actions/products";
+import { getGiftCards, issueGiftCard, type GiftCard } from "@/lib/actions/giftCards";
+import { getLoyaltyBalance, getLoyaltyLedger, awardPoints, type LoyaltyEntry } from "@/lib/actions/loyalty";
+import { getAccessToken } from "@/lib/security/clientSession";
+import { Gift, Award } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -301,6 +307,10 @@ function OrdersTab({ orders, setOrders }: { orders: Order[]; setOrders: React.Di
 
   function updateOrderStatus(id: string, status: OrderStatus) {
     setOrders(prev => prev.map(o => (o.id === id ? { ...o, status } : o)));
+    // Persists for real orders (uuid ids); harmlessly matches zero rows for
+    // the "#VC-xxxx"-style demo ids, same optimistic-update convention as
+    // every other section (e.g. Finance.tsx's markPaid).
+    updateOrderStatusAction(id, status, getAccessToken()).catch(() => {});
   }
 
   function exportSelectedCSV() {
@@ -481,6 +491,13 @@ function ProductsTab({ products, setProducts }: { products: Product[]; setProduc
     setProducts(prev => [newProduct, ...prev]);
     setForm({ name: "", sku: "", price: "", stock: "", category: "Electronics", description: "" });
     setShowForm(false);
+    // Real persistence — the DB assigns its own id; getProducts() picks up
+    // the canonical row on next load (same eventually-consistent pattern as
+    // Finance.tsx's createInvoice).
+    createProduct({
+      name: newProduct.name, sku: newProduct.sku, price: newProduct.price, stock: newProduct.stock,
+      reorder_level: newProduct.reorder, category: newProduct.category, description: newProduct.description ?? "",
+    }, getAccessToken()).catch(() => {});
   }
 
   return (
@@ -519,10 +536,26 @@ function ProductsTab({ products, setProducts }: { products: Product[]; setProduc
           {filtered.map(p => {
             const ss = stockStatus(p);
             const sc = stockColor(ss);
+            const restock = () => {
+              setProducts(prev => prev.map(x => (x.id === p.id ? { ...x, stock: x.stock + 10 } : x)));
+              updateProductAction(p.id, { stock: p.stock + 10 }, getAccessToken()).catch(() => {});
+            };
+            const removeProduct = () => {
+              setProducts(prev => prev.filter(x => x.id !== p.id));
+              deleteProductAction(p.id, getAccessToken()).catch(() => {});
+            };
             return (
               <motion.div key={p.id} whileHover={{ y: -2 }}
-                className="rounded-xl border p-4 cursor-pointer"
+                className="rounded-xl border p-4 cursor-pointer relative group"
                 style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.06)" }}>
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={restock} title="Restock +10" className="w-6 h-6 rounded-lg bg-black/40 hover:bg-emerald-500/30 flex items-center justify-center">
+                    <RefreshCw size={11} className="text-slate-300" />
+                  </button>
+                  <button onClick={removeProduct} title="Delete" className="w-6 h-6 rounded-lg bg-black/40 hover:bg-rose-500/30 flex items-center justify-center">
+                    <Trash2 size={11} className="text-slate-300" />
+                  </button>
+                </div>
                 <div className="w-full h-24 rounded-lg mb-3 flex items-center justify-center" style={{ background: p.color + "22" }}>
                   <Package size={28} style={{ color: p.color + "cc" }} />
                 </div>
@@ -900,6 +933,133 @@ function AnalyticsTab() {
   );
 }
 
+// ── Tab: Gift Cards (Phase 28) ──────────────────────────────────────────────
+
+function GiftCardsTab() {
+  const [cards, setCards] = useState<GiftCard[]>([]);
+  const [amount, setAmount] = useState("50");
+  const [issuing, setIssuing] = useState(false);
+
+  useEffect(() => {
+    getGiftCards(getAccessToken()).then(setCards).catch(() => {});
+  }, []);
+
+  const issue = async () => {
+    setIssuing(true);
+    const card = await issueGiftCard(Number(amount) || 0, null, getAccessToken());
+    setIssuing(false);
+    if (card) setCards((prev) => [card, ...prev]);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border p-4 flex items-end gap-3" style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.06)" }}>
+        <div>
+          <label className="text-[10px] text-slate-500 block mb-1">Value ($)</label>
+          <input value={amount} onChange={(e) => setAmount(e.target.value)} type="number"
+            className="w-28 px-3 py-1.5 rounded-lg text-xs text-slate-200 outline-none"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+        </div>
+        <button onClick={issue} disabled={issuing}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50" style={{ background: GOLD, color: "#000" }}>
+          <Gift size={13} /> {issuing ? "Issuing…" : "Issue Gift Card"}
+        </button>
+      </div>
+
+      {cards.length === 0 ? (
+        <div className="flex flex-col items-center justify-center text-center py-16 text-slate-600">
+          <Gift size={28} className="mb-2 opacity-40" />
+          <p className="text-xs">No gift cards yet — issue one above.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          {cards.map((c) => (
+            <div key={c.id} className="rounded-xl p-4" style={{ background: "linear-gradient(135deg, rgba(212,175,55,0.12), rgba(0,168,107,0.06))", border: "1px solid rgba(212,175,55,0.2)" }}>
+              <p className="text-[11px] font-mono text-slate-300 mb-2">{c.code}</p>
+              <p className="text-xl font-black" style={{ color: GOLD }}>${c.balance}</p>
+              <p className="text-[10px] text-slate-500">of ${c.initial_value} · {c.status}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tab: Loyalty (Phase 28) ─────────────────────────────────────────────────
+
+function LoyaltyTab() {
+  const customers = CUSTOMERS;
+  const [selected, setSelected] = useState<Customer | null>(customers[0] ?? null);
+  const [balance, setBalance] = useState(0);
+  const [ledger, setLedger] = useState<LoyaltyEntry[]>([]);
+  const [points, setPoints] = useState("100");
+
+  const customerDbId = selected ? Number(selected.id.replace(/\D/g, "")) || null : null;
+
+  useEffect(() => {
+    if (!customerDbId) return;
+    const token = getAccessToken();
+    getLoyaltyBalance(customerDbId, token).then(setBalance).catch(() => {});
+    getLoyaltyLedger(customerDbId, token).then(setLedger).catch(() => {});
+  }, [customerDbId]);
+
+  const award = async () => {
+    if (!customerDbId) return;
+    await awardPoints(customerDbId, Number(points) || 0, "Manual award", undefined, getAccessToken());
+    setBalance((b) => b + (Number(points) || 0));
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      <div className="rounded-xl border p-3" style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.06)" }}>
+        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Customers</p>
+        <div className="space-y-1">
+          {customers.map((c) => (
+            <button key={c.id} onClick={() => setSelected(c)}
+              className="w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors"
+              style={{ background: selected?.id === c.id ? "rgba(212,175,55,0.12)" : "transparent", color: selected?.id === c.id ? GOLD : "#94a3b8" }}>
+              {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="col-span-2 space-y-3">
+        <div className="rounded-xl border p-4 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.06)" }}>
+          <div>
+            <p className="text-2xl font-black" style={{ color: GOLD }}>{balance} pts</p>
+            <p className="text-[10px] text-slate-500">{selected?.name ?? "Select a customer"}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input value={points} onChange={(e) => setPoints(e.target.value)} type="number"
+              className="w-20 px-2 py-1.5 rounded-lg text-xs text-slate-200 outline-none"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            <button onClick={award} disabled={!customerDbId}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-40" style={{ background: EMERALD, color: "#fff" }}>
+              <Award size={12} /> Award
+            </button>
+          </div>
+        </div>
+        <div className="rounded-xl border p-4" style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.06)" }}>
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Ledger</p>
+          {ledger.length === 0 ? (
+            <p className="text-xs text-slate-600">No points history yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {ledger.map((e) => (
+                <div key={e.id} className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">{e.reason}</span>
+                  <span className={e.points >= 0 ? "text-emerald-400 font-semibold" : "text-red-400 font-semibold"}>{e.points >= 0 ? "+" : ""}{e.points}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -907,15 +1067,40 @@ const TABS = [
   { id: "orders",     label: "Orders",     icon: ShoppingCart },
   { id: "products",   label: "Products",   icon: Package },
   { id: "customers",  label: "Customers",  icon: Users },
+  { id: "giftcards",  label: "Gift Cards", icon: Gift },
+  { id: "loyalty",    label: "Loyalty",    icon: Award },
   { id: "analytics",  label: "Analytics",  icon: BarChart3 },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
 
+function toDisplayOrder(o: OrderWithItems): Order {
+  return {
+    id: o.id, customer: o.customer_name, email: o.customer_email,
+    items: o.items.map((it) => ({ name: it.name, qty: it.qty, price: it.price })),
+    amount: o.amount, payment: o.payment_method || "—", shipping: o.shipping_method || "—",
+    status: o.status, date: new Date(o.created_at).toLocaleDateString(),
+  };
+}
+function toDisplayProduct(p: ProductRow): Product {
+  return {
+    id: p.id, name: p.name, sku: p.sku, price: p.price, stock: p.stock,
+    reorder: p.reorder_level, category: p.category || "Electronics", color: GOLD, description: p.description || undefined,
+  };
+}
+
 export default function KVlCommerce() {
   const [tab, setTab] = useState<TabId>("overview");
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [orders, setOrders] = useState<Order[]>(ORDERS);
+
+  // Real data (when present) replaces the demo arrays above — same "real
+  // when present, else the existing demo" convention as every other section.
+  useEffect(() => {
+    const token = getAccessToken();
+    getOrders(undefined, token).then((rows) => { if (rows.length) setOrders(rows.map(toDisplayOrder)); }).catch(() => {});
+    getProducts(undefined, token).then((rows) => { if (rows.length) setProducts(rows.map(toDisplayProduct)); }).catch(() => {});
+  }, []);
 
   return (
     <div className="h-full flex flex-col" style={{ background: "#080c14" }}>
@@ -963,6 +1148,8 @@ export default function KVlCommerce() {
             {tab === "orders"    && <OrdersTab orders={orders} setOrders={setOrders} />}
             {tab === "products"  && <ProductsTab products={products} setProducts={setProducts} />}
             {tab === "customers" && <CustomersTab orders={orders} />}
+            {tab === "giftcards" && <GiftCardsTab />}
+            {tab === "loyalty"   && <LoyaltyTab />}
             {tab === "analytics" && <AnalyticsTab />}
           </motion.div>
         </AnimatePresence>

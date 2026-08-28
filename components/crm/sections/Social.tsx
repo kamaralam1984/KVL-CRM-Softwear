@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Share2, Globe, Camera, Briefcase, PlayCircle, Hash,
@@ -9,6 +9,8 @@ import {
   MessageCircle, Repeat2, Copy, Check, Eye, Users, Activity,
   LayoutDashboard,
 } from "lucide-react";
+import { getSocialPosts, schedulePost, postSocialNow, type SocialPost } from "@/lib/actions/socialPosts";
+import { getAccessToken } from "@/lib/security/clientSession";
 
 // ── Colours ─────────────────────────────────────────────────────────────────
 const GOLD    = "#D4AF37";
@@ -123,6 +125,21 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── TAB: Dashboard ────────────────────────────────────────────────────────────
 function DashboardTab() {
+  const [realPosts, setRealPosts] = useState<SocialPost[] | null>(null);
+  useEffect(() => {
+    getSocialPosts(undefined, getAccessToken()).then((rows) => setRealPosts(rows)).catch(() => setRealPosts([]));
+  }, []);
+
+  const upcoming = realPosts && realPosts.length > 0
+    ? realPosts.filter((p) => p.status === "scheduled" || p.status === "draft").map((p) => ({
+        id: p.id,
+        platform: p.platform as PlatformKey,
+        content: p.content,
+        scheduledAt: p.scheduled_at ? new Date(p.scheduled_at).toLocaleString() : "—",
+        status: p.status,
+      }))
+    : UPCOMING_POSTS;
+
   const CONNECTED: { key: PlatformKey; ok: boolean }[] = [
     { key: "facebook",  ok: true  },
     { key: "instagram", ok: true  },
@@ -179,7 +196,7 @@ function DashboardTab() {
       <div className="rounded-xl border p-5" style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.07)" }}>
         <p className="text-sm font-semibold text-slate-200 mb-4">Upcoming Posts</p>
         <div className="space-y-3">
-          {UPCOMING_POSTS.map((post) => (
+          {upcoming.map((post) => (
             <motion.div key={post.id} whileHover={{ x: 3 }}
               className="flex items-start gap-3 p-3 rounded-lg border transition-colors hover:border-white/10"
               style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.05)" }}>
@@ -349,13 +366,28 @@ function SchedulePostTab({ initialContent = "", onPreFill }: { initialContent?: 
         {/* Action buttons */}
         <div className="flex gap-3">
           <button
-            onClick={() => { setPosted("scheduled"); setTimeout(() => setPosted(null), 2500); }}
+            onClick={async () => {
+              if (!content.trim() || !selectedPlatforms.size) return;
+              const scheduledAt = date && time ? new Date(`${date}T${time}`).toISOString() : new Date().toISOString();
+              const token = getAccessToken();
+              await Promise.all([...selectedPlatforms].map((platform) =>
+                schedulePost({ platform, postType, content, mediaUrls: [], scheduledAt }, token).catch(() => {})
+              ));
+              setPosted("scheduled"); setTimeout(() => setPosted(null), 2500);
+            }}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
             style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}>
             <Calendar size={15} /> Schedule Post
           </button>
           <button
-            onClick={() => { setPosted("now"); setTimeout(() => setPosted(null), 2500); }}
+            onClick={async () => {
+              if (!content.trim() || !selectedPlatforms.size) return;
+              const token = getAccessToken();
+              await Promise.all([...selectedPlatforms].map((platform) =>
+                postSocialNow({ platform, postType, content, mediaUrls: [] }, token).catch(() => {})
+              ));
+              setPosted("now"); setTimeout(() => setPosted(null), 2500);
+            }}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
             style={{ background: `linear-gradient(135deg, ${EMERALD}, #007a4d)`, color: "#fff" }}>
             <Zap size={15} /> Post Now

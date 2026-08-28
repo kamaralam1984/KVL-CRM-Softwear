@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { makeDemoToken } from "@/lib/security/demoToken";
 
 /* ── Types ───────────────────────────────────────────── */
 export interface AuthUser {
@@ -15,6 +16,10 @@ export interface AuthUser {
   email:  string;
   role:   string;
   avatar: string;
+  /** Bearer token for server-side RBAC (Phase 18) — a real Supabase JWT when
+   *  configured, or a demo-mode token otherwise. Optional so every existing
+   *  reader of AuthUser/crm_user keeps working unchanged. */
+  accessToken?: string;
 }
 interface AuthProps {
   onAuth: (user: AuthUser) => void;
@@ -134,7 +139,7 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
       if (err) { setError(err.message); return; }
       const meta = data.user?.user_metadata ?? {};
       const name = (meta.name as string) || lEmail.split("@")[0];
-      const user: AuthUser = { id: data.user?.id ?? "su", name, email: lEmail.toLowerCase(), role: (meta.role as string) || "Member", avatar: name.split(" ").map((w:string) => w[0]).join("").substring(0,2).toUpperCase() };
+      const user: AuthUser = { id: data.user?.id ?? "su", name, email: lEmail.toLowerCase(), role: (meta.role as string) || "Member", avatar: name.split(" ").map((w:string) => w[0]).join("").substring(0,2).toUpperCase(), accessToken: data.session?.access_token };
       if (remember) localStorage.setItem("crm_user", JSON.stringify(user));
       onAuth(user); return;
     }
@@ -148,7 +153,7 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
       : lEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
     const role = knownAcc ? knownAcc.role : "Member";
     const userId = knownAcc ? knownAcc.id : `u_${lEmail.replace(/[^a-z0-9]/gi, "")}`;
-    const user: AuthUser = { id: userId, name, email: lEmail.toLowerCase(), role, avatar: name.split(" ").map((w:string) => w[0]).join("").substring(0,2).toUpperCase() };
+    const user: AuthUser = { id: userId, name, email: lEmail.toLowerCase(), role, avatar: name.split(" ").map((w:string) => w[0]).join("").substring(0,2).toUpperCase(), accessToken: makeDemoToken(userId, role) };
     if (remember) localStorage.setItem("crm_user", JSON.stringify(user));
     setLoading(false);
     onAuth(user);
@@ -202,13 +207,14 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
       setLoading(false);
       if (err) { setError(err.message); return; }
       if (data.user && !data.session) { setError("Check your email to confirm your account, then sign in."); return; }
-      const user: AuthUser = { id: data.user?.id ?? `u_${Date.now()}`, name: sName.trim(), email: sEmail.toLowerCase(), role: "Member", avatar: sName.split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase() };
+      const user: AuthUser = { id: data.user?.id ?? `u_${Date.now()}`, name: sName.trim(), email: sEmail.toLowerCase(), role: "Member", avatar: sName.split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase(), accessToken: data.session?.access_token };
       localStorage.setItem("crm_user", JSON.stringify(user));
       onAuth(user); return;
     }
 
     await new Promise(r => setTimeout(r, 800));
-    const user: AuthUser = { id: `u_${sEmail.replace(/[^a-z0-9]/gi,"")}`, name: sName.trim(), email: sEmail.toLowerCase(), role: "Member", avatar: sName.split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase() };
+    const signupId = `u_${sEmail.replace(/[^a-z0-9]/gi,"")}`;
+    const user: AuthUser = { id: signupId, name: sName.trim(), email: sEmail.toLowerCase(), role: "Member", avatar: sName.split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase(), accessToken: makeDemoToken(signupId, "Member") };
     localStorage.setItem("crm_user", JSON.stringify(user));
     setLoading(false);
     onAuth(user);

@@ -8,6 +8,7 @@ import { downloadCSV } from "@/lib/export";
 import { useTheme } from "@/components/crm/ThemeContext";
 import { startTwoFaEnrollment, confirmTwoFaEnrollment } from "@/lib/actions/twofa";
 import { getRazorpayConnectUrl, disconnectProvider, getConnectedProviders } from "@/lib/actions/integrations";
+import { getAccessToken } from "@/lib/security/clientSession";
 
 const inputCls = "w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-crm-border text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-blue-500/50 transition-colors";
 
@@ -93,7 +94,7 @@ export default function Settings() {
   }, []);
 
   useEffect(() => {
-    getConnectedProviders().then((providers) => {
+    getConnectedProviders(getAccessToken()).then((providers) => {
       if (providers.includes("razorpay")) {
         setApps((prev) => prev.map((a) => (a.name === "Razorpay" ? { ...a, connected: true } : a)));
       }
@@ -185,7 +186,7 @@ export default function Settings() {
     if (name === "Razorpay") {
       const app = apps.find((a) => a.name === "Razorpay");
       if (app?.connected) {
-        disconnectProvider("razorpay").catch(() => {});
+        disconnectProvider("razorpay", getAccessToken()).catch(() => {});
         setApps((prev) => prev.map((a) => a.name === "Razorpay" ? { ...a, connected: false } : a));
         setRazorpayMsg({ ok: true, text: "Razorpay disconnected." });
       } else {

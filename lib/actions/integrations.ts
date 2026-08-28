@@ -7,6 +7,13 @@
 // a clear "not configured" state instead of a broken redirect.
 
 import { getServerClient } from "@/lib/supabase/server";
+import { assertCan } from "@/lib/security/requireAction";
+
+// Note: getRazorpayConnectUrl/exchangeRazorpayCode are deliberately NOT
+// RBAC-gated here — they're driven by a browser redirect round-trip through
+// Razorpay's own OAuth pages, which has no clean way to carry a CRM access
+// token through today. getConnectedProviders/disconnectProvider (settings
+// reads/mutations triggered directly from a logged-in session) are gated.
 
 const RAZORPAY_AUTHORIZE_URL = "https://auth.razorpay.com/authorize";
 const RAZORPAY_TOKEN_URL = "https://auth.razorpay.com/token";
@@ -76,7 +83,8 @@ export async function exchangeRazorpayCode(
   }
 }
 
-export async function getConnectedProviders(): Promise<string[]> {
+export async function getConnectedProviders(accessToken?: string): Promise<string[]> {
+  if (!(await assertCan(accessToken, "settings", "read"))) return [];
   try {
     const db = getServerClient();
     const { data, error } = await db.from("integration_connections").select("provider");
@@ -88,7 +96,8 @@ export async function getConnectedProviders(): Promise<string[]> {
   }
 }
 
-export async function disconnectProvider(provider: string): Promise<void> {
+export async function disconnectProvider(provider: string, accessToken?: string): Promise<void> {
+  if (!(await assertCan(accessToken, "settings", "delete"))) return;
   try {
     const db = getServerClient();
     const { error } = await db.from("integration_connections").delete().eq("provider", provider);

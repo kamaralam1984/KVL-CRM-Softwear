@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, Clock, Download, Plus, Trash2 } from "lucide-react";
 import { invoices as initialInvoices } from "@/lib/data";
 import { getInvoices, createInvoice, updateInvoice, deleteInvoice } from "@/lib/actions/invoices";
+import { getAccessToken } from "@/lib/security/clientSession";
 import { cn, formatCurrency } from "@/lib/utils";
 import { downloadCSV } from "@/lib/export";
 import Modal from "@/components/ui/modal";
@@ -27,7 +28,7 @@ export default function Finance() {
 
   // Load from Supabase on mount; falls back to seed data in demo mode
   useEffect(() => {
-    getInvoices().then((rows) => { if (rows?.length) setInvoiceList(rows); }).catch(() => {});
+    getInvoices(getAccessToken()).then((rows) => { if (rows?.length) setInvoiceList(rows); }).catch(() => {});
   }, []);
 
   const set = (k: keyof InvForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -54,7 +55,7 @@ export default function Finance() {
     };
     setInvoiceList((prev) => [...prev, newInvoice]);
     // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
-    createInvoice(newInvoice).catch(() => {});
+    createInvoice(newInvoice, getAccessToken()).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
   };
@@ -62,13 +63,13 @@ export default function Finance() {
   const markPaid = (id: string) => {
     setInvoiceList((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status: "paid" } : inv)));
     // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
-    updateInvoice(id, { status: "paid" }).catch(() => {});
+    updateInvoice(id, { status: "paid" }, getAccessToken()).catch(() => {});
   };
 
   const removeInvoice = (id: string) => {
     setInvoiceList((prev) => prev.filter((inv) => inv.id !== id));
     // Persist to Supabase when configured; demo mode throws → ignored (optimistic remove stays)
-    deleteInvoice(id).catch(() => {});
+    deleteInvoice(id, getAccessToken()).catch(() => {});
   };
 
   return (

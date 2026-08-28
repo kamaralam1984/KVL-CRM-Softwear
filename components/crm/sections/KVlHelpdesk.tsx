@@ -1,7 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "@/components/ui/modal";
+import { getConversations, getMessages, sendWebchatAgentReply } from "@/lib/actions/conversations";
+import { getAccessToken } from "@/lib/security/clientSession";
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Ticket, MessageCircle, BookOpen, BarChart3,
   Search, Plus, Filter, ChevronDown, X, Send, Paperclip,
@@ -719,6 +722,13 @@ function TicketsTab({ tickets, setTickets }: { tickets: Ticket[]; setTickets: Re
 // ── Tab: Live Chat ──────────────────────────────────────────────────────────
 interface LiveChatMessage { id: string; sender: "customer" | "agent"; text: string; time: string }
 
+// Phase 23 — real webchat conversation ids come from the `conversations`
+// table (uuid); demo seed ids ("c1".."c6") never collide with a uuid, so this
+// is a reliable way to tell "is this session backed by a real thread".
+function isRealConversationId(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 function LiveChatTab() {
   const [sessions, setSessions] = useState<ChatSession[]>(CHAT_SESSIONS);
   const [activeChat, setActiveChat] = useState<ChatSession>(CHAT_SESSIONS[0]);
@@ -726,6 +736,50 @@ function LiveChatTab() {
   const [showCanned, setShowCanned] = useState(false);
   const [isTyping] = useState(true);
   const [chatMessages, setChatMessages] = useState<Record<string, LiveChatMessage[]>>({});
+
+  // Load real webchat conversations (public/kvl-chat.js visitors) on mount.
+  // Falls back to the demo CHAT_SESSIONS above when there are none yet —
+  // same "real when present, else the existing demo" convention as every
+  // other section.
+  useEffect(() => {
+    getConversations("webchat", getAccessToken()).then((rows) => {
+      const real = rows.filter((r) => isRealConversationId(r.id));
+      if (!real.length) return;
+      const mapped: ChatSession[] = real.map((r) => ({
+        id: r.id,
+        customer: r.contact_name || "Website visitor",
+        status: "active",
+        lastMsg: "…",
+        time: new Date(r.last_message_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }));
+      setSessions((prev) => [...mapped, ...prev.filter((s) => !isRealConversationId(s.id))]);
+      setActiveChat(mapped[0]);
+    }).catch(() => {});
+  }, []);
+
+  // Load (and lightly poll) the active thread's real messages.
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (!isRealConversationId(activeChat.id)) return;
+
+    const load = () => {
+      getMessages(activeChat.id, getAccessToken()).then((rows) => {
+        setChatMessages((prev) => ({
+          ...prev,
+          [activeChat.id]: rows.map((m) => ({
+            id: m.id,
+            sender: m.direction === "inbound" ? "customer" : "agent",
+            text: m.body,
+            time: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          })),
+        }));
+      }).catch(() => {});
+    };
+    load();
+    pollRef.current = setInterval(load, 5000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [activeChat.id]);
 
   const activeSessions = sessions.filter((c) => c.status === "active");
   const waitingQueue = sessions.filter((c) => c.status === "waiting");
@@ -736,6 +790,9 @@ function LiveChatTab() {
     const newMsg: LiveChatMessage = { id: `${activeChat.id}-${Date.now()}`, sender: "agent", text, time: "now" };
     setChatMessages((prev) => ({ ...prev, [activeChat.id]: [...(prev[activeChat.id] ?? []), newMsg] }));
     setMsg("");
+    if (isRealConversationId(activeChat.id)) {
+      sendWebchatAgentReply(activeChat.id, text, getAccessToken()).catch(() => {});
+    }
   }
 
   function handleTransfer() {
@@ -826,31 +883,38 @@ function LiveChatTab() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          <div className="flex gap-2">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-              style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)" }}>
-              {activeChat.customer.slice(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <div className="rounded-xl rounded-tl-sm px-3 py-2 text-xs text-slate-200 max-w-xs"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                {activeChat.lastMsg}
-              </div>
-              <p className="text-[10px] text-slate-600 mt-1">{activeChat.time}</p>
-            </div>
-          </div>
-          {(chatMessages[activeChat.id] ?? []).map((m) => (
-            <div key={m.id} className="flex gap-2 flex-row-reverse">
+          {/* Demo sessions show their seeded opening line; real conversations
+              (Phase 23) render their full thread below instead, since it
+              already includes the visitor's first message. */}
+          {!isRealConversationId(activeChat.id) && (
+            <div className="flex gap-2">
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                style={{ background: "linear-gradient(135deg,#006B3C,#00843D)" }}>
-                Me
+                style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)" }}>
+                {activeChat.customer.slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <div className="rounded-xl rounded-tr-sm px-3 py-2 text-xs text-slate-200 max-w-xs"
-                  style={{ background: "rgba(0,168,107,0.15)", border: "1px solid rgba(0,168,107,0.25)" }}>
+                <div className="rounded-xl rounded-tl-sm px-3 py-2 text-xs text-slate-200 max-w-xs"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  {activeChat.lastMsg}
+                </div>
+                <p className="text-[10px] text-slate-600 mt-1">{activeChat.time}</p>
+              </div>
+            </div>
+          )}
+          {(chatMessages[activeChat.id] ?? []).map((m) => (
+            <div key={m.id} className={cn("flex gap-2", m.sender === "agent" ? "flex-row-reverse" : "")}>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                style={{ background: m.sender === "agent" ? "linear-gradient(135deg,#006B3C,#00843D)" : "linear-gradient(135deg,#4f46e5,#6366f1)" }}>
+                {m.sender === "agent" ? "Me" : activeChat.customer.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <div className={cn("rounded-xl px-3 py-2 text-xs text-slate-200 max-w-xs", m.sender === "agent" ? "rounded-tr-sm" : "rounded-tl-sm")}
+                  style={m.sender === "agent"
+                    ? { background: "rgba(0,168,107,0.15)", border: "1px solid rgba(0,168,107,0.25)" }
+                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.07)" }}>
                   {m.text}
                 </div>
-                <p className="text-[10px] text-slate-600 mt-1 text-right">{m.time}</p>
+                <p className={cn("text-[10px] text-slate-600 mt-1", m.sender === "agent" ? "text-right" : "")}>{m.time}</p>
               </div>
             </div>
           ))}

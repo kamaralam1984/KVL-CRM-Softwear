@@ -6,6 +6,7 @@ import Sidebar from "@/components/crm/Sidebar";
 import TopNav from "@/components/crm/TopNav";
 import { ThemeProvider, useTheme } from "@/components/crm/ThemeContext";
 import AIAssistant from "@/components/crm/AIAssistant";
+import InstallPrompt from "@/components/crm/InstallPrompt";
 import Auth, { type AuthUser } from "@/components/crm/Auth";
 import LandingPage from "@/components/crm/LandingPage";
 import CommandPalette from "@/components/crm/CommandPalette";
@@ -40,6 +41,9 @@ import OpportunityFinder from "@/components/crm/sections/OpportunityFinder";
 import SalesAssistant from "@/components/crm/sections/SalesAssistant";
 import ProposalGenerator from "@/components/crm/sections/ProposalGenerator";
 import AcquisitionOverview from "@/components/crm/sections/AcquisitionOverview";
+import Reputation from "@/components/crm/sections/Reputation";
+import Membership from "@/components/crm/sections/Membership";
+import Affiliates from "@/components/crm/sections/Affiliates";
 import PlanGate from "@/components/crm/PlanGate";
 import AccessDenied from "@/components/crm/AccessDenied";
 import { loadSAConfig, getEffectiveFeatures, type FeatureKey } from "@/lib/superAdmin";
@@ -80,6 +84,9 @@ const sectionMap: Record<string, React.ComponentType> = {
   salesassistant: SalesAssistant,
   proposals:   ProposalGenerator,
   acquisition: AcquisitionOverview,
+  reputation:  Reputation,
+  membership:  Membership,
+  affiliates:  Affiliates,
   settings:    Settings,
   admin:       AdminPanel,
   superadmin:  SuperAdminPanel,
@@ -277,6 +284,7 @@ function CRMAppInner() {
 
         <AIAssistant open={aiOpen} onClose={() => setAiOpen(false)} />
         <CommandPalette onNavigate={setActiveSection} onOpenAI={() => setAiOpen(true)} />
+        <InstallPrompt />
       </motion.div>
     </AnimatePresence>
   );

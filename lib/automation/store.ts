@@ -1,6 +1,19 @@
 // Client-side store for automation runs + workflow active-state.
 // Persists to localStorage so executions survive reloads and are visible in
 // demo mode (no Supabase). Emits a browser event so open pages live-update.
+//
+// Phase 19: dual-write added. localStorage stays the fast, always-available
+// client cache every existing reader (isActive, getRuns) still uses exactly
+// as before; addRun/setActive now ALSO fire-and-forget a real Supabase write
+// via lib/actions/workflows.ts, so runs and the active-toggle survive a
+// restart and are visible cross-device (see docs/GHL_PARITY_STATUS.md).
+// This also closes a documented gap (ACQUISITION_ENGINE_ROADMAP.md Wave 5):
+// addRun previously no-op'd entirely server-side (`typeof window` guard), so
+// triggers fired from server code (e.g. lib/intent/score.ts) never showed up
+// in the run feed even though they created real Task/Activity rows — the new
+// recordWorkflowRun() call below runs unconditionally, client or server.
+
+import { recordWorkflowRun, setWorkflowActive as setWorkflowActiveRemote } from "@/lib/actions/workflows";
 
 export type RunStep = { label: string; ok: boolean; detail?: string };
 export type WorkflowRun = {
@@ -29,6 +42,9 @@ export function getRuns(): WorkflowRun[] {
 }
 
 export function addRun(run: WorkflowRun): void {
+  // Runs unconditionally (client or server) — see file header.
+  recordWorkflowRun(run).catch(() => {});
+
   if (typeof window === "undefined") return;
   const runs = [run, ...getRuns()].slice(0, MAX_RUNS);
   localStorage.setItem(RUNS_KEY, JSON.stringify(runs));
@@ -47,6 +63,12 @@ export function isActive(workflowId: string, def = true): boolean {
 }
 
 export function setActive(workflowId: string, on: boolean): void {
+  // Best-effort remote sync so the toggle is visible cross-device next time
+  // the UI loads via lib/actions/workflows.ts::getWorkflows(). The local
+  // trigger functions in lib/automation/engine.ts still gate on the fast
+  // synchronous localStorage read below (isActive), unchanged.
+  setWorkflowActiveRemote(workflowId, on).catch(() => {});
+
   if (typeof window === "undefined") return;
   let m: Record<string, boolean> = {};
   try {

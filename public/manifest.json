@@ -1,0 +1,12 @@
+{
+  "name": "KVl CRM",
+  "short_name": "KVl CRM",
+  "description": "AI-powered enterprise CRM for modern sales teams",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080c14",
+  "theme_color": "#080c14",
+  "icons": [
+    { "src": "/kvl-icon.png", "sizes": "245x245", "type": "image/png", "purpose": "any" }
+  ]
+}

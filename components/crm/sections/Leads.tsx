@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, Filter, Plus, MoreHorizontal, Star, Phone, Mail, Brain, Pencil, Trash2 } from "lucide-react";
+import { Search, Filter, Plus, MoreHorizontal, Star, Phone, Mail, Brain, Pencil, Trash2, Camera } from "lucide-react";
 import { leads as initialLeads } from "@/lib/data";
 import { getLeads, createLead, updateLead, deleteLead } from "@/lib/actions/leads";
 import { triggerLeadCreated } from "@/lib/automation/engine";
@@ -44,6 +44,31 @@ export default function Leads() {
 
   const set = (k: keyof LeadForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  // Phase 32 — AI Business-Card Scanner. Reads the photo as base64, posts to
+  // /api/ai/business-card (real when ANTHROPIC_API_KEY is set), pre-fills the form.
+  const [scanning, setScanning] = useState(false);
+  const scanCard = (file: File) => {
+    setScanning(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = String(reader.result || "");
+      const base64 = dataUrl.split(",")[1] ?? "";
+      try {
+        const res = await fetch("/api/ai/business-card", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: base64, mediaType: file.type || "image/jpeg" }),
+        });
+        const data = await res.json();
+        if (data.ok && data.card) {
+          setForm((p) => ({ ...p, name: data.card.name || p.name, company: data.card.company || p.company, email: data.card.email || p.email, phone: data.card.phone || p.phone }));
+        }
+      } catch { /* scan is best-effort — leave the form as-is on failure */ }
+      setScanning(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const filtered = leadList
     .filter((l) => {
@@ -323,6 +348,13 @@ export default function Leads() {
         title={editingId !== null ? "Edit Lead" : "Add New Lead"}
       >
         <div className="space-y-3">
+          <label className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-crm-border text-[11px] text-slate-400 hover:bg-white/[0.03] cursor-pointer transition-colors">
+            <Camera size={12} /> {scanning ? "Scanning…" : "Scan Business Card"}
+            <input
+              type="file" accept="image/*" className="hidden" disabled={scanning}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) scanCard(f); e.target.value = ""; }}
+            />
+          </label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] text-slate-500 mb-1 block">Full Name *</label>

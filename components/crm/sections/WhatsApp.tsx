@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { whatsappConversations } from "@/lib/data";
 import { getWhatsappConversations, updateWhatsappConversation, deleteWhatsappConversation } from "@/lib/actions/whatsapp";
+import { sendFromLegacyConversation } from "@/lib/actions/conversations";
+import { getAccessToken } from "@/lib/security/clientSession";
 import { createEvent } from "@/lib/actions/calendarEvents";
 import { cn } from "@/lib/utils";
 
@@ -128,6 +130,11 @@ export default function WhatsApp() {
     setLocalMsgs(p => ({ ...p, [activeConv]: [...(p[activeConv] || []), { role: "out", text, time }] }));
     setConvos((prev) => prev.map((c) => (c.id === activeConv ? { ...c, message: text, time: "Just now" } : c)));
     updateWhatsappConversation(activeConv, { message: text, time: "Just now" }).catch(() => {});
+    // Phase 21: really sends via Twilio WhatsApp when this contact has a
+    // known phone number (set once a real inbound message arrives) and
+    // TWILIO_* env vars are configured; otherwise unchanged — logged only,
+    // same as before this phase for the demo contacts.
+    sendFromLegacyConversation(conv?.contact_phone ?? "", text, getAccessToken()).catch(() => {});
     setInput("");
   };
 

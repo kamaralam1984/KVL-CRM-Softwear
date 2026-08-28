@@ -100,11 +100,11 @@ export const teamMembers = [
 ];
 
 export const whatsappConversations = [
-  { id: 1, contact: "Alex Morgan", company: "TechNova Inc.", message: "Sounds great! Can you send the contract today?", time: "2m ago", unread: 2, status: "active", avatar: "AM" },
-  { id: 2, contact: "Ryan O'Brien", company: "RetailPro", message: "We're ready to move forward with the enterprise plan.", time: "15m ago", unread: 0, status: "active", avatar: "RO" },
-  { id: 3, contact: "Lisa Zhang", company: "HealthTech AI", message: "Please schedule a call with our CTO this week.", time: "1h ago", unread: 1, status: "active", avatar: "LZ" },
-  { id: 4, contact: "David Chen", company: "FinEdge Corp", message: "The proposal looks good, few questions about pricing.", time: "3h ago", unread: 0, status: "active", avatar: "DC" },
-  { id: 5, contact: "Maria Garcia", company: "StartupHub", message: "Thanks for the demo, very impressive!", time: "Yesterday", unread: 0, status: "inactive", avatar: "MG" },
+  { id: 1, contact: "Alex Morgan", company: "TechNova Inc.", message: "Sounds great! Can you send the contract today?", time: "2m ago", unread: 2, status: "active", avatar: "AM", contact_phone: "" },
+  { id: 2, contact: "Ryan O'Brien", company: "RetailPro", message: "We're ready to move forward with the enterprise plan.", time: "15m ago", unread: 0, status: "active", avatar: "RO", contact_phone: "" },
+  { id: 3, contact: "Lisa Zhang", company: "HealthTech AI", message: "Please schedule a call with our CTO this week.", time: "1h ago", unread: 1, status: "active", avatar: "LZ", contact_phone: "" },
+  { id: 4, contact: "David Chen", company: "FinEdge Corp", message: "The proposal looks good, few questions about pricing.", time: "3h ago", unread: 0, status: "active", avatar: "DC", contact_phone: "" },
+  { id: 5, contact: "Maria Garcia", company: "StartupHub", message: "Thanks for the demo, very impressive!", time: "Yesterday", unread: 0, status: "inactive", avatar: "MG", contact_phone: "" },
 ];
 
 export const emailCampaigns = [

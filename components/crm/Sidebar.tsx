@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Users, Briefcase, CheckSquare, Calendar,
   GitBranch, MessageCircle, Mail, UserCheck, BarChart3,
   Wallet, Zap, Brain, Settings, ChevronLeft, ChevronRight,
-  TrendingUp, Sparkles, LogOut, Bell, Shield, Lock, Crown, Megaphone, Search, Share2, MessageSquare, Inbox, Headphones, ShoppingBag, Layout, Target, Gauge, Bot, FileText, Radar,
+  TrendingUp, Sparkles, LogOut, Bell, Shield, Lock, Crown, Megaphone, Search, Share2, MessageSquare, Inbox, Headphones, ShoppingBag, Layout, Target, Gauge, Bot, FileText, Radar, Star,
+  GraduationCap, Users2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { PlanFeatureMap, FeatureKey } from "@/lib/superAdmin";
@@ -60,6 +61,7 @@ const menuSections = [
       { id: "ai",     label: "Smart Insights", icon: Brain  },
       { id: "seo",    label: "SEO Suite",      icon: Search },
       { id: "social", label: "Social Media",   icon: Share2 },
+      { id: "reputation", label: "Reputation", icon: Star },
     ],
   },
   {
@@ -69,6 +71,8 @@ const menuSections = [
       { id: "veloramail", label: "KVl Mail", icon: Inbox },
       { id: "helpdesk",    label: "Helpdesk",     icon: Headphones },
       { id: "commerce",    label: "Commerce",     icon: ShoppingBag },
+      { id: "membership",  label: "Membership",   icon: GraduationCap },
+      { id: "affiliates",  label: "Affiliates",   icon: Users2 },
       { id: "velorapages", label: "KVl Pages", icon: Layout },
       { id: "settings",    label: "Settings",     icon: Settings },
     ],

@@ -2,10 +2,17 @@
    WHITE LABEL — Tenant store (localStorage-backed CRUD)
    Mirrors the loadWhiteLabel/saveWhiteLabel pattern in
    lib/superAdmin.ts. Guards `typeof window`. Never throws.
+
+   Phase 31: saveTenant/deleteTenant now ALSO fire-and-forget a real
+   Supabase write via lib/actions/tenants.ts — same dual-write pattern as
+   Phase 19's lib/automation/store.ts. localStorage stays the fast client
+   cache every existing caller (getTenants, resolveTenant, etc.) still reads
+   exactly as before; Supabase becomes the cross-device source of truth.
 ══════════════════════════════════════════════════════════ */
 
 import { DEFAULT_WHITE_LABEL } from "../superAdmin";
 import type { Tenant } from "./types";
+import { upsertDbTenant, deleteDbTenant } from "@/lib/actions/tenants";
 
 const TENANTS_KEY = "crm_tenants";
 
@@ -58,6 +65,7 @@ export function getTenant(idOrSlug: string): Tenant | undefined {
 
 /** Create or update a tenant (matched by id, else slug). */
 export function saveTenant(tenant: Tenant): void {
+  upsertDbTenant(tenant).catch(() => {});
   if (typeof window === "undefined") return;
   try {
     const tenants = getTenants();
@@ -75,6 +83,7 @@ export function saveTenant(tenant: Tenant): void {
 
 /** Remove a tenant by id or slug. The default tenant cannot be deleted. */
 export function deleteTenant(idOrSlug: string): void {
+  deleteDbTenant(idOrSlug).catch(() => {});
   if (typeof window === "undefined") return;
   try {
     const needle = idOrSlug.toLowerCase();

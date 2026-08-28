@@ -16,6 +16,9 @@ const DEFAULT_ACQUISITION_SETTINGS: Record<string, string> = {
   default_consent_mode: "granted",
   retention_days: "365",
   missed_call_number: "",
+  // Phase 22 — Missed-Call Auto Text-Back template, editable via the same
+  // Admin Panel key-value convention as the other settings above.
+  missed_call_reply_template: "Sorry we missed your call! We'll call you back shortly. Reply here anytime.",
 };
 
 export async function getAcquisitionSettings(): Promise<Record<string, string>> {

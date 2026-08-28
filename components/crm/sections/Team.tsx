@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Mail, Phone, Plus, Crown, Pencil, Trash2 } from "lucide-react";
 import { teamMembers as initialMembers } from "@/lib/data";
 import { getTeamMembers, createTeamMember, updateTeamMember, deleteTeamMember } from "@/lib/actions/team";
+import { getAccessToken } from "@/lib/security/clientSession";
 import { cn, formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -29,7 +30,7 @@ export default function Team() {
 
   // Load from Supabase on mount; falls back to seed data in demo mode
   useEffect(() => {
-    getTeamMembers().then((rows) => { if (rows?.length) setMembers(rows); }).catch(() => {});
+    getTeamMembers(getAccessToken()).then((rows) => { if (rows?.length) setMembers(rows); }).catch(() => {});
   }, []);
 
   const set = (k: keyof MemberForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -52,7 +53,7 @@ export default function Team() {
   const removeMember = (id: number) => {
     setMembers((prev) => prev.filter((m) => m.id !== id));
     // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
-    deleteTeamMember(id).catch(() => {});
+    deleteTeamMember(id, getAccessToken()).catch(() => {});
   };
 
   const saveMember = () => {
@@ -61,7 +62,7 @@ export default function Team() {
       const patch = { name: form.name, role: form.role, email: form.email, status: form.status as "online" | "away" | "offline" };
       setMembers((prev) => prev.map((m) => (m.id === editingId ? { ...m, ...patch } : m)));
       // Persist to Supabase when configured; demo mode throws → ignored (optimistic edit stays)
-      updateTeamMember(editingId, patch).catch(() => {});
+      updateTeamMember(editingId, patch, getAccessToken()).catch(() => {});
       closeModal();
       return;
     }
@@ -82,7 +83,7 @@ export default function Team() {
     setMembers((prev) => [...prev, newMember]);
     // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...memberData } = newMember;
-    createTeamMember(memberData).catch(() => {});
+    createTeamMember(memberData, getAccessToken()).catch(() => {});
     closeModal();
   };
 

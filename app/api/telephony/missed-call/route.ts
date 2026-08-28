@@ -19,6 +19,7 @@ import { recordSessionStart } from "@/lib/tracking/store";
 import { generateSessionId } from "@/lib/tracking/ids";
 import { resolveIdentity, normalizePhone } from "@/lib/identity/resolve";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
+import { sendMissedCallAutoReply } from "@/lib/telephony/autoReply";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,13 @@ export async function POST(req: NextRequest) {
 
     const resolution = await resolveIdentity({ visitorId, name: "", email: "", phone: callerNumber }, DEFAULT_SITE_ID);
 
-    return NextResponse.json({ ok: true, resolution });
+    // Phase 22 — Missed Call Text Back. Fire-and-forget-ish (awaited so the
+    // webhook response reflects whether it ran, but the function itself
+    // never throws) — a reply/task failure must never turn this into a 500
+    // for the telephony provider.
+    await sendMissedCallAutoReply(callerNumber);
+
+    return NextResponse.json({ ok: true, resolution, autoReplied: true });
   } catch (err) {
     console.error("[telephony] missed-call route error:", err);
     return NextResponse.json({ ok: false, error: "internal_error" }, { status: 500 });
