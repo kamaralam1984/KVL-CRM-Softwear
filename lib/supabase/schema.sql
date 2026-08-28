@@ -1,7 +1,12 @@
 -- Run this in your Supabase SQL editor to set up the CRM schema
-
--- Enable RLS
-alter database postgres set "app.jwt_secret" to 'your-jwt-secret';
+--
+-- Gap-check fix: this file used to start with
+--   alter database postgres set "app.jwt_secret" to 'your-jwt-secret';
+-- Real Supabase Postgres denies "permission denied to set parameter
+-- app.jwt_secret" for the standard `postgres` role (confirmed by actually
+-- running this file against a live project) — Supabase manages the JWT
+-- secret itself via its own infra; this manual override was never needed
+-- for auth.uid()/auth.role()/RLS to work. Removed rather than worked around.
 
 -- ── Profiles (extends auth.users) ──────────────────────────────────────────
 create table if not exists profiles (
