@@ -8,7 +8,7 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { assertCan } from "@/lib/security/requireAction";
 import { getWhatsappConversations, createWhatsappConversation, updateWhatsappConversation, type WhatsappConversation } from "./whatsapp";
-import { sendWhatsApp, sendSms, type SendResult } from "@/lib/messaging/send";
+import { sendWhatsApp, sendSms, sendInstagramDm, sendMessengerMessage, type SendResult } from "@/lib/messaging/send";
 
 export type Channel = "whatsapp" | "sms" | "instagram" | "messenger" | "webchat";
 
@@ -320,8 +320,13 @@ export async function getWebchatMessagesSince(conversationId: string, sinceIso: 
   }
 }
 
-// Outbound send from the Conversations UI — really sends via Twilio when
+// Outbound send from the Conversations UI — really sends via Twilio/Meta when
 // configured (lib/messaging/send.ts), always records the message either way.
+// For instagram/messenger, `toPhone` holds the recipient's Meta-assigned
+// PSID/IGSID (captured from their inbound message), not an actual phone
+// number — Channel's original "phone" naming predates these two channels;
+// reused rather than adding a parallel identifier column, since the column
+// itself is just an opaque per-channel recipient-address string already.
 export async function sendMessage(
   conversationId: string,
   channel: Channel,
@@ -334,6 +339,8 @@ export async function sendMessage(
   const result: SendResult =
     channel === "whatsapp" ? await sendWhatsApp(toPhone, body) :
     channel === "sms" ? await sendSms(toPhone, body) :
+    channel === "instagram" ? await sendInstagramDm(toPhone, body) :
+    channel === "messenger" ? await sendMessengerMessage(toPhone, body) :
     { ok: false, mock: false, detail: `Channel "${channel}" isn't wired to a real send yet` };
 
   await recordMessage(conversationId, "outbound", body, result.providerMessageId);

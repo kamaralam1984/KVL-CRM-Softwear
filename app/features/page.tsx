@@ -3,6 +3,11 @@ import Link from "next/link";
 import AnalyticsTracker from "@/lib/tracking/sdk/AnalyticsTracker";
 import ConsentBanner from "@/lib/tracking/sdk/ConsentBanner";
 
+// True WhatsApp brand green — used only on the WhatsApp CRM category, since
+// that's the one section with a real platform tie (every other category
+// keeps the page's own blue/violet identity).
+const WHATSAPP_GREEN = "#25D366";
+
 export const metadata: Metadata = {
   title: "Features — KVl CRM | Complete CRM Feature List",
   description: "Explore all features of KVl CRM: AI-powered lead scoring, WhatsApp CRM, email marketing, sales pipeline, workflow automation, finance, and advanced analytics. Built for modern sales teams.",
@@ -43,6 +48,7 @@ const features = [
   },
   {
     category: "WhatsApp CRM",
+    accent: WHATSAPP_GREEN,
     items: [
       { name: "Unified WhatsApp Inbox", desc: "Manage all WhatsApp customer conversations directly inside KVl CRM. No switching between apps. See full contact context, deal status, and notes alongside every chat." },
       { name: "Broadcast Campaigns", desc: "Send personalized WhatsApp messages to segmented contact lists. Track delivery rates, read receipts, and response rates. Schedule broadcasts for optimal engagement times." },
@@ -114,12 +120,15 @@ export default function FeaturesPage() {
         <div className="space-y-16">
           {features.map((section) => (
             <section key={section.category}>
-              <h2 className="text-2xl font-black mb-6 text-white border-b border-white/[0.07] pb-3">
+              <h2 className="text-2xl font-black mb-6 text-white pb-3 flex items-center gap-2.5"
+                style={{ borderBottom: `1px solid ${section.accent ? section.accent + "40" : "rgba(255,255,255,0.07)"}` }}>
+                {section.accent && <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ background: section.accent }} />}
                 {section.category}
               </h2>
               <div className="grid md:grid-cols-2 gap-5">
                 {section.items.map((item) => (
-                  <div key={item.name} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-5 hover:border-blue-500/20 transition-colors">
+                  <div key={item.name}
+                    className={`rounded-xl border border-white/[0.07] bg-white/[0.02] p-5 transition-colors ${section.accent ? "hover:border-[#25D36640]" : "hover:border-blue-500/20"}`}>
                     <h3 className="text-base font-bold text-white mb-2">{item.name}</h3>
                     <p className="text-sm text-slate-400 leading-relaxed">{item.desc}</p>
                   </div>

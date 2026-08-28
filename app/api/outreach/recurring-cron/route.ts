@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 async function sendToCustomer(phone: string, message: string): Promise<boolean> {
   if (!phone) return false;
-  const result = isWhatsAppConfigured() ? await sendWhatsApp(phone, message) : await sendSms(phone, message);
+  const result = isWhatsAppConfigured() ? await sendWhatsApp(phone, message) : await sendSms(phone, message, "birthday_wish");
   return result.ok;
 }
 

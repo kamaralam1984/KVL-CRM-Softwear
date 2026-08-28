@@ -821,7 +821,7 @@ create index if not exists funnel_steps_funnel_idx on funnel_steps (funnel_id, s
 create table if not exists social_posts (
   id             uuid primary key default gen_random_uuid(),
   site_id        text not null default 'kvl-default' references sites(site_id),
-  platform       text not null check (platform in ('facebook','instagram','linkedin','twitter','youtube')),
+  platform       text not null check (platform in ('facebook','instagram','linkedin','twitter')),
   post_type      text not null default 'text' check (post_type in ('image','video','text','story','reel')),
   content        text not null default '',
   media_urls     jsonb not null default '[]',
@@ -1080,3 +1080,174 @@ create policy "Authenticated can access tenant_users" on tenant_users for all us
 -- minimum needed, matching this codebase's "hand-roll the minimum" convention.
 alter table customers add column if not exists birthday date;
 alter table campaigns add column if not exists recurrence_rule text;
+
+-- ── Phase 37 — SMS DLT-Compliant Template Scaffolding ───────────────────────
+-- India's TRAI DLT regime requires SMS content to match a pre-registered,
+-- carrier-approved template. Registration itself (PAN/GST/Letter of
+-- Authorization, a per-carrier DLT portal) is a pure external administrative
+-- process this codebase cannot do — this table just gives the user somewhere
+-- to record their approved entity/template IDs once they have them, so
+-- lib/messaging/send.ts can look them up and log which approved template an
+-- SMS was sent under (audit trail), matching the "ready to consume it the
+-- moment you have it" convention used for every other external-approval gap.
+create table if not exists sms_templates (
+  id             uuid primary key default gen_random_uuid(),
+  site_id        text not null default 'kvl-default' references sites(site_id),
+  template_key   text not null,
+  dlt_entity_id  text default '',
+  dlt_template_id text default '',
+  content        text not null default '',
+  approved       boolean not null default false,
+  created_at     timestamptz default now(),
+  unique (site_id, template_key)
+);
+alter table sms_templates enable row level security;
+drop policy if exists "Authenticated can access sms_templates" on sms_templates;
+create policy "Authenticated can access sms_templates" on sms_templates for all using (auth.role() = 'authenticated');
+
+-- ── Phase 36 — Affiliate Payout Automation (Razorpay Route/RazorpayX) ───────
+-- Additive columns only. A payee needs a RazorpayX Contact + Fund Account
+-- (UPI VPA) created before any real payout can be requested against them —
+-- see lib/payments/razorpayRoute.ts. Real use still requires the user's own
+-- Razorpay Route product approval + per-payee KYC (external, not code-
+-- completable) — these columns just hold the result once that's done.
+alter table affiliates add column if not exists payout_vpa text default '';
+alter table affiliates add column if not exists razorpayx_contact_id text default '';
+alter table affiliates add column if not exists razorpayx_fund_account_id text default '';
+alter table affiliate_commissions add column if not exists razorpayx_payout_id text default '';
+
+-- ── Phase 40 — Public API + Outbound Webhooks (Marketplace Foundation) ──────
+-- This is the infrastructure a marketplace needs (scoped API keys, an
+-- outbound webhook fan-out), NOT a claim of GHL's actual app-catalog scale —
+-- that comes from years of external developer adoption, which no table can
+-- manufacture. key_hash is a sha256 hex digest; the plaintext key is shown
+-- to the user exactly once at creation time and never persisted anywhere.
+create table if not exists api_keys (
+  id            uuid primary key default gen_random_uuid(),
+  site_id       text not null default 'kvl-default' references sites(site_id),
+  name          text not null default '',
+  key_hash      text not null unique,
+  key_prefix    text not null,
+  active        boolean not null default true,
+  last_used_at  timestamptz,
+  created_at    timestamptz default now()
+);
+alter table api_keys enable row level security;
+drop policy if exists "Authenticated can access api_keys" on api_keys;
+create policy "Authenticated can access api_keys" on api_keys for all using (auth.role() = 'authenticated');
+
+create table if not exists webhooks (
+  id             uuid primary key default gen_random_uuid(),
+  site_id        text not null default 'kvl-default' references sites(site_id),
+  endpoint_url   text not null,
+  events         text[] not null default '{}',
+  signing_secret text not null,
+  active         boolean not null default true,
+  created_at     timestamptz default now()
+);
+alter table webhooks enable row level security;
+drop policy if exists "Authenticated can access webhooks" on webhooks;
+create policy "Authenticated can access webhooks" on webhooks for all using (auth.role() = 'authenticated');
+
+create table if not exists webhook_deliveries (
+  id          uuid primary key default gen_random_uuid(),
+  webhook_id  uuid not null references webhooks(id) on delete cascade,
+  event       text not null,
+  status_code int not null default 0,
+  ok          boolean not null default false,
+  created_at  timestamptz default now()
+);
+alter table webhook_deliveries enable row level security;
+drop policy if exists "Authenticated can access webhook_deliveries" on webhook_deliveries;
+create policy "Authenticated can access webhook_deliveries" on webhook_deliveries for all using (auth.role() = 'authenticated');
+create index if not exists webhook_deliveries_webhook_idx on webhook_deliveries (webhook_id);
+
+-- Gap-check fix (Phase 35) — social_posts.platform's check constraint still
+-- listed 'youtube' after YouTube was removed from lib/social/publish.ts's
+-- SocialPlatform type. Harmless (the app can no longer insert that value
+-- anyway) but stale; tightened for consistency. Safe to re-run: no existing
+-- row can violate the new check, since none was ever platform='youtube'
+-- outside this same development cycle.
+alter table social_posts drop constraint if exists social_posts_platform_check;
+alter table social_posts add constraint social_posts_platform_check check (platform in ('facebook','instagram','linkedin','twitter'));
+
+-- ── Phase 43 — Forms, Surveys & Quiz Builder ────────────────────────────────
+-- General-purpose, separate from the Phase 24 funnel/page builder's fixed
+-- FormBlock — a form/survey/quiz needs to exist on its own (linked/embedded
+-- directly, matching GHL), not only nested inside a funnel page. One field
+-- model covers all three "kinds": scoreWeight on a field's option is what
+-- turns a plain survey into a scored quiz (see lib/forms/fields.ts).
+create table if not exists forms (
+  id             uuid primary key default gen_random_uuid(),
+  site_id        text not null default 'kvl-default' references sites(site_id),
+  slug           text not null,
+  name           text not null default '',
+  kind           text not null default 'form' check (kind in ('form','survey','quiz')),
+  fields         jsonb not null default '[]',
+  scoring_rules  jsonb not null default '[]',
+  published      boolean not null default false,
+  created_at     timestamptz default now(),
+  unique (site_id, slug)
+);
+alter table forms enable row level security;
+drop policy if exists "Authenticated can access forms" on forms;
+create policy "Authenticated can access forms" on forms for all using (auth.role() = 'authenticated');
+
+create table if not exists form_submissions (
+  id             uuid primary key default gen_random_uuid(),
+  form_id        uuid not null references forms(id) on delete cascade,
+  answers        jsonb not null default '{}',
+  computed_score int,
+  contact_name   text default '',
+  contact_email  text default '',
+  contact_phone  text default '',
+  processed      boolean not null default false,
+  created_at     timestamptz default now()
+);
+alter table form_submissions enable row level security;
+drop policy if exists "Authenticated can access form_submissions" on form_submissions;
+create policy "Authenticated can access form_submissions" on form_submissions for all using (auth.role() = 'authenticated');
+create index if not exists form_submissions_form_idx on form_submissions (form_id);
+
+-- ── Phase 41 — Call Tracking (Dynamic Number Insertion) ─────────────────────
+-- A pool of real (or mock) phone numbers, each mapped to a campaign, so an
+-- inbound call's SOURCE is attributable — reuses the existing campaigns/
+-- campaign_touchpoints attribution ledger (lib/attribution/*) instead of a
+-- new attribution table. call_logs is a general call record, not just
+-- missed calls — the existing Phase 22 missed-call-text-back flow is
+-- untouched (still its own route/table-free flow).
+create table if not exists tracking_numbers (
+  id                 uuid primary key default gen_random_uuid(),
+  site_id            text not null default 'kvl-default' references sites(site_id),
+  phone_number       text not null unique,
+  twilio_sid         text default '',
+  campaign_id        bigint references campaigns(id) on delete set null,
+  campaign_name      text not null default '',
+  forward_to_number  text not null default '',
+  created_at         timestamptz default now()
+);
+alter table tracking_numbers enable row level security;
+drop policy if exists "Authenticated can access tracking_numbers" on tracking_numbers;
+create policy "Authenticated can access tracking_numbers" on tracking_numbers for all using (auth.role() = 'authenticated');
+
+create table if not exists call_logs (
+  id                  uuid primary key default gen_random_uuid(),
+  tracking_number_id  uuid references tracking_numbers(id) on delete set null,
+  from_number         text not null default '',
+  direction           text not null default 'inbound' check (direction in ('inbound','outbound')),
+  status               text not null default 'ringing',
+  duration_seconds    int,
+  recording_url       text default '',
+  campaign_id         bigint references campaigns(id) on delete set null,
+  provider_call_sid   text default '',
+  -- Phase 44 — Voice AI extends this same log rather than a parallel table.
+  is_ai_call          boolean not null default false,
+  ai_provider         text default '',
+  ai_transcript       text default '',
+  created_at          timestamptz default now()
+);
+alter table call_logs enable row level security;
+drop policy if exists "Authenticated can access call_logs" on call_logs;
+create policy "Authenticated can access call_logs" on call_logs for all using (auth.role() = 'authenticated');
+create index if not exists call_logs_tracking_number_idx on call_logs (tracking_number_id);
+create index if not exists call_logs_provider_sid_idx on call_logs (provider_call_sid);

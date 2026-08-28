@@ -5,8 +5,15 @@
 //
 // Phase 29 — extended (not duplicated) to also handle subscription.charged/
 // cancelled for membership billing.
+//
+// Phase 39 — gap-check found this route had signature verification but NO
+// rate limiting, unlike the Twilio inbound webhooks (whatsapp/sms) which
+// have both. Signature verification alone doesn't stop a flood of requests
+// from being verified one-by-one — added the same rateLimit() call.
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/security/rateLimit";
+import { clientIp } from "../../../analytics/shared";
 import { verifyRazorpayWebhookSignature } from "@/lib/payments/razorpay";
 import { markOrderPaidByProviderRef } from "@/lib/actions/orders";
 import { markMembershipCharged, markMembershipCancelled } from "@/lib/actions/membership";
@@ -17,6 +24,11 @@ export async function POST(req: NextRequest) {
   try {
     if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
       return NextResponse.json({ ok: false, error: "not_configured" }, { status: 501 });
+    }
+
+    const limit = rateLimit(`razorpay:webhook:${clientIp(req)}`, 60, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
     }
 
     const rawBody = await req.text();

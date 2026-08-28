@@ -18,6 +18,11 @@ export const RESOURCES = [
   // Added Phase 18 — resources introduced by the GHL-parity phases (19-31).
   "marketing", "social", "commerce", "funnels", "membership",
   "affiliates", "whitelabel", "helpdesk",
+  // Added Phase 40 — API keys grant programmatic CRM access, so this is
+  // deliberately NOT given to Manager/Marketing/Finance/Support/Viewer
+  // below (no explicit entry = denied by default) — only Admin (via its
+  // existing wildcard CRUD grant) and Super Admin can manage them.
+  "developers",
 ] as const;
 
 export type Resource = (typeof RESOURCES)[number];

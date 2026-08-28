@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Share2, Globe, Camera, Briefcase, PlayCircle, Hash,
+  Share2, Globe, Camera, Briefcase, Hash,
   CheckSquare, Square, Image, Video, Type, Film, BookOpen,
   Upload, Calendar, Clock, Sparkles, Send, Zap,
   ChevronLeft, ChevronRight, BarChart2, TrendingUp, Heart,
@@ -21,8 +21,7 @@ const PLATFORM_CFG = {
   facebook:  { label: "Globe",  color: "#1877F2", icon: Globe,  charLimit: 3000 },
   instagram: { label: "Camera", color: "#E1306C", icon: Camera, charLimit: 2200 },
   linkedin:  { label: "LinkedIn",  color: "#0A66C2", icon: Briefcase,  charLimit: 3000 },
-  youtube:   { label: "YouTube",   color: "#FF0000", icon: PlayCircle,   charLimit: 5000 },
-  twitter:   { label: "Hash/X", color: "#1DA1F2", icon: Hash,   charLimit: 280  },
+  twitter:   { label: "Twitter/X", color: "#1DA1F2", icon: Hash,   charLimit: 280  },
 };
 type PlatformKey = keyof typeof PLATFORM_CFG;
 
@@ -39,7 +38,7 @@ const PLATFORM_STATS = {
   facebook:  { followers: "12.4K", reach: "8.2K",  engagement: "3.8%", bestTime: "Wed 2–4 PM" },
   instagram: { followers: "8.9K",  reach: "6.1K",  engagement: "5.2%", bestTime: "Fri 11 AM"  },
   linkedin:  { followers: "5.2K",  reach: "4.8K",  engagement: "4.1%", bestTime: "Tue 8–9 AM" },
-  youtube:   { followers: "2.1K",  reach: "1.4K",  engagement: "2.9%", bestTime: "Sun 3 PM"   },
+  twitter:   { followers: "3.5K",  reach: "2.7K",  engagement: "3.1%", bestTime: "Thu 12 PM"  },
 };
 
 const TOP_POSTS = [
@@ -97,7 +96,7 @@ function buildCalendarMonth(year: number, month: number) {
 const POST_DAYS: Record<number, PlatformKey[]> = {
   2: ["instagram"], 5: ["facebook", "linkedin"], 8: ["instagram", "facebook"],
   10: ["linkedin"], 13: ["instagram"], 15: ["facebook", "instagram", "linkedin"],
-  18: ["youtube"], 20: ["facebook"], 22: ["instagram", "linkedin"],
+  18: ["twitter"], 20: ["facebook"], 22: ["instagram", "linkedin"],
   25: ["facebook", "instagram"], 28: ["linkedin"],
 };
 
@@ -144,7 +143,6 @@ function DashboardTab() {
     { key: "facebook",  ok: true  },
     { key: "instagram", ok: true  },
     { key: "linkedin",  ok: true  },
-    { key: "youtube",   ok: false },
     { key: "twitter",   ok: false },
   ];
 
@@ -264,7 +262,7 @@ function SchedulePostTab({ initialContent = "", onPreFill }: { initialContent?: 
         <div className="rounded-xl border p-5" style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.07)" }}>
           <p className="text-sm font-semibold text-slate-200 mb-3">Select Platforms</p>
           <div className="grid grid-cols-2 gap-2">
-            {(Object.keys(PLATFORM_CFG) as PlatformKey[]).filter(k => k !== "twitter").map((key) => {
+            {(Object.keys(PLATFORM_CFG) as PlatformKey[]).map((key) => {
               const cfg = PLATFORM_CFG[key];
               const Icon = cfg.icon;
               const active = selectedPlatforms.has(key);
@@ -420,7 +418,7 @@ function ContentCalendarTab() {
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); setSelected(null); };
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); setSelected(null); };
 
-  const LEGEND = (Object.keys(PLATFORM_CFG) as PlatformKey[]).filter(k => k !== "twitter");
+  const LEGEND = Object.keys(PLATFORM_CFG) as PlatformKey[];
 
   return (
     <div className="space-y-5">
@@ -647,7 +645,7 @@ function AIGeneratorTab({ onUse }: { onUse: (content: string) => void }) {
           <div>
             <label className="text-[10px] text-slate-500 block mb-1.5">Platform</label>
             <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(PLATFORM_CFG) as PlatformKey[]).filter(k => k !== "twitter").map(k => {
+              {(Object.keys(PLATFORM_CFG) as PlatformKey[]).map(k => {
                 const cfg = PLATFORM_CFG[k];
                 const Icon = cfg.icon;
                 return (

@@ -35,7 +35,7 @@ export async function sendMissedCallAutoReply(phone: string): Promise<void> {
         await db.from("messages").insert({ conversation_id: conversationId, direction: "outbound", body: template, provider_message_id: result.providerMessageId ?? null });
       }
     } else if (isSmsConfigured()) {
-      await sendSms(phone, template);
+      await sendSms(phone, template, "missed_call_reply");
     } else {
       console.log(`[telephony:mock] would auto-reply to ${phone}: "${template}"`);
     }

@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Phase 44 — a standalone plain-Node script deployed as its own PM2
+    // process, not part of the Next.js app bundle (same reasoning as
+    // android/**, ios/** being outside the TS/lint globs already).
+    "voice-relay/**",
   ]),
 ]);
 

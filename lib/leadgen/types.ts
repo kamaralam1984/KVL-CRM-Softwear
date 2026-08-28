@@ -60,7 +60,8 @@ export type LeadSource =
   | "company_website"
   | "manual_import"
   | "csv_import"
-  | "api_import";
+  | "api_import"
+  | "form_submission";
 
 // The finished, scored lead — shaped to match the CRM `leads` table.
 export type ScoredLead = {

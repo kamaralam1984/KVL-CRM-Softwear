@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Megaphone, Mail, MessageSquare, Smartphone, BarChart2,
@@ -9,6 +9,9 @@ import {
 } from "lucide-react";
 import { sendPushBroadcast } from "@/lib/actions/pushNotifications";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
+import { getTrackingNumbers, createTrackingNumber, deleteTrackingNumber, getCallLogs, isTelephonyConfigured, type TrackingNumber, type CallLog } from "@/lib/actions/callTracking";
+import { getAccessToken } from "@/lib/security/clientSession";
+import { Phone, Trash2 } from "lucide-react";
 
 // ─── shared styles ──────────────────────────────────────────────────────────
 const GOLD = "#D4AF37";
@@ -101,7 +104,7 @@ const statusColor: Record<string, string> = {
   Draft: "#64748b", Scheduled: "#0EA5E9", Sent: EMERALD, Active: GOLD,
 };
 
-const tabs = ["Campaigns", "Forms & Landing Pages", "A/B Testing", "SMS & Push", "Analytics"] as const;
+const tabs = ["Campaigns", "Forms & Landing Pages", "A/B Testing", "SMS & Push", "Analytics", "Call Tracking"] as const;
 type Tab = typeof tabs[number];
 
 const typeFilters = ["All", "Email", "WhatsApp", "SMS"] as const;
@@ -590,6 +593,120 @@ function AnalyticsTab() {
   );
 }
 
+// Phase 41 — Call Tracking (Dynamic Number Insertion). Real (or mock)
+// phone-number pool, each mapped to a campaign, with a call log — reuses
+// lib/actions/callTracking.ts.
+function CallTrackingTab() {
+  const [numbers, setNumbers] = useState<TrackingNumber[]>([]);
+  const [logs, setLogs] = useState<CallLog[]>([]);
+  const [form, setForm] = useState({ areaCode: "415", campaignName: "", forwardToNumber: "" });
+  const [creating, setCreating] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [twilioConfigured, setTwilioConfigured] = useState<boolean | null>(null);
+
+  const load = () => {
+    getTrackingNumbers(DEFAULT_SITE_ID, getAccessToken()).then(setNumbers).catch(() => {});
+    getCallLogs(DEFAULT_SITE_ID, getAccessToken()).then(setLogs).catch(() => {});
+  };
+  useEffect(() => {
+    load();
+    isTelephonyConfigured().then(setTwilioConfigured).catch(() => setTwilioConfigured(false));
+  }, []);
+
+  const create = async () => {
+    if (!form.campaignName.trim() || !form.forwardToNumber.trim()) return;
+    setCreating(true);
+    const res = await createTrackingNumber(
+      { ...form, appBaseUrl: typeof window !== "undefined" ? window.location.origin : "" },
+      getAccessToken(),
+    );
+    setCreating(false);
+    if (res.ok) {
+      setMsg(res.mock ? "Tracking number created (mock — Twilio not configured)" : "Real Twilio number purchased");
+      setForm({ areaCode: "415", campaignName: "", forwardToNumber: "" });
+      load();
+    } else {
+      setMsg("Could not create tracking number");
+    }
+    setTimeout(() => setMsg(""), 3000);
+  };
+
+  const remove = async (id: string) => {
+    const res = await deleteTrackingNumber(id, getAccessToken());
+    if (res.ok) setNumbers((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={card}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>New Tracking Number</p>
+          {twilioConfigured !== null && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: twilioConfigured ? "rgba(0,168,107,0.12)" : "rgba(255,255,255,0.05)", color: twilioConfigured ? EMERALD : "#64748b" }}>
+              {twilioConfigured ? "Twilio Connected" : "Twilio Not Configured — will mock"}
+            </span>
+          )}
+        </div>
+        <p style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>
+          Buying a real number costs a recurring monthly fee from Twilio once configured — this is a real ongoing cost, not free.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr auto", gap: 8 }}>
+          <input value={form.areaCode} onChange={(e) => setForm((f) => ({ ...f, areaCode: e.target.value }))}
+            placeholder="Area code" style={{ padding: "8px 10px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, color: "#e2e8f0", fontSize: 12 }} />
+          <input value={form.campaignName} onChange={(e) => setForm((f) => ({ ...f, campaignName: e.target.value }))}
+            placeholder="Campaign name" style={{ padding: "8px 10px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, color: "#e2e8f0", fontSize: 12 }} />
+          <input value={form.forwardToNumber} onChange={(e) => setForm((f) => ({ ...f, forwardToNumber: e.target.value }))}
+            placeholder="Forward to (+1...)" style={{ padding: "8px 10px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, color: "#e2e8f0", fontSize: 12 }} />
+          <button onClick={create} disabled={creating}
+            style={{ padding: "8px 16px", borderRadius: 10, background: GOLD, color: "#000", fontSize: 12, fontWeight: 700, border: "none", cursor: "pointer" }}>
+            {creating ? "..." : "Provision"}
+          </button>
+        </div>
+        {msg && <p style={{ fontSize: 11, color: EMERALD, marginTop: 8 }}>{msg}</p>}
+      </div>
+
+      <div style={card}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", marginBottom: 12 }}>Tracking Numbers ({numbers.length})</p>
+        {numbers.length === 0 ? (
+          <p style={{ fontSize: 12, color: "#64748b" }}>No tracking numbers yet — provision one above.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {numbers.map((n) => (
+              <div key={n.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,0.02)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Phone size={13} style={{ color: GOLD }} />
+                  <div>
+                    <p style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 600 }}>{n.phone_number}</p>
+                    <p style={{ fontSize: 10, color: "#64748b" }}>{n.campaign_name || "No campaign"} → {n.forward_to_number}</p>
+                  </div>
+                </div>
+                <button onClick={() => remove(n.id)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}><Trash2 size={13} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={card}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", marginBottom: 12 }}>Recent Calls ({logs.length})</p>
+        {logs.length === 0 ? (
+          <p style={{ fontSize: 12, color: "#64748b" }}>No calls logged yet.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {logs.slice(0, 20).map((l) => (
+              <div key={l.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, padding: "6px 10px", borderRadius: 8, background: "rgba(255,255,255,0.02)" }}>
+                <span style={{ color: "#94a3b8" }}>{l.from_number || "Unknown"}</span>
+                <span style={{ color: "#64748b" }}>{new Date(l.created_at).toLocaleString()}</span>
+                <span style={{ color: l.status === "completed" ? EMERALD : "#64748b" }}>{l.status}{l.duration_seconds ? ` · ${l.duration_seconds}s` : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function Marketing() {
   const [activeTab, setActiveTab] = useState<Tab>("Campaigns");
@@ -600,6 +717,7 @@ export default function Marketing() {
     "A/B Testing":           FlaskConical,
     "SMS & Push":            Smartphone,
     "Analytics":             BarChart2,
+    "Call Tracking":         Phone,
   };
 
   return (
@@ -641,6 +759,7 @@ export default function Marketing() {
           {activeTab === "A/B Testing"           && <ABTestingTab />}
           {activeTab === "SMS & Push"            && <SMSPushTab />}
           {activeTab === "Analytics"             && <AnalyticsTab />}
+          {activeTab === "Call Tracking"          && <CallTrackingTab />}
         </motion.div>
       </AnimatePresence>
     </div>

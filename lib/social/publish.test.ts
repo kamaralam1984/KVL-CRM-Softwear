@@ -18,7 +18,7 @@ describe("publishSocialPost (Phase 25) — mock fallback, never throws", () => {
     expect(result.mock).toBe(true);
   });
 
-  it("honestly mocks a platform with no real publisher wired yet", async () => {
+  it("mocks twitter when TWITTER_API_KEY and friends aren't set", async () => {
     const result = await publishSocialPost("twitter", "Hello world");
     expect(result.ok).toBe(true);
     expect(result.mock).toBe(true);

@@ -19,6 +19,20 @@ import ConsentBanner from "@/lib/tracking/sdk/ConsentBanner";
 import { kvlAnalytics } from "@/lib/tracking/sdk/client";
 
 /* ══════════════════════════════════════════════
+   BRAND ACCENTS
+   True platform colors, used only where they tie to a real, honest claim
+   (WhatsApp green on WhatsApp-specific results; Facebook blue on
+   social/ads-sourced leads and channels; YouTube red purely as the
+   universal "watch a video" visual convention, not a claimed integration —
+   KVl doesn't have a YouTube integration, so this stays a color choice,
+   never copy). Layered as accents on top of the existing gold identity,
+   not a replacement for it.
+══════════════════════════════════════════════ */
+const WHATSAPP_GREEN = "#25D366";
+const FACEBOOK_BLUE   = "#1877F2";
+const YOUTUBE_RED     = "#FF0000";
+
+/* ══════════════════════════════════════════════
    THEME
 ══════════════════════════════════════════════ */
 function makeTheme(dark: boolean) {
@@ -199,15 +213,15 @@ const steps = [
 ];
 
 const modules = [
-  { icon: Users,         title: "Leads",           color: "#3b82f6" },
+  { icon: Users,         title: "Leads",           color: FACEBOOK_BLUE },
   { icon: Award,         title: "Customers",       color: "#10b981" },
   { icon: Target,        title: "Deals",           color: "#D4AF37" },
   { icon: GitBranch,     title: "Pipeline",        color: "#8b5cf6" },
   { icon: CheckSquare,   title: "Tasks",           color: "#f59e0b" },
   { icon: Wallet,        title: "Finance",         color: "#00A86B" },
   { icon: BarChart3,     title: "Reports",         color: "#ef4444" },
-  { icon: MessageCircle, title: "WhatsApp CRM",    color: "#25D366" },
-  { icon: Mail,          title: "Email Marketing", color: "#3b82f6" },
+  { icon: MessageCircle, title: "WhatsApp CRM",    color: WHATSAPP_GREEN },
+  { icon: Mail,          title: "Email Marketing", color: FACEBOOK_BLUE },
   { icon: Zap,           title: "Automation",      color: "#D4AF37" },
   { icon: TrendingUp,    title: "AI Assistant",    color: "#8b5cf6" },
   { icon: Users,         title: "Team Mgmt",       color: "#06b6d4" },
@@ -275,8 +289,8 @@ const WORKFLOWS = [
 ];
 
 const commChannels = [
-  { icon: MessageCircle, title: "WhatsApp CRM",    color: "#25D366", desc: "Manage WhatsApp conversations, run broadcast campaigns, and set auto-replies — all inside your CRM.", tags: ["Broadcast","Auto-reply","Chat History"] },
-  { icon: Mail,          title: "Email Marketing", color: "#3b82f6", desc: "Design beautiful campaigns, track opens and clicks, and run A/B tests with a built-in drag-and-drop editor.", tags: ["Templates","Analytics","A/B Testing"] },
+  { icon: MessageCircle, title: "WhatsApp CRM",    color: WHATSAPP_GREEN, desc: "Manage WhatsApp conversations, run broadcast campaigns, and set auto-replies — all inside your CRM.", tags: ["Broadcast","Auto-reply","Chat History"] },
+  { icon: Mail,          title: "Email Marketing", color: FACEBOOK_BLUE, desc: "Design beautiful campaigns, track opens and clicks, and run A/B tests with a built-in drag-and-drop editor.", tags: ["Templates","Analytics","A/B Testing"] },
   { icon: MessageSquare, title: "Live Chat",       color: "#8b5cf6", desc: "Engage website visitors in real time. Route conversations to the right rep and log every interaction automatically.", tags: ["Real-time","Auto-route","Transcripts"] },
   { icon: Zap,           title: "Campaigns",       color: "#D4AF37", desc: "Multi-channel campaigns across email and WhatsApp. Set schedules, target segments, and track full ROI.", tags: ["Multi-channel","Scheduling","ROI"] },
   { icon: Inbox,         title: "Unified Inbox",   color: "#00A86B", desc: "One inbox for every channel. No context switching, no missed messages, no dropped conversations ever.", tags: ["All channels","Team view","Tagging"] },
@@ -650,6 +664,22 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             </motion.button>
           </motion.div>
 
+          {/* Watch demo video — YouTube-red play-button convention, not a
+              claimed integration (KVl has no YouTube integration; this is
+              purely the universal "video" visual language). Opens the
+              existing video modal below. */}
+          <motion.button initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.45 }}
+            whileHover={{ scale:1.03 }} whileTap={{ scale:0.97 }}
+            onClick={() => { kvlAnalytics.track("video_click", { location: "hero" }); setVideoOpen(true); }}
+            className="group inline-flex items-center gap-2.5 mb-10 mx-auto text-sm font-semibold transition-colors"
+            style={{ color: T.text2 }}>
+            <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+              style={{ background: YOUTUBE_RED, boxShadow: `0 4px 16px ${YOUTUBE_RED}55` }}>
+              <Play size={13} className="text-white ml-0.5" fill="white" />
+            </span>
+            Watch 90-sec Demo
+          </motion.button>
+
           {/* Trust row */}
           <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.6 }}
             className="flex flex-wrap items-center justify-center gap-6 text-xs mb-20" style={{ color: T.text3 }}>
@@ -843,7 +873,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           {[
             { name:"Sarah Chen",  role:"VP Sales, TechFlow Inc",    img:"https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=64&h=64&fit=crop&q=80", company:"TechFlow Inc", metric:"40%", metricLabel:"Faster closings", color:"#00A86B", quote:"Our pipeline is 3× larger. The revenue intelligence paid for itself in week one.", industry:"B2B SaaS · 25 reps" },
             { name:"Priya Patel", role:"Head of Revenue, CloudScale",img:"https://images.unsplash.com/photo-1580489944761-15a19d654956?w=64&h=64&fit=crop&q=80", company:"CloudScale",  metric:"$180K",metricLabel:"Churn prevented",  color:"#8b5cf6", quote:"The churn risk AI caught our biggest account 2 weeks before we would have noticed.", industry:"Cloud Infrastructure · 15 reps" },
-            { name:"James Okafor",role:"CEO, RetailPro",             img:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop&q=80", company:"RetailPro",   metric:"2.8×", metricLabel:"WhatsApp ROI",   color:"#D4AF37", quote:"WhatsApp CRM changed everything. 95% open rates vs 22% on email. Night and day.", industry:"Retail Technology · 40 reps" },
+            { name:"James Okafor",role:"CEO, RetailPro",             img:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop&q=80", company:"RetailPro",   metric:"2.8×", metricLabel:"WhatsApp ROI",   color:WHATSAPP_GREEN, quote:"WhatsApp CRM changed everything. 95% open rates vs 22% on email. Night and day.", industry:"Retail Technology · 40 reps" },
           ].map((c, i) => (
             <FadeIn key={c.name} delay={i*0.1}>
               <motion.div whileHover={{ y:-5 }} transition={{ duration:0.2 }}

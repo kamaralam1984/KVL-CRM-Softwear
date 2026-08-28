@@ -93,7 +93,7 @@ export async function sendReviewRequest(
   if (!phone) return { ok: false };
 
   const message = `Thanks for being a customer! We'd love a quick review: ${reviewLink}`;
-  const result = isWhatsAppConfigured() ? await sendWhatsApp(phone, message) : await sendSms(phone, message);
+  const result = isWhatsAppConfigured() ? await sendWhatsApp(phone, message) : await sendSms(phone, message, "review_request");
 
   try {
     const db = getServerClient();

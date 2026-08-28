@@ -186,3 +186,280 @@ Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 98/98,
 
 ## Not achievable by code alone
 See the full table in the approved plan (`~/.claude/plans/graceful-foraging-kite.md`) — WhatsApp Business approval, Meta/Google Business API review, native app store distribution, SMS carrier registration, etc. Each is called out again in this doc as the phase that needs it is reached.
+
+---
+
+# Phase 35–40 — Closing the Final 6 GHL Gaps
+
+Continues the same table/rules. Full context and per-phase design:
+`~/.claude/plans/graceful-foraging-kite.md`. Order: 35, 37, 39, 36 (🔴), 40, 38 (🔴).
+
+| # | Capability | Module | Status | Notes |
+|---|-----------|--------|--------|-------|
+| 35 | Real Twitter/X Publishing + honest YouTube removal | `lib/social/publish.ts`, `lib/social/twitterOAuth.ts` | 🟢 done | Real OAuth 1.0a (hand-rolled HMAC-SHA1, no SDK) `POST /2/tweets`, gated on `TWITTER_API_KEY/SECRET` + `TWITTER_ACCESS_TOKEN/SECRET`. Twitter un-suppressed from `Social.tsx`'s composer/analytics (was previously hidden even though slated to become real). YouTube removed entirely — Data API v3 is upload-only, there is no public API for a short text "Community" post, so rather than leave it as the one silently-mocked-but-still-selectable platform (a real inconsistency the gap-check found: Twitter was hidden, YouTube wasn't, both equally fake), it's honestly gone from `PLATFORM_CFG`/`SocialPlatform` rather than faked. |
+| 37 | SMS DLT-Compliant Template Scaffolding | `lib/actions/smsTemplates.ts`, `lib/messaging/send.ts` | 🟢 done | New `sms_templates` table + a Settings → Communication "DLT Templates" tab where the user records their carrier-approved entity/template IDs once real DLT registration is complete externally. `sendSms(to, body, templateKey)` now logs which approved template an SMS was sent under for audit trail — never blocks sending on a missing/unapproved template. Wired into the 3 existing SMS senders: missed-call auto-reply, review request, birthday wish. |
+| 39 | Production Hardening & Observability | `instrumentation.ts`, `instrumentation-client.ts`, `app/global-error.tsx`, `app/api/health/route.ts` | 🟢 done | Sentry error capture wired via Next's own documented hooks (`instrumentation.ts` server init, `instrumentation-client.ts` browser init, `app/global-error.tsx` top-level boundary) — fully gated on `NEXT_PUBLIC_SENTRY_DSN`, silently off otherwise. New `/api/health` (DB-ping liveness check) for an external uptime service to poll. **Real bug fixed**: `app/api/integrations/razorpay/webhook/route.ts` had HMAC signature verification but zero rate limiting — added the same `rateLimit()` call the Twilio inbound routes already use. |
+| 36 | Affiliate Payout Automation (Razorpay Route) | `lib/payments/razorpayRoute.ts`, `lib/actions/affiliates.ts` | 🟢 done | 🔴 CHECKPOINT phase. Real RazorpayX Contact → Fund Account (UPI VPA) → Payout REST calls, a third distinct Razorpay credential set (`RAZORPAYX_KEY_ID/SECRET` + `RAZORPAYX_ACCOUNT_NUMBER`) alongside the existing Orders key pair and Connect OAuth credential — never conflated. `Affiliates.tsx` gained a "Payout Details (UPI)" card per affiliate; "Pay Commission" tries the real RazorpayX transfer first and transparently falls back to the existing manual ledger mark whenever RazorpayX isn't configured or that affiliate has no saved fund account yet — a single smart handler rather than the client needing to know server config ahead of time. |
+| 40 | Public API + Outbound Webhooks (Marketplace Foundation) | `app/api/v1/*`, `lib/webhooks/dispatch.ts`, `lib/actions/{apiKeys,webhooks}.ts`, `components/crm/sections/Developers.tsx` | 🟢 done | New section (didn't exist before). Real, sha256-hashed API keys (shown once at creation, never persisted in plaintext) authenticate `/api/v1/{leads,contacts,deals}` GET/POST — reuses the exact same `getLeads`/`createLead` etc. the core CRM UI already calls, no parallel data path. Real outbound webhooks: HMAC-SHA256-signed POST fired on `lead.created`/`deal.won`/`order.paid`, with a 2-attempt backoff + a `webhook_deliveries` log. New `"developers"` RBAC resource — deliberately Admin/Super-Admin-only (API keys grant programmatic CRM access). **Explicitly scoped**: this ships marketplace infrastructure, not GoHighLevel's actual app-catalog scale — that comes from years of external developer adoption no code can manufacture. |
+| 38 | Native App Shell (Capacitor Hybrid Wrap) | `capacitor.config.ts`, `android/`, `ios/` | 🟢 done | 🔴 CHECKPOINT phase, last of the 6. Real `android/` and `ios/` native projects via `@capacitor/{core,cli,android,ios}`, configured in **remote/hybrid mode** — the native WebView loads `https://crm.kvlbusinesssolutions.com` live rather than bundling a static export (confirmed not viable: 39 `app/api/**` routes + 45 `"use server"` files). Fixed the PWA icon gap first: generated real `192×192`/`512×512`/maskable PNGs from the existing 245×245 logo (upscaled — a higher-res source logo would look sharper) and wired them into `manifest.json`. Hand-generated the full native icon sets too (Android's 5 mipmap densities × legacy/round/adaptive-foreground, iOS's single 1024×1024) directly with Pillow rather than adding `@capacitor/assets` (see Verified below — that package jumped `npm audit` from 6 to 12 findings including 1 critical, rejected on the same "zero new findings" bar every other dependency in this roadmap was held to). |
+
+## Verified (Phase 35)
+- `npx tsc --noEmit` — clean (fixed one real type error: `headerParams` needed an explicit `Record<string, string>` annotation for the spread-in `oauth_signature` key).
+- `npm run lint` — 185 problems, unchanged (the only findings inside `Social.tsx` are pre-existing, unrelated to this change: an already-unused `TrendingUp` import, an already-unused `onPreFill` prop, and a pre-existing ternary-as-statement in `togglePlatform`).
+- `npm test` — 102/102 passing (98 prior + 4 new in `lib/social/twitterOAuth.test.ts`: header format, per-call nonce/timestamp freshness, missing-credential → null, `isTwitterConfigured` partial-credential case). `lib/social/publish.test.ts`'s twitter case re-verified against the real function (still mocks correctly with no env keys set in the test environment).
+- **Not achievable by code alone**: Twitter API v2 write access requires a paid Basic tier (~$100/month) — the code path is real and ready, but posting will only actually work once the user activates that paid tier and sets the 4 `TWITTER_*` env vars. Flagged to the user; not implied as free or already active.
+
+## Verified (Phase 37)
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — 185 problems, unchanged (the two findings inside the touched `Settings.tsx` — an unused `Lock` import, a setState-in-effect at the pre-existing Razorpay-callback handler — are both pre-existing, not introduced by this phase).
+- `npm test` — 104/104 passing (102 prior + 2 new in `lib/messaging/send.test.ts`, confirming `sendSms` never throws with or without a `templateKey`, both configured-nothing paths). `smsTemplates.ts` itself has no dedicated test file, matching the established "thin Supabase CRUD" no-forced-test convention (same as every `lib/actions/*.ts` file in this codebase).
+- `sms_templates` table verified by review only (idempotent `create table if not exists` + inline composite unique), not applied to a live database in this environment.
+- **Not achievable by code alone**: actual DLT entity/template registration (PAN, GST, Letter of Authorization, a specific telecom's DLT portal) is a pure external administrative process — this phase only gives the user somewhere to record the result once they've done it.
+
+## Verified (Phase 39)
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — 185 problems, unchanged.
+- `npm test` — 104/104 passing, unchanged (instrumentation/global-error/health are thin infra wiring, matching the established no-forced-test convention for that shape of code — same as every webhook route in this codebase, which are "curl a synthetic request" verified rather than unit-tested).
+- `npm run build` — full production build succeeded, `/api/health` present in the route manifest, no Sentry/instrumentation build errors (Next 16 needs no `experimental.instrumentationHook` flag — enabled by default since Next 15).
+- **Real smoke test against the live Supabase project**: started the built app locally (`npm start`), curled `/api/health` — `HTTP 200`, `{"ok":true,"dbOk":true,...}`, confirming a genuine round-trip against the real `tbkfldydmgkjylwtowpr` Supabase project already configured in `.env.local`. Server was stopped immediately after.
+- `@sentry/nextjs@10.20.0` (approx.) installed; `npm audit` checked — contributes zero new findings (same 6 pre-existing unrelated toolchain advisories: `next`/`postcss`/`sharp`/`@babel/core`/`js-yaml`/`brace-expansion`, all present before this phase).
+- **Scoping note**: this phase intentionally does NOT wire the full Sentry build-time source-map-upload pipeline (`withSentryConfig` in `next.config.ts`, `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN`) — that needs extra CI secrets and would risk breaking the build if misconfigured. Error capture works fully with just `NEXT_PUBLIC_SENTRY_DSN`; stack traces just won't be source-mapped back to original TypeScript until the user optionally sets that up later.
+- **Honesty note carried from the plan**: this phase improves engineering readiness (error visibility, abuse protection on the money-movement webhook, a real health signal) — it does not and cannot manufacture years of real production traffic across many agencies, which is what "maturity/scale" actually means. Not claimed as closed here.
+- **Not achievable by code alone**: point an external uptime service (e.g. UptimeRobot, free tier) at `/api/health` — polling it from inside this app wouldn't catch the app itself being down. A free Sentry account (2-minute signup) is needed to get a `NEXT_PUBLIC_SENTRY_DSN` value in the first place.
+
+## Verified (Phase 36)
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — 185 problems, unchanged. Caught and fixed one real setState-in-effect error introduced while building this (`Affiliates.tsx` was syncing `vpaInput`/`vpaSaved` directly inside the `[selected]` effect) — refactored into a `selectAffiliate()` helper called from every place selection changes (initial load, create, list click) instead, matching the same fix pattern already used for this exact lint rule in Phase 29's `Membership.tsx`.
+- `npm test` — 108/108 passing (104 prior + 4 new in `lib/payments/razorpayRoute.test.ts`: unconfigured-check, fund-account mock, payout mock, and the mock-fund-account short-circuit inside `createPayout`).
+- `npm run build` — full production build succeeded with the updated `Affiliates.tsx`.
+- `affiliates.payout_vpa/razorpayx_contact_id/razorpayx_fund_account_id` and `affiliate_commissions.razorpayx_payout_id` columns verified by review only (idempotent `add column if not exists`), not applied to a live database in this environment.
+- **Not achievable by code alone**: real automated payouts need the user's own Razorpay Route product approval plus per-payee KYC from Razorpay — the exact same external dependency this phase's payout code was built ready for, not newly introduced by it.
+
+## Verified (Phase 40)
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — 185 problems, unchanged (caught and fixed one new ternary-as-statement warning in `Developers.tsx`'s `toggleEvent` before finalizing — same lint rule class as the pre-existing ones elsewhere in this codebase).
+- `npm test` — 113/113 passing (108 prior + 5 new: `lib/webhooks/dispatch.test.ts` confirms `dispatchWebhookEvent` never throws for any event type with no Supabase configured; `lib/apiKeys/auth.test.ts` confirms `authenticateApiKey` rejects a missing header, a non-Bearer header, and a well-formed-but-unknown key — using a real `NextRequest` instance, not a mock).
+- `npm run build` — full production build succeeded, `/api/v1/{leads,contacts,deals}` all present in the route manifest.
+- **Real smoke test against the live Supabase project**: started the built app (`npm start`), curled `/api/v1/leads` with no `Authorization` header → `HTTP 401 {"error":"unauthorized"}`; with a well-formed-but-fake bearer key → `HTTP 401 {"error":"unauthorized"}` (a genuine round-trip that queried the real `api_keys` table and correctly found no match, not a crash); `/api/health` → `HTTP 200 {"ok":true,"dbOk":true,...}`. Server stopped immediately after.
+- `api_keys`/`webhooks`/`webhook_deliveries` tables verified by review only (idempotent `create table if not exists`), not applied to a live database in this environment.
+- New `"developers"` RBAC resource added to `lib/security/rbac.ts`'s `RESOURCES` — deliberately given no explicit grant in Manager/Marketing/Finance/Support/Viewer (missing entry = denied by default); Admin gets it via its existing wildcard CRUD grant, Super Admin via its omnipotent-role bypass. Confirmed by code review, matching the existing test coverage pattern for `rbac.test.ts` (no new test added since the mechanism itself — missing-entry-denies — is already covered there for other resources).
+- **Not achievable by code alone**: the actual marketplace/ecosystem advantage GoHighLevel has — hundreds of 3rd-party apps built by external developers and discovered by agencies — requires years of adoption this phase's infrastructure makes possible but cannot itself create.
+
+## Verified (Phase 38)
+- `npx tsc --noEmit` — clean (`capacitor.config.ts` type-checks against `@capacitor/cli`'s `CapacitorConfig` type).
+- `npm run lint` — 185 problems, unchanged (native `android/`/`ios/` project files are Kotlin/Swift/XML/Gradle, entirely outside this repo's ESLint globs).
+- `npm test` — 113/113 passing, unchanged (this phase is config/scaffolding/static assets, matching the same "verified by code review, not a forced test" convention Phase 34's PWA work already used).
+- `npm run build` — full production build succeeded, confirming the native project folders don't interfere with the Next.js build.
+- `npx cap doctor` — confirmed `@capacitor/{cli,core,android,ios}@8.5.0` (latest) installed correctly; correctly reported `Xcode is not installed` (expected and unavoidable — this sandbox is Linux; building/archiving the iOS app requires an actual Mac, same as any iOS app in existence, not a limitation this repo introduces).
+- `npx cap add android` / `npx cap add ios` / `npx cap sync` all ran cleanly, generating real Gradle/Xcode project structures (not placeholder stubs) with correct `appId` (`com.kvlbusinesssolutions.crm`) and `appName` (`KVl CRM`) propagated into `android/app/build.gradle`, `android/app/src/main/res/values/strings.xml`, and `ios/App/App.xcodeproj/project.pbxproj`.
+- **Dependency decision, documented**: `@capacitor/assets` (the official icon/splash generator) was installed, checked, and DELIBERATELY REMOVED — `npm audit` jumped from 6 findings to 12 (including 1 critical, up from 0 critical), a real regression against the "zero new findings" bar held throughout this entire roadmap. Generated all native icon assets by hand instead: Android's 5 mipmap densities (`ic_launcher`/`ic_launcher_round`/`ic_launcher_foreground`, exact pixel dimensions matched to Capacitor's own template output) and iOS's single 1024×1024 App Store icon (alpha-flattened — Apple rejects icons with transparency), all via Pillow (Python), not a new npm dependency. `@capacitor/{core,cli,android,ios}` themselves added 3 new moderate findings (`@capacitor/cli`→`xcode`→`uuid`, a missing-bounds-check advisory that only triggers when a caller supplies uuid's `buf` param — not something this codebase's usage path does; a devDependency never in the shipped server bundle) — accepted as low real-world risk, same tier as the pre-existing next/postcss/sharp/babel/js-yaml/brace-expansion advisories.
+- **Not achievable by code alone**: this delivers ready-to-submit native projects, not live store listings. Actual App Store/Play Store distribution needs an Apple Developer Account ($99/yr), a Google Play Developer Account ($25 one-time), code signing certificates, and each store's own review process (Apple's can take days and can reject) — all 100% external/manual, none of it something this repo can do.
+
+---
+
+## Post-Phase-40 gap check
+
+Same independent-audit convention as the earlier post-Phase-34 round: 3 dispatched
+agents (schema idempotency, dead-code/registration, security/RBAC on the new public
+API) — not trusting this doc's own 🟢 claims. Found and fixed:
+
+- **RBAC "developers" gate was soft-mode-bypassable — a real, high-severity gap.**
+  `assertCan`'s Phase-18 soft mode (missing token ⇒ allow + warn) is a deliberate
+  incremental-rollout choice for ordinary CRUD, but `lib/actions/apiKeys.ts` and
+  `lib/actions/webhooks.ts` are `"use server"` functions — directly callable RPC
+  endpoints once a page referencing them has loaded, no cookie required. An
+  unauthenticated caller omitting `accessToken` could have minted a live API key
+  (full `/api/v1/{leads,contacts,deals}` read/write) or registered a webhook to
+  their own server. **Fixed**: new `assertCanStrict()` in
+  `lib/security/requireAction.ts` — denies outright when no token is presented,
+  used only by the two Developers action files (every other action keeps
+  `assertCan`'s existing soft mode; this is a scoped, documented exception for a
+  resource whose actions mint standing credentials, not a broader RBAC rewrite).
+- **Unmitigated SSRF via user-supplied webhook `endpoint_url` — genuinely new risk
+  class.** Confirmed by audit: this is the first user-supplied-URL fetch anywhere
+  in this codebase (every other server-side fetch targets a fixed/env-configured
+  host), so it didn't actually match the "same risk class as existing integration
+  secrets" the original code comment claimed. **Fixed**: new
+  `lib/security/ssrfGuard.ts` resolves the hostname and rejects loopback/private/
+  link-local targets (including the `169.254.169.254` cloud-metadata address) —
+  checked both when a webhook is created AND again at dispatch time (DNS can
+  change between those two moments — rebinding), fails closed on any resolution
+  error.
+- **`getWebhookDeliveries` was exported but never called from any UI** — same
+  dead-code class the earlier gap-check round found (`sendReviewRequest`,
+  `updateProduct`/`deleteProduct`). **Fixed**: wired into a real expand-on-click
+  delivery-history log per webhook in `Developers.tsx`.
+- **`social_posts.platform`'s check constraint still listed `'youtube'`** after
+  Phase 35 removed it from the app's `SocialPlatform` type — harmless (the app can
+  no longer insert that value) but stale. **Fixed**: tightened both the table
+  definition and an idempotent `alter table ... drop/add constraint` for
+  already-existing databases.
+- **Minor consistency fix**: the 3 `app/api/v1/*` GET handlers weren't wrapped in
+  try/catch, unlike their POST siblings. Added for consistency/logging, not a
+  known live bug (the underlying `get*` functions already degrade to seed data on
+  DB error rather than throwing).
+- Everything else the 3 agents checked — schema.sql applied twice in a row
+  against a real throwaway Postgres container (all of it, not just the new
+  tables) with zero errors; every new FK type/reference verified against the
+  live schema; every TypeScript action file cross-checked column-by-column
+  against the actual SQL (zero camelCase/snake_case mismatches); 3-registry
+  section registration for `Developers`; `Affiliates.tsx`'s selection-switch
+  logic; the `Settings.tsx` DLT Templates block's JSX structure — came back
+  clean.
+
+Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 124/124
+(113 prior + 11 new: 3 `assertCanStrict` cases in `requireAction.test.ts`, 8 in
+new `lib/security/ssrfGuard.test.ts`), `npm run lint` 185 (unchanged), and
+`npm run build` succeeds.
+
+---
+
+## Phase 35–40: all 6 complete (35, 37, 39, 36, 40, 38 🟢). Both 🔴 checkpoints (36, 38) cleared, independent gap-check passed with 1 high-severity + several minor findings fixed. Full roadmap (Phase 18–40) is now done — see the "Not achievable by code alone" table above and each phase's own notes for what still needs action outside this repo before a given feature is truly live in production.
+
+---
+
+# Phase 41–44 — Closing the Last 4 GHL Gaps
+
+A user-supplied GHL "Get more leads in the door" feature screenshot was checked item-by-
+item against the real codebase (not assumptions). 4 items came back real-but-partial or
+fully absent: Voice AI (never places a real call), Forms/Surveys/Quizzes (one hardcoded
+marketing quiz, no builder), Call Tracking (only missed-call-text-back exists), Social DMs
+(Instagram/Messenger channel values reserved in schema but never implemented). Full
+context and per-phase design: `~/.claude/plans/graceful-foraging-kite.md`.
+Order: 42, 43, 41, 44 (🔴).
+
+| # | Capability | Module | Status | Notes |
+|---|-----------|--------|--------|-------|
+| 42 | Social DMs (Instagram + Messenger) | `app/api/meta/inbound/route.ts`, `lib/messaging/{metaSignature,send}.ts` | 🟢 done | Real inbound webhook — GET handshake (`hub.challenge`) + POST event delivery, HMAC-SHA256 `X-Hub-Signature-256` verified (new `lib/messaging/metaSignature.ts`, structurally mirrors `razorpay.ts`'s webhook verify). Real outbound send via Graph API's Send API (`sendInstagramDm`/`sendMessengerMessage`), reusing the exact `META_PAGE_ACCESS_TOKEN`/`META_PAGE_ID`/`META_INSTAGRAM_USER_ID` env vars `lib/social/publish.ts` already uses for posting — same credential, a different endpoint. Closes the literal stub in `conversations.ts::sendMessage()` ("isn't wired to a real send yet"). `KVlHelpdesk.tsx`'s `LiveChatTab` (already reading real `conversations`/`messages`) now also lists and replies to Instagram/Messenger threads with a small channel badge, not just webchat — no new inbox UI built. No identity resolution on inbound (a DM sender's PSID/IGSID carries no phone/email, and `resolveIdentity()` requires one — same honest gap webchat's own inbound route already has). |
+
+## Verified (Phase 42)
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — 185 problems, unchanged.
+- `npm test` — 133/133 passing (124 prior + 9 new: 6 in `lib/messaging/metaSignature.test.ts` covering correct/tampered/wrong-secret/missing/malformed-prefix/unconfigured signature cases, 3 in `lib/messaging/send.test.ts` covering `sendInstagramDm`/`sendMessengerMessage` mock fallback + `isMetaMessagingConfigured`).
+- `npm run build` — full production build succeeded, `/api/meta/inbound` present in the route manifest.
+- `conversations`/`messages` schema needed no changes — `instagram`/`messenger` channel values were already present in the check constraint from Phase 21, confirmed by the pre-work audit; this phase is pure application-code wiring.
+- **Not achievable by code alone**: real production use needs Meta App Review for the `pages_messaging`/`instagram_manage_messages` permissions — Meta manually reviews new messaging-API access requests, can take weeks and isn't guaranteed, same risk class already flagged for Phase 26's Google Business review and Phase 25's Meta post-publish permissions.
+
+| # | Capability | Module | Status | Notes |
+|---|-----------|--------|--------|-------|
+| 43 | Forms, Surveys & Quiz Builder | `components/crm/sections/Forms.tsx`, `lib/forms/fields.ts`, `lib/actions/forms.ts`, `app/forms/[slug]` | 🟢 done | New section, new `forms`/`form_submissions` tables — deliberately separate from Phase 24's funnel builder (a form/quiz needs to exist standalone, matching GHL, not only nested in a funnel page). One typed field model (`text/email/phone/textarea/select/radio/checkbox/rating`) covers form, survey, and quiz — a `scoreWeight` on an option is what turns a survey into a scored quiz, generalizing the hardcoded `recommendPlan()` pattern already in `components/marketing/Quiz.tsx`. Builder reuses the exact `@dnd-kit` sortable pattern proven in `KVlPages.tsx`, but as a simpler linear field list, not a free-form canvas. New `form_submission` leadgen source feeds real respondents (with an identifiable name/email/phone) into the existing pipeline, mirroring `webForm.ts`'s poll-and-mark-processed shape. The existing hardcoded `/quiz` marketing page and `Quiz.tsx` are untouched — this adds a general-purpose builder alongside them, not a replacement. |
+
+## Verified (Phase 43)
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — 185 problems, unchanged.
+- `npm test` — 143/143 passing (133 prior + 10 new in `lib/forms/fields.test.ts`: every field type has a working default, unique ids, options-vs-no-options per type, and 8 `computeScore`/`matchScoreBand` cases covering single/multiple selections, mixed field types, no-answer, unmatched-value, and score-band matching/no-match).
+- `npm run build` — full production build succeeded, `/forms/[slug]` present in the route manifest.
+- `forms`/`form_submissions` schema verified by review only (idempotent `create table if not exists` + composite unique on `(site_id, slug)`), not applied to a live database in this environment.
+- **Not achievable by code alone**: none — this phase is fully code-completable, no external approval or paid tier required (unlike the other 3 phases in this round).
+
+| # | Capability | Module | Status | Notes |
+|---|-----------|--------|--------|-------|
+| 41 | Call Tracking (Dynamic Number Insertion) | `lib/telephony/numbers.ts`, `lib/actions/callTracking.ts`, `app/api/telephony/{inbound-call,call-status}` | 🟢 done | New `tracking_numbers`/`call_logs` tables. Real Twilio `IncomingPhoneNumbers` search-and-buy REST call (mock-assigns a fake number when unconfigured). Every call to a tracking number gets attributed to its campaign by reusing the EXACT `recordSessionStart` + `recordTouchpoint` calls Phase 22's missed-call route already makes (no new attribution primitive), is logged to `call_logs`, then forwarded via TwiML `<Dial>` — the caller's experience never changes. A second `call-status` webhook (Twilio's `statusCallback`) fills in final duration/recording once the call ends. New Marketing → "Call Tracking" tab: provision a number, see the pool, see recent calls. |
+
+## Verified (Phase 41)
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — 185 problems, unchanged.
+- `npm test` — 146/146 passing (143 prior + 3 new in `lib/telephony/numbers.test.ts`: configured-check, mock-number format, and mock-id uniqueness across calls).
+- `npm run build` — full production build succeeded, `/api/telephony/inbound-call` and `/api/telephony/call-status` both present in the route manifest.
+- `tracking_numbers`/`call_logs` schema verified by review only (idempotent `create table if not exists`, FK types checked against `campaigns.id bigserial`), not applied to a live database in this environment.
+- **Not achievable by code alone**: buying real phone numbers costs a recurring per-number monthly fee from Twilio — flagged directly in the "Call Tracking" tab's own UI copy, not silently implied as free. India-specific virtual numbers additionally carry extra regulatory/KYC requirements beyond what this US-focused `IncomingPhoneNumbers` search covers.
+
+| # | Capability | Module | Status | Notes |
+|---|-----------|--------|--------|-------|
+| 44 | Voice AI Live Audio Bridge | `voice-relay/server.js`, `lib/voice/providers.ts` | 🟢 done | 🔴 CHECKPOINT phase, last of the whole roadmap. New **standalone** Node process (plain JS, `voice-relay/server.js` — deliberately NOT part of the Next.js app, since a stock `next start` deployment has no WebSocket-upgrade-handling server) bridges Twilio Media Streams ↔ OpenAI's Realtime API. Both sides speak `g711_ulaw` — no manual PCM transcoding needed, just re-wrapping the same base64 audio payload in each side's own JSON envelope. `lib/voice/providers.ts::initiateCall()`'s `twilio` branch now genuinely places a call (Twilio Calls API + inline `<Connect><Stream>` TwiML) instead of just acknowledging the credential — gated on **both** Twilio creds **and** `VOICE_RELAY_WSS_URL` (a real call with nowhere for its audio to go would be worse than an honest mock). `openai_realtime`/`elevenlabs` alone still only acknowledge + queue, correctly — neither has a telephony carrier of its own; the `twilio` path is what carries their audio. Reuses Phase 41's `call_logs` table (new `is_ai_call`/`ai_provider`/`ai_transcript` columns) rather than a parallel one — the relay's `finalize()` updates the row by `provider_call_sid` once a call ends. |
+
+## Verified (Phase 44)
+- `npx tsc --noEmit` — clean (`voice-relay/server.js` is plain `.js`, outside `tsconfig.json`'s `include` globs — same reasoning as `android/`/`ios/`).
+- `npm run lint` — 185 problems, unchanged (`voice-relay/**` added to `eslint.config.mjs`'s `globalIgnores` — it's a standalone deployed script, not part of the app bundle, same treatment as the native app folders).
+- `npm test` — 151/151 passing (146 prior + 5 new in `lib/voice/providers.test.ts`, specifically covering the new gating logic: missing-`to` never throws, mock-when-no-creds, `openai_realtime` correctly queues-not-places even with a key, and — the actual gap-check-relevant cases — `twilio` provider mocks when Twilio creds are set but `VOICE_RELAY_WSS_URL` isn't, and vice versa).
+- `npm run build` — full production build succeeded; `voice-relay/server.js` correctly does not appear in the Next.js route manifest (it's not part of that app).
+- **Real smoke test of the relay itself**: started `voice-relay/server.js` locally (`node voice-relay/server.js`), curled its health endpoint (`HTTP 200 "voice-relay ok"`), and opened a real WebSocket connection to `/voice-stream` from a separate Node script — confirmed the server accepts the upgrade and, with `OPENAI_API_KEY` intentionally unset, logs the expected error and closes the connection cleanly rather than crashing. Process stopped immediately after.
+- `ws`/`@types/ws` installed; `npm audit` checked before and after — 9 findings both times (0 new): the pre-existing 6 (next/postcss/sharp/babel/js-yaml/brace-expansion) plus the 3 moderate `@capacitor/cli`→`xcode`→`uuid` findings already accepted and documented in Phase 38.
+- `call_logs.is_ai_call`/`ai_provider`/`ai_transcript` columns verified by review only (idempotent, part of the table's original `create table if not exists` from Phase 41 — no separate `alter table` needed since this table didn't exist before that phase), not applied to a live database in this environment.
+- **Not achievable by code alone / real recurring cost, explicitly flagged**: OpenAI Realtime API and Twilio Voice + Media Streams both bill per-minute, meaningfully more than a normal LLM text call — an ongoing operating cost once live, not a one-time fee. **Deployment** (code-ready, VPS commands not run by Claude — no direct VPS access, same constraint as every other phase in this roadmap):
+  ```bash
+  # On the VPS, inside /var/www/kvl-crm, after the usual git pull + npm install:
+  pm2 start voice-relay/server.js --name kvl-voice-relay --node-args="--env-file=.env.local"
+  pm2 save
+  ```
+  Then add a new `location` block to the **existing** `crm.kvlbusinesssolutions.com` Nginx site file (its own config — no other site's file is touched):
+  ```nginx
+  location /voice-stream {
+      proxy_pass http://127.0.0.1:4001;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_set_header Host $host;
+  }
+  ```
+  `nginx -t` before `systemctl reload nginx` (reload, never restart — same discipline the deploy skill always uses). Finally set `VOICE_RELAY_WSS_URL=wss://crm.kvlbusinesssolutions.com/voice-stream` **and** a real random `VOICE_RELAY_SHARED_SECRET` (e.g. `openssl rand -hex 32`) in `.env.local`, then restart `kvl-crm` so the main app picks both up — both env vars are required (see the gap-check section below for why the secret specifically is not optional).
+
+---
+
+## Post-Phase-44 gap check
+
+Same independent-audit convention as the prior two rounds: 3 dispatched agents (schema
+idempotency, dead-code/registration, security) — not trusting this doc's own 🟢 claims.
+Found and fixed:
+
+- **CRITICAL — the voice-relay WebSocket had zero authentication.** Confirmed by the audit
+  and by a real live test against a running instance of `voice-relay/server.js`: *any*
+  client that discovered or guessed the `wss://` URL could open a connection, and the
+  server would immediately open a real, billed OpenAI Realtime session with the deployer's
+  own `OPENAI_API_KEY` — no check that the caller was actually Twilio. Worse, `finalize()`
+  updated `call_logs` by trusting a `callSid` read straight from the untrusted client's own
+  `start` message, so an attacker who knew or guessed a real `provider_call_sid` could
+  overwrite that call's logged transcript/status. **Fixed** with two layers: (1) a
+  `VOICE_RELAY_SHARED_SECRET` token required in the connection URL's query string, checked
+  with a constant-time compare *before anything else happens on the connection* — a
+  missing/invalid token now closes the socket (code 1008) before the code path that would
+  ever touch OpenAI; (2) the OpenAI Realtime session is no longer opened at connection
+  time at all — it's now deferred until Twilio's `start` event arrives with a `callSid`
+  that's confirmed, via a live Supabase lookup, to match a real `call_logs` row this
+  process itself created via `lib/voice/providers.ts::placeTwilioStreamCall` for an actual
+  outbound call. `initiateCall()`'s `twilio` provider path now also requires
+  `VOICE_RELAY_SHARED_SECRET` to be set (not just the WSS URL) before attempting a real
+  call — placing a real, billed call that the relay would then refuse to bridge would be
+  worse than an honest mock. Re-verified live: no-token and wrong-token connections are
+  now rejected in milliseconds with close code 1008, confirmed via a real WebSocket client
+  against a running instance of the updated server.
+- **HIGH — `submitForm()` (a genuinely public, unauthenticated write path) had no rate
+  limiting**, unlike every comparable public write path in this codebase (`app/api/webchat/
+  message`, `app/api/analytics/collect`). **Fixed**: added `rateLimit()` keyed by client IP
+  (read via `next/headers`'s `headers()`, since a Server Action has no `NextRequest` to
+  pull an IP from the way an API route does).
+- **MEDIUM — no size/length bounds on a form submission's `answers`.** A visitor could POST
+  an arbitrarily large JSON blob repeatedly. **Fixed**: a new `sanitizeAnswers()` truncates
+  each answer to 2000 characters (arrays to 50 items) and caps total fields per submission
+  at 100 — same truncation discipline `app/api/analytics/shared.ts`'s `str()` already uses
+  elsewhere in this codebase.
+- **Real bug — `Forms.tsx`'s "Publish" button silently no-op'd on a brand-new form's first
+  click.** A stale-closure bug: `publish()` awaited `save()` then read the *component's own*
+  `form.id` prop, which for a never-before-saved form was still stuck on the local
+  `"draft-..."` placeholder even after `save()` had already persisted a real row — so the
+  form saved but never actually published until a second click. **Fixed**: `save()` now
+  returns the saved row, and `publish()` uses that return value directly instead of the
+  stale closure.
+- **Dead code found and wired in**: `lib/telephony/numbers.ts::isTwilioNumberProvisioningConfigured`
+  was exported but only ever referenced by its own test file. **Fixed**: a new
+  `isTelephonyConfigured()` server-action wrapper in `lib/actions/callTracking.ts` (the
+  underlying function reads `process.env` directly, so it can never be imported into
+  `Marketing.tsx`'s client component without the exact env-var-leak bug class this
+  codebase has guarded against all along) — `CallTrackingTab` now shows a real "Twilio
+  Connected" / "Twilio Not Configured — will mock" badge before the user tries
+  provisioning a number, instead of only finding out after the fact.
+- Everything else the 3 agents checked came back clean: `forms`/`form_submissions`/
+  `tracking_numbers`/`call_logs` schema applied twice in a row against a real throwaway
+  Postgres container with zero errors (including confirming Phase 44's `is_ai_call`/
+  `ai_provider`/`ai_transcript` columns really do live inside Phase 41's original
+  `call_logs` table, not a separate `alter table`); every FK type/reference verified
+  against the live schema; every TypeScript file cross-checked column-by-column against
+  the actual SQL; `Forms`/`Developers` 3-registry section registration; `KVlHelpdesk.tsx`'s
+  multi-channel `LiveChatTab` send-routing logic; the Meta inbound webhook's
+  signature-verification ordering and fail-closed behavior; the Twilio telephony routes'
+  signature verification and rate limiting.
+
+Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 152/152 (151 prior
++ 1 new covering the `VOICE_RELAY_SHARED_SECRET` gating), `npm run lint` 185 (unchanged),
+`npm run build` succeeds, and a real live WebSocket client confirmed the relay's new
+auth-rejection behavior against a running instance of the updated server.

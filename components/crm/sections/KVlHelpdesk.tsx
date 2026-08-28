@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "@/components/ui/modal";
-import { getConversations, getMessages, sendWebchatAgentReply } from "@/lib/actions/conversations";
+import { getConversations, getMessages, sendWebchatAgentReply, sendMessage, type Channel } from "@/lib/actions/conversations";
 import { getAccessToken } from "@/lib/security/clientSession";
 import { cn } from "@/lib/utils";
 import {
@@ -49,6 +49,11 @@ interface ChatSession {
   waitTime?: string;
   lastMsg: string;
   time: string;
+  // Phase 42 — Social DMs. Present only on real (non-demo) sessions loaded
+  // from the unified conversations table; undefined ⇒ treat as webchat for
+  // backward compatibility with the pre-existing demo CHAT_SESSIONS below.
+  channel?: Channel;
+  recipientId?: string;
 }
 
 // ── Demo Data ──────────────────────────────────────────────────────────────
@@ -737,13 +742,17 @@ function LiveChatTab() {
   const [isTyping] = useState(true);
   const [chatMessages, setChatMessages] = useState<Record<string, LiveChatMessage[]>>({});
 
-  // Load real webchat conversations (public/kvl-chat.js visitors) on mount.
-  // Falls back to the demo CHAT_SESSIONS above when there are none yet —
-  // same "real when present, else the existing demo" convention as every
-  // other section.
+  // Load real conversations on mount — webchat (public/kvl-chat.js visitors)
+  // plus, since Phase 42, real Instagram/Messenger DMs. Falls back to the
+  // demo CHAT_SESSIONS above when there are none yet — same "real when
+  // present, else the existing demo" convention as every other section.
   useEffect(() => {
-    getConversations("webchat", getAccessToken()).then((rows) => {
-      const real = rows.filter((r) => isRealConversationId(r.id));
+    Promise.all([
+      getConversations("webchat", getAccessToken()),
+      getConversations("instagram", getAccessToken()),
+      getConversations("messenger", getAccessToken()),
+    ]).then(([webchat, instagram, messenger]) => {
+      const real = [...webchat, ...instagram, ...messenger].filter((r) => isRealConversationId(r.id));
       if (!real.length) return;
       const mapped: ChatSession[] = real.map((r) => ({
         id: r.id,
@@ -751,6 +760,8 @@ function LiveChatTab() {
         status: "active",
         lastMsg: "…",
         time: new Date(r.last_message_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        channel: r.channel,
+        recipientId: r.contact_phone,
       }));
       setSessions((prev) => [...mapped, ...prev.filter((s) => !isRealConversationId(s.id))]);
       setActiveChat(mapped[0]);
@@ -791,7 +802,11 @@ function LiveChatTab() {
     setChatMessages((prev) => ({ ...prev, [activeChat.id]: [...(prev[activeChat.id] ?? []), newMsg] }));
     setMsg("");
     if (isRealConversationId(activeChat.id)) {
-      sendWebchatAgentReply(activeChat.id, text, getAccessToken()).catch(() => {});
+      if (activeChat.channel && activeChat.channel !== "webchat") {
+        sendMessage(activeChat.id, activeChat.channel, activeChat.recipientId ?? "", text, getAccessToken()).catch(() => {});
+      } else {
+        sendWebchatAgentReply(activeChat.id, text, getAccessToken()).catch(() => {});
+      }
     }
   }
 
@@ -826,7 +841,15 @@ function LiveChatTab() {
                   <span className="text-xs font-semibold text-slate-200">{c.customer}</span>
                   <span className="text-[10px] text-slate-500">{c.time}</span>
                 </div>
-                <p className="text-[11px] text-slate-500 truncate">{c.lastMsg}</p>
+                <div className="flex items-center gap-1.5">
+                  {c.channel && c.channel !== "webchat" && (
+                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                      style={{ background: c.channel === "instagram" ? "rgba(225,48,108,0.15)" : "rgba(0,132,255,0.15)", color: c.channel === "instagram" ? "#E1306C" : "#0084FF" }}>
+                      {c.channel === "instagram" ? "Instagram" : "Messenger"}
+                    </span>
+                  )}
+                  <p className="text-[11px] text-slate-500 truncate">{c.lastMsg}</p>
+                </div>
               </button>
             ))}
           </div>

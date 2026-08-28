@@ -6,6 +6,8 @@
 // risk. Real when a Page/organization credential is configured, mock
 // (logged) otherwise — never throws.
 
+import { buildTwitterOAuthHeader } from "./twitterOAuth";
+
 export interface SocialPublishResult {
   ok: boolean;
   mock: boolean;
@@ -114,13 +116,44 @@ export async function publishLinkedinPost(content: string): Promise<SocialPublis
   }
 }
 
-export type SocialPlatform = "facebook" | "instagram" | "linkedin" | "twitter" | "youtube";
+// --- TWITTER / X (organic) --------------------------------------------------
+export async function publishTwitterPost(content: string): Promise<SocialPublishResult> {
+  const url = "https://api.twitter.com/2/tweets";
+  const authHeader = buildTwitterOAuthHeader("POST", url);
+  if (!authHeader) return mockResult("twitter", content);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ text: content }),
+    });
+    if (!res.ok) {
+      console.error(`[social] twitter publish HTTP ${res.status}`);
+      return { ok: false, mock: false, detail: `twitter ${res.status}` };
+    }
+    const j = (await res.json()) as { data?: { id?: string } };
+    return { ok: true, mock: false, externalPostId: j.data?.id };
+  } catch (err) {
+    console.error("[social] twitter publish error:", err);
+    return { ok: false, mock: false, detail: String(err) };
+  }
+}
+
+// YouTube deliberately has no publisher: the only public YouTube API is
+// Data API v3, which is video-upload-only — there is no public API for a
+// short text "Community" post (that surface is invite-only for large
+// creators). Rather than fake a "post" that can't exist for this platform,
+// it was removed from SocialPlatform entirely (see Social.tsx) instead of
+// being left as a silently-mocked option next to real channels.
+export type SocialPlatform = "facebook" | "instagram" | "linkedin" | "twitter";
 
 export async function publishSocialPost(platform: SocialPlatform, content: string, mediaUrl?: string): Promise<SocialPublishResult> {
   switch (platform) {
     case "facebook": return publishFacebookPost(content);
     case "instagram": return publishInstagramPost(content, mediaUrl);
     case "linkedin": return publishLinkedinPost(content);
-    default: return mockResult(platform, content); // twitter/youtube: no publisher wired yet, honestly mocked
+    case "twitter": return publishTwitterPost(content);
+    default: return mockResult(platform, content);
   }
 }

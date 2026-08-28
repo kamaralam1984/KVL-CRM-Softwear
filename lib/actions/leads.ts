@@ -1,6 +1,7 @@
 "use server";
 import { getServerClient } from "@/lib/supabase/server";
 import { leads as seedLeads } from "@/lib/data";
+import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
 
 export type Lead = (typeof seedLeads)[number];
 
@@ -28,6 +29,7 @@ export async function createLead(lead: Omit<Lead, "id"> & { site_id?: string }):
     .select()
     .single();
   if (error) throw new Error(error.message);
+  dispatchWebhookEvent("lead.created", data as Record<string, unknown>).catch(() => {});
   return data as Lead;
 }
 

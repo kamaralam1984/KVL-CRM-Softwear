@@ -1,14 +1,22 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Bell, Shield, Palette, Globe, Key, Zap, Database, ChevronRight, ChevronDown, Check, Copy, Eye, EyeOff, Moon, Sun, Building2, Lock, Layers, LogIn, ShieldCheck } from "lucide-react";
+import { User, Bell, Shield, Palette, Globe, Key, Zap, Database, ChevronRight, ChevronDown, Check, Copy, Eye, EyeOff, Moon, Sun, Building2, Lock, Layers, LogIn, ShieldCheck, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 import { downloadCSV } from "@/lib/export";
 import { useTheme } from "@/components/crm/ThemeContext";
 import { startTwoFaEnrollment, confirmTwoFaEnrollment } from "@/lib/actions/twofa";
 import { getRazorpayConnectUrl, disconnectProvider, getConnectedProviders } from "@/lib/actions/integrations";
+import { getSmsTemplates, saveSmsTemplate } from "@/lib/actions/smsTemplates";
 import { getAccessToken } from "@/lib/security/clientSession";
+
+const SMS_TEMPLATE_KEYS: { key: string; label: string }[] = [
+  { key: "missed_call_reply", label: "Missed-Call Auto-Reply" },
+  { key: "review_request", label: "Review Request" },
+  { key: "birthday_wish", label: "Birthday Wish" },
+];
+type SmsTplForm = { dltEntityId: string; dltTemplateId: string; approved: boolean };
 
 const inputCls = "w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-crm-border text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-blue-500/50 transition-colors";
 
@@ -63,6 +71,27 @@ export default function Settings() {
     { name: "Demo Environment", plan: "Growth", active: false },
     { name: "Client Portal — Beta", plan: "Starter", active: false },
   ]);
+
+  // ── DLT Templates (Phase 37 — real, Supabase-backed) ──────────────────────
+  const [smsTemplates, setSmsTemplates] = useState<Record<string, SmsTplForm>>(
+    Object.fromEntries(SMS_TEMPLATE_KEYS.map((t) => [t.key, { dltEntityId: "", dltTemplateId: "", approved: false }])),
+  );
+  const [smsSaved, setSmsSaved] = useState<string | null>(null);
+  useEffect(() => {
+    getSmsTemplates(undefined, getAccessToken()).then((rows) => {
+      setSmsTemplates((prev) => {
+        const next = { ...prev };
+        for (const row of rows) next[row.template_key] = { dltEntityId: row.dlt_entity_id, dltTemplateId: row.dlt_template_id, approved: row.approved };
+        return next;
+      });
+    }).catch(() => {});
+  }, []);
+  const saveSmsTpl = async (key: string) => {
+    const t = smsTemplates[key];
+    await saveSmsTemplate({ templateKey: key, dltEntityId: t.dltEntityId, dltTemplateId: t.dltTemplateId, content: "", approved: t.approved }, getAccessToken());
+    setSmsSaved(key);
+    setTimeout(() => setSmsSaved(null), 2000);
+  };
 
   // ── Two-Factor Authentication (real RFC 6238 TOTP via lib/security/twofa.ts) ──
   const [twoFaEnabled, setTwoFaEnabled] = useState(() => {
@@ -350,6 +379,55 @@ export default function Settings() {
               <button onClick={deleteAccountData} disabled={dataDeleted} className="text-xs text-rose-400 hover:text-rose-300 transition-colors disabled:opacity-50 disabled:pointer-events-none">
                 {dataDeleted ? "Deletion scheduled ✓" : "Delete account data →"}
               </button>
+            </div>
+          ),
+        },
+      ],
+    },
+    {
+      label: "Communication",
+      items: [
+        {
+          icon: MessageSquare, title: "DLT Templates (SMS — India)", desc: "Register your TRAI DLT-approved SMS templates",
+          content: (
+            <div className="space-y-3 pt-2 pb-1">
+              <p className="text-[10px] text-slate-500">
+                India requires SMS content to match a pre-registered, carrier-approved template. Complete DLT
+                registration on your telecom&apos;s portal first (PAN/GST/Letter of Authorization) — this is an
+                external administrative process, not something this app can do for you. Once you have an approved
+                entity ID and template ID, paste them in below so every SMS sent under that template is logged for
+                audit trail.
+              </p>
+              <div className="space-y-2">
+                {SMS_TEMPLATE_KEYS.map(({ key, label }) => {
+                  const t = smsTemplates[key];
+                  return (
+                    <div key={key} className="rounded-xl border border-crm-border p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-slate-300 font-medium">{label}</p>
+                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full", t.approved ? "bg-emerald-500/10 text-emerald-400" : "bg-white/[0.05] text-slate-500")}>
+                          {t.approved ? "Approved" : "Not registered"}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={t.dltEntityId} onChange={(e) => setSmsTemplates((p) => ({ ...p, [key]: { ...p[key], dltEntityId: e.target.value } }))}
+                          placeholder="DLT Entity ID" className={inputCls} />
+                        <input value={t.dltTemplateId} onChange={(e) => setSmsTemplates((p) => ({ ...p, [key]: { ...p[key], dltTemplateId: e.target.value } }))}
+                          placeholder="DLT Template ID" className={inputCls} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer">
+                          <input type="checkbox" checked={t.approved} onChange={(e) => setSmsTemplates((p) => ({ ...p, [key]: { ...p[key], approved: e.target.checked } }))} />
+                          Mark as approved
+                        </label>
+                        <button onClick={() => saveSmsTpl(key)} className="text-[10px] font-semibold text-blue-400 hover:text-blue-300 transition-colors">
+                          {smsSaved === key ? "Saved ✓" : "Save →"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ),
         },

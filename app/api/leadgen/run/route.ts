@@ -18,6 +18,7 @@ const DEFAULTS: PipelineConfig = {
   // Multi-source: mix inbound (best), local businesses, and B2B.
   sources: [
     { source: "web_form", queries: [] }, // inbound form leads (highest quality)
+    { source: "form_submission", queries: [] }, // Phase 43 — inbound forms/surveys/quizzes
     { source: "google_maps", queries: ["dentists in Delhi", "gyms in Mumbai", "digital marketing agencies in Bangalore"] },
     { source: "apollo", queries: ["small business owner"] },
   ],

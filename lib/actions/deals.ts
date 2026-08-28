@@ -1,6 +1,7 @@
 "use server";
 import { getServerClient } from "@/lib/supabase/server";
 import { deals as seedDeals } from "@/lib/data";
+import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
 
 export type Deal = (typeof seedDeals)[number];
 
@@ -35,6 +36,7 @@ export async function updateDeal(id: number, patch: Partial<Deal>): Promise<Deal
     .select()
     .single();
   if (error) throw new Error(error.message);
+  if (patch.stage === "Closed Won") dispatchWebhookEvent("deal.won", data as Record<string, unknown>).catch(() => {});
   return data as Deal;
 }
 

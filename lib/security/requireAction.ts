@@ -33,3 +33,24 @@ export async function assertCan(
   }
   return allowed;
 }
+
+// Phase 40 gap-check — assertCan's soft-mode (missing token ⇒ allow) is a
+// deliberate Phase 18 incremental-rollout choice for ordinary CRUD, but it's
+// the wrong default for a resource whose actions mint or read standing
+// credentials (API keys, webhook signing secrets) rather than just editing a
+// CRM record — those grant durable programmatic access, a materially higher
+// consequence than one row. assertCanStrict denies outright when no token is
+// presented instead of soft-allowing, and otherwise defers to the exact same
+// requireAuth()+can() check as assertCan. Used only by lib/actions/{apiKeys,
+// webhooks}.ts — every other action keeps assertCan's existing soft mode.
+export async function assertCanStrict(
+  accessToken: string | undefined,
+  resource: Resource | string,
+  action: Action,
+): Promise<boolean> {
+  if (!accessToken) {
+    console.error(`[security] rbac: no token supplied for high-sensitivity ${resource}:${action}, denying`);
+    return false;
+  }
+  return assertCan(accessToken, resource, action);
+}

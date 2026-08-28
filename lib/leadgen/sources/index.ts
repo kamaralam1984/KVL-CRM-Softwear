@@ -19,6 +19,7 @@ import { fetchMcaLeads } from "./mca";
 import { fetchGoogleSearchLeads } from "./googleSearch";
 import { fetchGoogleNewsLeads } from "./googleNews";
 import { fetchCompanyWebsiteLeads } from "./companyWebsite";
+import { fetchFormSubmissionLeads } from "./formSubmission";
 
 export type SourceFn = (query: string, limit: number) => Promise<RawLead[]>;
 
@@ -41,6 +42,7 @@ export const SOURCES: Partial<Record<LeadSource, SourceFn>> = {
   google_search: fetchGoogleSearchLeads,
   google_news: fetchGoogleNewsLeads,
   company_website: fetchCompanyWebsiteLeads,
+  form_submission: fetchFormSubmissionLeads,
 };
 
 // Import-based sources (csv_import, manual_import, api_import) are handled by

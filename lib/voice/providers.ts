@@ -3,19 +3,81 @@
 // initiateCall NEVER throws — any provider failure degrades to a mock result so
 // the CRM flow keeps working.
 //
-// IMPORTANT: Live AI calling is not fully wired here. Actually placing a real
-// call requires a funded provider account PLUS server-side webhook wiring:
-//   - OpenAI Realtime: a media-relay (WebRTC/WebSocket) bridging the phone
-//     carrier audio to the Realtime API, and a callback URL for events.
-//   - ElevenLabs: a Conversational AI agent id + a telephony integration
-//     (e.g. Twilio) and a post-call webhook to fetch the transcript.
-//   - Twilio: a purchased number, a TwiML/Voice webhook endpoint, and a
-//     status-callback URL. This function only *initiates*; the transcript
-//     arrives asynchronously via webhook and is fed back into analyzeCall().
-// Until those are configured, "real" branches below just acknowledge the
-// provider credential and return a queued id — they do not stream live audio.
+// Phase 44 — the "twilio" provider now genuinely places a live-AI-audio
+// call: it POSTs to Twilio's Calls API with inline TwiML
+// (<Connect><Stream>) pointing at the standalone voice-relay/server.js
+// process (a separate PM2-managed WebSocket bridge — see that file's header
+// for why it can't live inside this Next.js app), which relays the call's
+// audio to OpenAI's Realtime API and back. Requires BOTH Twilio credentials
+// AND VOICE_RELAY_WSS_URL (the relay's public wss:// address) — without the
+// second, a real Twilio call could be placed with nowhere for its audio
+// stream to go, so this stays mocked until both are configured.
+//
+// openai_realtime/elevenlabs as standalone providers (no telephony carrier)
+// still only acknowledge the credential and queue — an actual phone call
+// needs a carrier (Twilio) to originate it; those two are the AI-brain half
+// of the twilio-provider path above, not usable telephony providers alone.
 
 import type { CallProvider, CallRequest, CallResult } from "./types";
+import { getServerClient } from "@/lib/supabase/server";
+
+// Gap-check fix — also requires VOICE_RELAY_SHARED_SECRET: the relay
+// rejects every connection with no valid token (see voice-relay/server.js's
+// header comment), so placing a real, billed Twilio call without one would
+// ring the destination and then immediately fail to bridge any audio —
+// worse than an honest mock. Both this app and the relay process read the
+// same secret from the same .env.local, so no separate exchange is needed.
+function hasVoiceRelayConfigured(): boolean {
+  return Boolean(process.env.VOICE_RELAY_WSS_URL && process.env.VOICE_RELAY_SHARED_SECRET);
+}
+
+async function placeTwilioStreamCall(req: CallRequest, to: string): Promise<CallResult> {
+  const sid = process.env.TWILIO_ACCOUNT_SID!;
+  const token = process.env.TWILIO_AUTH_TOKEN!;
+  const from = process.env.TWILIO_FROM_NUMBER!;
+  const relayUrl = `${process.env.VOICE_RELAY_WSS_URL!}?token=${encodeURIComponent(process.env.VOICE_RELAY_SHARED_SECRET!)}`;
+
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${relayUrl}"/></Connect></Response>`;
+
+  try {
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ To: to, From: from, Twiml: twiml }),
+    });
+    if (!res.ok) {
+      console.error(`[voice] Twilio Calls API HTTP ${res.status}`);
+      return { id: mockId("mock"), status: "failed", provider: "mock", usedRealProvider: false };
+    }
+    const j = (await res.json()) as { sid?: string };
+    const callSid = j.sid ?? mockId("twilio");
+
+    // A row for voice-relay/server.js's finalize() to update by
+    // provider_call_sid once the call ends and the transcript is known —
+    // reuses Phase 41's call_logs table rather than a parallel one.
+    try {
+      const db = getServerClient();
+      await db.from("call_logs").insert({
+        from_number: from,
+        direction: "outbound",
+        status: "queued",
+        provider_call_sid: callSid,
+        is_ai_call: true,
+        ai_provider: "twilio",
+      });
+    } catch (err) {
+      console.error("[voice] call_logs insert failed (non-fatal):", err);
+    }
+
+    return { id: callSid, status: "queued", provider: "twilio", usedRealProvider: true };
+  } catch (err) {
+    console.error("[voice] placeTwilioStreamCall error, degrading to mock:", err);
+    return { id: mockId("mock"), status: "failed", provider: "mock", usedRealProvider: false };
+  }
+}
 
 function mockId(prefix: string): string {
   // Avoid module-top new Date(); build id lazily at call time.
@@ -26,7 +88,8 @@ function hasTwilioCreds(): boolean {
   return Boolean(
     process.env.TWILIO_ACCOUNT_SID &&
       process.env.TWILIO_AUTH_TOKEN &&
-      process.env.TWILIO_FROM_NUMBER,
+      process.env.TWILIO_FROM_NUMBER &&
+      hasVoiceRelayConfigured(),
   );
 }
 
@@ -62,13 +125,17 @@ export async function initiateCall(req: CallRequest): Promise<CallResult> {
   }
 
   try {
-    // Credentials exist. In a fully-wired deployment this is where we would
-    // hand off to the provider SDK + webhook relay (see file header). For now
-    // we acknowledge the real credential and queue the call.
+    if (provider === "twilio") {
+      // Real, live-AI-audio call — see placeTwilioStreamCall above.
+      return await placeTwilioStreamCall(req, to);
+    }
+    // openai_realtime/elevenlabs alone have no telephony carrier to
+    // originate a call with — acknowledge the credential and queue, same
+    // honest behavior as before this phase (a real call via either of
+    // these needs the "twilio" provider path, which carries their audio).
     console.error(
-      `[voice] initiating call via "${provider}" to ${to}` +
-        (req.leadCompany ? ` (${req.leadCompany})` : "") +
-        " — live media/webhook relay required to complete",
+      `[voice] "${provider}" has no telephony carrier of its own — acknowledging credential, queuing (use provider: "twilio" to actually place a call)` +
+        (req.leadCompany ? ` (${req.leadCompany})` : ""),
     );
     return { id: mockId(provider), status: "queued", provider, usedRealProvider: true };
   } catch (err) {

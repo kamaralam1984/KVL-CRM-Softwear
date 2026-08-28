@@ -6,6 +6,7 @@ import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import { createRazorpayOrder } from "@/lib/payments/razorpay";
 import { attributeOrderToAffiliate } from "@/lib/affiliates/attribution";
+import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
 
 export type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Refunded";
 
@@ -105,8 +106,9 @@ export async function updateOrderStatus(id: string, status: OrderStatus, accessT
 export async function markOrderPaidByProviderRef(providerRef: string): Promise<void> {
   try {
     const db = getServerClient();
-    const { error } = await db.from("orders").update({ payment_status: "paid" }).eq("payment_provider_ref", providerRef);
-    if (error) console.error("[commerce] markOrderPaidByProviderRef failed:", error.message);
+    const { data, error } = await db.from("orders").update({ payment_status: "paid" }).eq("payment_provider_ref", providerRef).select().maybeSingle();
+    if (error) { console.error("[commerce] markOrderPaidByProviderRef failed:", error.message); return; }
+    if (data) dispatchWebhookEvent("order.paid", data as Record<string, unknown>).catch(() => {});
   } catch (err) {
     console.error("[commerce] markOrderPaidByProviderRef error:", err);
   }
