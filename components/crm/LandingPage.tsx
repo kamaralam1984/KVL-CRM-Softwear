@@ -535,7 +535,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           {/* Logo */}
           <div className="flex items-center gap-3 flex-shrink-0">
-            <img src="/kvl-logo-trans.png" alt="Maxness" className="h-12 w-auto object-contain" />
+            <img src="/maxness-mark.png" alt="Maxness" className="h-12 w-auto object-contain" />
           </div>
 
           <div className="hidden md:flex items-center gap-1 ml-8">
