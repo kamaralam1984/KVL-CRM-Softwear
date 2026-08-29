@@ -7,15 +7,18 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // static `next export` (which Capacitor's default local-bundle mode needs)
 // is not possible without a ground-up rewrite, which would violate this
 // codebase's extend-only house style. This config wraps
-// crm.kvlbusinesssolutions.com as an installable native binary; it does not
-// bundle the app's JS/HTML locally, so it always reflects whatever is live
-// in production, and every existing web feature works identically inside it.
+// maxness.kvlbusinesssolutions.com as an installable native binary; it does
+// not bundle the app's JS/HTML locally, so it always reflects whatever is
+// live in production, and every existing web feature works identically
+// inside it. (crm.kvlbusinesssolutions.com still serves the same app too —
+// kept alive as an alias so old bookmarks/links and anything already
+// registered against it keep working.)
 const config: CapacitorConfig = {
   appId: "com.kvlbusinesssolutions.crm",
   appName: "Maxness",
   webDir: "public",
   server: {
-    url: "https://crm.kvlbusinesssolutions.com",
+    url: "https://maxness.kvlbusinesssolutions.com",
     cleartext: false,
   },
 };

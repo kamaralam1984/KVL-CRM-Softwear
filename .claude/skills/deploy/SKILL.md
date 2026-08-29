@@ -1,11 +1,11 @@
 ---
 name: deploy
-description: Verify and ship KVL CRM — runs the full check pipeline, commits, pushes to main, and gives the exact VPS redeploy command for crm.kvlbusinesssolutions.com.
+description: Verify and ship Maxness (KVL CRM) — runs the full check pipeline, commits, pushes to main, and gives the exact VPS redeploy command for maxness.kvlbusinesssolutions.com.
 ---
 
-# Deploy KVL CRM
+# Deploy Maxness (KVL CRM)
 
-Invoked when the user says things like "deploy karo", "deploy kr do", "ship it", or explicitly runs `/deploy`. Production target is the user's own Hostinger VPS (`crm.kvlbusinesssolutions.com`, PM2 process `kvl-crm`, port 3105, reverse-proxied by Nginx) — **not** Vercel; that path was considered and dropped in favor of the VPS the user already runs a dozen other sites on.
+Invoked when the user says things like "deploy karo", "deploy kr do", "ship it", or explicitly runs `/deploy`. Production target is the user's own Hostinger VPS (`maxness.kvlbusinesssolutions.com`, PM2 process `kvl-crm`, port 3105, reverse-proxied by Nginx) — **not** Vercel; that path was considered and dropped in favor of the VPS the user already runs a dozen other sites on. The app is also still reachable at the older `crm.kvlbusinesssolutions.com` hostname — same Nginx site, same PM2 process, kept alive as an alias so old links/bookmarks/anything registered against it keep working — but `maxness.kvlbusinesssolutions.com` is now the primary/canonical domain (used in the native Capacitor app config and any new setup instructions).
 
 ## Steps
 
@@ -21,7 +21,7 @@ Invoked when the user says things like "deploy karo", "deploy kr do", "ship it",
 4. **Push** to `origin main`.
 
 5. **Give the user the VPS command to run themselves** — Claude has no SSH/remote access to the VPS in this environment, so the code-side (commit+push) is fully automated by this skill, but the VPS-side pull+rebuild is not. Two cases:
-   - **First deploy** (no `/var/www/kvl-crm` on the VPS yet): give the full setup script — clone, write `.env.local`, `npm install`, `npm run build`, `pm2 start ... --name kvl-crm -- run start -- -p 3105`, `pm2 save`, write a new Nginx site file for `crm.kvlbusinesssolutions.com` (never touch existing sites-available/sites-enabled files), `nginx -t` before `systemctl reload nginx` (reload, never restart), then `certbot --nginx -d crm.kvlbusinesssolutions.com`.
+   - **First deploy** (no `/var/www/kvl-crm` on the VPS yet): give the full setup script — clone, write `.env.local`, `npm install`, `npm run build`, `pm2 start ... --name kvl-crm -- run start -- -p 3105`, `pm2 save`, write a new Nginx site file with `server_name maxness.kvlbusinesssolutions.com crm.kvlbusinesssolutions.com;` (both hostnames, one site file — never touch existing sites-available/sites-enabled files for other sites), `nginx -t` before `systemctl reload nginx` (reload, never restart), then `certbot --nginx -d maxness.kvlbusinesssolutions.com -d crm.kvlbusinesssolutions.com`.
    - **Redeploy** (app already running there): a short pull-and-restart script:
      ```bash
      cd /var/www/kvl-crm && git pull origin main && npm install && npm run build && pm2 restart kvl-crm
