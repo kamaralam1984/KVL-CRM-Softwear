@@ -7,7 +7,7 @@ import { generateTotpSecret, otpauthUrl, verifyTotp } from "@/lib/security/twofa
 
 export async function startTwoFaEnrollment(accountEmail: string) {
   const secret = generateTotpSecret();
-  const url = otpauthUrl(secret, accountEmail || "account", "KVL CRM");
+  const url = otpauthUrl(secret, accountEmail || "account", "Maxness");
   return { secret, otpauthUrl: url };
 }
 

@@ -265,7 +265,7 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
         <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.5 }}
           className="text-center mb-8">
           <motion.div whileHover={{ scale:1.03 }} className="relative inline-block mb-3">
-            <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-28 w-auto mx-auto object-contain" style={{ filter: "drop-shadow(0 6px 24px rgba(212,175,55,0.25))" }} />
+            <img src="/kvl-logo-trans.png" alt="Maxness" className="h-28 w-auto mx-auto object-contain" style={{ filter: "drop-shadow(0 6px 24px rgba(212,175,55,0.25))" }} />
           </motion.div>
           <p className="text-sm mt-1" style={{ color: text2 }}>Premium Sales Intelligence Platform</p>
         </motion.div>
@@ -544,7 +544,7 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
         </motion.div>
 
         <p className="text-center text-[11px] mt-5" style={{ color: text3 }}>
-          © 2026 KVl CRM · FreedomWithAI
+          © 2026 Maxness · FreedomWithAI
         </p>
       </div>
     </div>

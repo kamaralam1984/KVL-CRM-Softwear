@@ -50,7 +50,7 @@ export default function InstallPrompt() {
   return (
     <div className="fixed bottom-4 left-4 z-[55] max-w-xs px-4 py-3 rounded-2xl border border-white/[0.1] bg-[#0a0e18]/95 backdrop-blur-sm shadow-xl flex items-center gap-3">
       <div className="flex-1">
-        <p className="text-xs text-white font-semibold">Install KVl CRM</p>
+        <p className="text-xs text-white font-semibold">Install Maxness</p>
         <p className="text-[10px] text-slate-400">Add to your device for one-tap access.</p>
       </div>
       <button onClick={dismiss} className="text-[10px] text-slate-500 hover:text-slate-300 px-1">Later</button>

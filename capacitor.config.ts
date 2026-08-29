@@ -12,7 +12,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // in production, and every existing web feature works identically inside it.
 const config: CapacitorConfig = {
   appId: "com.kvlbusinesssolutions.crm",
-  appName: "KVl CRM",
+  appName: "Maxness",
   webDir: "public",
   server: {
     url: "https://crm.kvlbusinesssolutions.com",

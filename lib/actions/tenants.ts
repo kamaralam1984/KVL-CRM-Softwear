@@ -77,7 +77,7 @@ export async function signupTenant(
     const db = getServerClient();
     const priceRupees = PLAN_PRICES_RUPEES[input.plan] ?? PLAN_PRICES_RUPEES.starter;
 
-    const plan = await createRazorpayPlan(priceRupees * 100, `KVL CRM — ${input.plan}`, "monthly");
+    const plan = await createRazorpayPlan(priceRupees * 100, `Maxness — ${input.plan}`, "monthly");
     let subscriptionId: string | undefined;
     let checkoutUrl: string | undefined;
     if (plan.planId) {

@@ -67,7 +67,7 @@ type MeetingItem = { title: string; with: string; time: string; dur: string; pla
 const initialMeetings: MeetingItem[] = [
   { title:"Product Demo — TechFlow Inc",  with:"Sarah Chen",      time:"Today 2:00 PM",    dur:"45 min", platform:"Zoom",  link:true },
   { title:"Renewal Discussion",            with:"Priya Patel",     time:"Tomorrow 11:00 AM",dur:"30 min", platform:"Google Meet", link:true },
-  { title:"Onboarding Call — RetailPro",  with:"James Okafor",    time:"Thu 3:30 PM",      dur:"60 min", platform:"KVl Meet", link:false },
+  { title:"Onboarding Call — RetailPro",  with:"James Okafor",    time:"Thu 3:30 PM",      dur:"60 min", platform:"Maxness Meet", link:false },
   { title:"Quarterly Business Review",    with:"Marcus Williams", time:"Fri 10:00 AM",     dur:"90 min", platform:"Zoom",  link:true },
 ];
 
@@ -146,7 +146,7 @@ export default function WhatsApp() {
 
   const scheduleMeeting = () => {
     const withName = conv?.contact ?? contacts[0]?.name ?? "New Contact";
-    setMeetings((prev) => [{ title: `Meeting with ${withName}`, with: withName, time: "Tomorrow 10:00 AM", dur: "30 min", platform: "KVl Meet", link: false }, ...prev]);
+    setMeetings((prev) => [{ title: `Meeting with ${withName}`, with: withName, time: "Tomorrow 10:00 AM", dur: "30 min", platform: "Maxness Meet", link: false }, ...prev]);
   };
 
   const joinMeeting = (platform: string) => {

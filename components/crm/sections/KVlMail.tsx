@@ -124,7 +124,7 @@ The Stripe Team`,
   },
   {
     id: "3",
-    from: "KVl CRM",
+    from: "Maxness",
     fromEmail: "noreply@kvlcrm.com",
     to: "me@kvlcrm.com",
     subject: "Your weekly sales report is ready",
@@ -153,9 +153,9 @@ Marcus Williams closed 2 of the 3 deals this week, contributing $31,000 in reven
 • Schedule 5 product demos for new inbound leads
 • Review and update deal stages in the pipeline
 
-View your full interactive report in the KVl CRM dashboard.
+View your full interactive report in the Maxness dashboard.
 
-— The KVl CRM Team`,
+— The Maxness Team`,
     time: "7:00 AM",
     date: "Today",
     unread: false,
@@ -201,14 +201,14 @@ Head of Operations, CloudScale`,
         from: "You",
         fromEmail: "me@kvlcrm.com",
         time: "May 31, 2:00 PM",
-        body: "Hi Priya, really excited to show you what KVl CRM can do! I've scheduled the demo for tomorrow at 10 AM. I'll send a calendar invite shortly. Please let me know if the timing works for your team.",
+        body: "Hi Priya, really excited to show you what Maxness can do! I've scheduled the demo for tomorrow at 10 AM. I'll send a calendar invite shortly. Please let me know if the timing works for your team.",
         expanded: false,
       },
     ],
   },
   {
     id: "5",
-    from: "KVl System",
+    from: "Maxness System",
     fromEmail: "system@kvlcrm.com",
     to: "me@kvlcrm.com",
     subject: "New lead assigned: Marcus Williams",
@@ -237,7 +237,7 @@ Recommended Actions:
 
 View full lead profile and activity history in your CRM dashboard.
 
-— KVl CRM Automation`,
+— Maxness Automation`,
     time: "Jun 1",
     date: "Yesterday",
     unread: false,
@@ -262,7 +262,7 @@ We've been largely satisfied with the platform, but there are a few areas where 
 • We need dedicated Slack support (not just ticket-based)
 • Custom SLA with 99.9% uptime guarantee required for our compliance team
 
-We have budget approved for renewal, and our team would strongly prefer to stay on KVl CRM given the switching costs involved.
+We have budget approved for renewal, and our team would strongly prefer to stay on Maxness given the switching costs involved.
 
 Can we get on a call this week? I'm available Thursday and Friday afternoon EST.
 
@@ -334,7 +334,7 @@ No action is required on your part. All data is backed up before maintenance beg
 
 We'll send a confirmation email once maintenance is complete.
 
-— KVl CRM Infrastructure Team`,
+— Maxness Infrastructure Team`,
     time: "May 28",
     date: "May 28",
     unread: false,
@@ -384,10 +384,10 @@ Operations Manager, Peak Retail`,
     fromEmail: "grace@futureworks.jp",
     to: "me@kvlcrm.com",
     subject: "Inquiry: Japanese locale and timezone support",
-    preview: "We are a Tokyo-based firm exploring KVl CRM. Before we proceed, we need to confirm a few localization requirements...",
+    preview: "We are a Tokyo-based firm exploring Maxness. Before we proceed, we need to confirm a few localization requirements...",
     body: `Hello,
 
-We are FutureWorks K.K., a Tokyo-based technology consulting firm with 85 employees. We are exploring KVl CRM as part of our digital transformation initiative.
+We are FutureWorks K.K., a Tokyo-based technology consulting firm with 85 employees. We are exploring Maxness as part of our digital transformation initiative.
 
 Before we proceed to a formal evaluation, I need to confirm a few localization requirements:
 

@@ -228,7 +228,7 @@ export default function CommandPalette({ onNavigate, onOpenAI }: CommandPaletteP
                   <span><kbd className="border border-white/10 rounded px-1">↵</kbd> select</span>
                   <span><kbd className="border border-white/10 rounded px-1">esc</kbd> close</span>
                 </div>
-                <div className="flex items-center gap-1"><Sparkles size={9} className="text-blue-400" /> KVl CRM</div>
+                <div className="flex items-center gap-1"><Sparkles size={9} className="text-blue-400" /> Maxness</div>
               </div>
             </motion.div>
           </motion.div>

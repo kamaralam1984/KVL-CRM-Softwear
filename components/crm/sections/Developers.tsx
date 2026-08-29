@@ -256,7 +256,7 @@ export default function Developers() {
         <ApiKeysCard />
         <WebhooksCard />
         <p className="text-[9px] text-slate-600 leading-relaxed px-1">
-          This gives KVL the same technical building blocks a marketplace needs. It does not, by itself, create the
+          This gives Maxness the same technical building blocks a marketplace needs. It does not, by itself, create the
           catalog of 3rd-party apps a mature platform accumulates over years of external developer adoption — that
           part isn&apos;t something any amount of code can manufacture.
         </p>

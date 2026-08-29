@@ -110,7 +110,7 @@ const TICKETS: Ticket[] = [
     previousTickets: 0,
     plan: "Pro",
     messages: [
-      { id: "m1", sender: "customer", name: "Priya Nair", text: "I'm new to KVl CRM. How do I set up an automation workflow to send follow-up emails?", time: "1d ago" },
+      { id: "m1", sender: "customer", name: "Priya Nair", text: "I'm new to Maxness. How do I set up an automation workflow to send follow-up emails?", time: "1d ago" },
       { id: "m2", sender: "agent", name: "Sonal T.", text: "Hi Priya! Great question. Head to Automation > New Workflow. I'll share a video guide shortly.", time: "20h ago" },
     ],
   },
@@ -1260,9 +1260,9 @@ export default function KVlHelpdesk() {
               style={{ background: "rgba(212,175,55,0.15)", color: "#D4AF37" }}>
               <Headphones size={16} />
             </div>
-            <h1 className="text-lg font-bold text-slate-100">KVl Helpdesk</h1>
+            <h1 className="text-lg font-bold text-slate-100">Maxness Helpdesk</h1>
           </div>
-          <p className="text-xs text-slate-500 pl-10">Customer support center — Zendesk-grade, KVl-powered</p>
+          <p className="text-xs text-slate-500 pl-10">Customer support center — Zendesk-grade, Maxness-powered</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"

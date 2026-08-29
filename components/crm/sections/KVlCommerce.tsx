@@ -42,10 +42,10 @@ interface Customer {
 const ORDERS: Order[] = [
   { id: "#VC-1042", customer: "Sarah Mitchell",  email: "sarah@example.com",  items: [{ name: "Pro Wireless Headphones", qty: 1, price: 149 }, { name: "USB-C Cable 2m", qty: 2, price: 12 }],  amount: 173,  payment: "Visa ····4242", shipping: "FedEx",  status: "Delivered",   date: "Jun 2, 2026" },
   { id: "#VC-1041", customer: "James Okafor",    email: "james@example.com",  items: [{ name: "Mechanical Keyboard RGB", qty: 1, price: 229 }],                                                  amount: 229,  payment: "PayPal",       shipping: "UPS",    status: "Shipped",     date: "Jun 2, 2026" },
-  { id: "#VC-1040", customer: "Priya Sharma",    email: "priya@example.com",  items: [{ name: "KVl T-Shirt XL", qty: 3, price: 34 }, { name: "KVl Cap", qty: 1, price: 22 }],              amount: 124,  payment: "Stripe",       shipping: "DHL",    status: "Processing",  date: "Jun 1, 2026" },
+  { id: "#VC-1040", customer: "Priya Sharma",    email: "priya@example.com",  items: [{ name: "Maxness T-Shirt XL", qty: 3, price: 34 }, { name: "Maxness Cap", qty: 1, price: 22 }],              amount: 124,  payment: "Stripe",       shipping: "DHL",    status: "Processing",  date: "Jun 1, 2026" },
   { id: "#VC-1039", customer: "Luca Rossi",      email: "luca@example.com",   items: [{ name: "AI Starter Course", qty: 1, price: 499 }],                                                        amount: 499,  payment: "Visa ····9812", shipping: "Digital", status: "Delivered",   date: "Jun 1, 2026" },
   { id: "#VC-1038", customer: "Emma Johnson",    email: "emma@example.com",   items: [{ name: "Smart Watch Series 5", qty: 1, price: 389 }],                                                     amount: 389,  payment: "Mastercard",   shipping: "FedEx",  status: "Pending",     date: "May 31, 2026" },
-  { id: "#VC-1037", customer: "Carlos Mendez",   email: "carlos@example.com", items: [{ name: "KVl Hoodie M", qty: 2, price: 59 }],                                                           amount: 118,  payment: "Apple Pay",    shipping: "USPS",   status: "Pending",     date: "May 31, 2026" },
+  { id: "#VC-1037", customer: "Carlos Mendez",   email: "carlos@example.com", items: [{ name: "Maxness Hoodie M", qty: 2, price: 59 }],                                                           amount: 118,  payment: "Apple Pay",    shipping: "USPS",   status: "Pending",     date: "May 31, 2026" },
   { id: "#VC-1036", customer: "Aisha Williams",  email: "aisha@example.com",  items: [{ name: "Cloud Storage 1TB Plan", qty: 1, price: 99 }],                                                    amount: 99,   payment: "Stripe",       shipping: "Digital", status: "Delivered",   date: "May 30, 2026" },
   { id: "#VC-1035", customer: "Noah Park",       email: "noah@example.com",   items: [{ name: "Gaming Mouse Pro", qty: 1, price: 79 }, { name: "Mouse Pad XL", qty: 1, price: 29 }],            amount: 108,  payment: "Visa ····3391", shipping: "UPS",    status: "Shipped",     date: "May 30, 2026" },
   { id: "#VC-1034", customer: "Fatima Al-Hassan",email: "fatima@example.com", items: [{ name: "Pro Wireless Headphones", qty: 2, price: 149 }],                                                  amount: 298,  payment: "PayPal",       shipping: "FedEx",  status: "Refunded",    date: "May 29, 2026" },
@@ -59,9 +59,9 @@ const PRODUCTS: Product[] = [
   { id: "p2", name: "Mechanical Keyboard RGB",  sku: "KBD-004",  price: 229, stock: 8,   reorder: 15, category: "Electronics", color: "#8b5cf6" },
   { id: "p3", name: "Gaming Mouse Pro",         sku: "MOU-007",  price: 79,  stock: 31,  reorder: 10, category: "Electronics", color: "#ec4899" },
   { id: "p4", name: "Smart Watch Series 5",     sku: "WCH-012",  price: 389, stock: 0,   reorder: 5,  category: "Electronics", color: "#f59e0b" },
-  { id: "p5", name: "KVl T-Shirt XL",        sku: "TSH-XL-3", price: 34,  stock: 156, reorder: 30, category: "Clothing",    color: "#10b981" },
-  { id: "p6", name: "KVl Hoodie M",          sku: "HOD-M-1",  price: 59,  stock: 7,   reorder: 15, category: "Clothing",    color: "#06b6d4" },
-  { id: "p7", name: "KVl Cap",               sku: "CAP-001",  price: 22,  stock: 88,  reorder: 20, category: "Clothing",    color: "#84cc16" },
+  { id: "p5", name: "Maxness T-Shirt XL",        sku: "TSH-XL-3", price: 34,  stock: 156, reorder: 30, category: "Clothing",    color: "#10b981" },
+  { id: "p6", name: "Maxness Hoodie M",          sku: "HOD-M-1",  price: 59,  stock: 7,   reorder: 15, category: "Clothing",    color: "#06b6d4" },
+  { id: "p7", name: "Maxness Cap",               sku: "CAP-001",  price: 22,  stock: 88,  reorder: 20, category: "Clothing",    color: "#84cc16" },
   { id: "p8", name: "AI Starter Course",        sku: "CRS-AI-1", price: 499, stock: 999, reorder: 0,  category: "Software",    color: "#D4AF37" },
   { id: "p9", name: "AI Advanced Module",       sku: "CRS-AI-2", price: 299, stock: 999, reorder: 0,  category: "Software",    color: "#f97316" },
   { id: "p10",name: "Cloud Storage 1TB Plan",   sku: "SVC-CLD-1",price: 99,  stock: 999, reorder: 0,  category: "Services",    color: "#00A86B" },
@@ -1111,7 +1111,7 @@ export default function KVlCommerce() {
             <ShoppingBag size={17} style={{ color: GOLD }} />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white">KVl Commerce</h1>
+            <h1 className="text-xl font-black text-white">Maxness Commerce</h1>
             <p className="text-xs text-slate-500">E-commerce Management Dashboard</p>
           </div>
         </div>

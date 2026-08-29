@@ -738,7 +738,7 @@ export default function SuperAdminPanel() {
           <Card title="Brand Identity" icon={Building2}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
-                { key: "brandName",  label: "Brand Name",  icon: Type,     placeholder: "KVl CRM" },
+                { key: "brandName",  label: "Brand Name",  icon: Type,     placeholder: "Maxness" },
                 { key: "tagline",    label: "Tagline",     icon: Type,     placeholder: "Premium Sales Suite" },
                 { key: "logoUrl",    label: "Logo URL",    icon: Link,     placeholder: "https://..." },
                 { key: "website",    label: "Website",     icon: Globe,    placeholder: "kvlcrm.com" },
@@ -788,7 +788,7 @@ export default function SuperAdminPanel() {
             <input
               value={wl.footerText}
               onChange={e => setWl(w => ({ ...w, footerText: e.target.value }))}
-              placeholder="© 2025 KVl CRM · FreedomWithAI. All rights reserved."
+              placeholder="© 2025 Maxness · FreedomWithAI. All rights reserved."
               className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500/50 transition-colors"
             />
           </Card>
@@ -805,7 +805,7 @@ export default function SuperAdminPanel() {
                   </div>
                 )}
                 <div>
-                  <p className="text-sm font-black text-white">{wl.brandName || "KVl CRM"}</p>
+                  <p className="text-sm font-black text-white">{wl.brandName || "Maxness"}</p>
                   <p className="text-[10px] text-slate-500">{wl.tagline || "Premium Sales Suite"}</p>
                 </div>
               </div>

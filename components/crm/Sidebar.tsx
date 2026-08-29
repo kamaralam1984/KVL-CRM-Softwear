@@ -67,13 +67,13 @@ const menuSections = [
   {
     label: "System",
     items: [
-      { id: "velorachat", label: "KVl Chat", icon: MessageSquare },
-      { id: "veloramail", label: "KVl Mail", icon: Inbox },
+      { id: "velorachat", label: "Maxness Chat", icon: MessageSquare },
+      { id: "veloramail", label: "Maxness Mail", icon: Inbox },
       { id: "helpdesk",    label: "Helpdesk",     icon: Headphones },
       { id: "commerce",    label: "Commerce",     icon: ShoppingBag },
       { id: "membership",  label: "Membership",   icon: GraduationCap },
       { id: "affiliates",  label: "Affiliates",   icon: Users2 },
-      { id: "velorapages", label: "KVl Pages", icon: Layout },
+      { id: "velorapages", label: "Maxness Pages", icon: Layout },
       { id: "forms",       label: "Forms & Quizzes", icon: ClipboardList },
       { id: "webinars",    label: "Webinars", icon: Video },
       { id: "developers",  label: "Developers",   icon: Webhook },
@@ -129,11 +129,11 @@ export default function Sidebar({ activeSection, onSectionChange, collapsed, onT
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-crm-border">
-        <img src="/kvl-icon.png" alt="KVL CRM" className="w-10 h-10 flex-shrink-0 object-contain" />
+        <img src="/kvl-icon.png" alt="Maxness" className="w-10 h-10 flex-shrink-0 object-contain" />
         <AnimatePresence>
           {!collapsed && (
             <motion.div initial={{ opacity:0, x:-10 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-10 }} transition={{ duration:0.15 }} className="overflow-hidden">
-              <p className="text-sm font-black gradient-text whitespace-nowrap">{wl.brandName || "KVl CRM"}</p>
+              <p className="text-sm font-black gradient-text whitespace-nowrap">{wl.brandName || "Maxness"}</p>
               <p className="text-[10px] text-slate-500 whitespace-nowrap">{wl.tagline || "Premium Sales Suite"}</p>
             </motion.div>
           )}
@@ -152,7 +152,7 @@ export default function Sidebar({ activeSection, onSectionChange, collapsed, onT
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 rounded flex-shrink-0" style={{ background:"linear-gradient(135deg,#DC143C,#FF1744)" }} />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-200 truncate">KVl</p>
+                <p className="text-xs font-semibold text-slate-200 truncate">Maxness</p>
                 <p className="text-[10px] text-slate-500">Premium Workspace</p>
               </div>
               <TrendingUp size={12} className="text-slate-500" />

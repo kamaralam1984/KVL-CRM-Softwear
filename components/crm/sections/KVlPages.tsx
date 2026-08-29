@@ -258,7 +258,7 @@ export default function KVlPages() {
             <Layout size={16} style={{ color: GOLD }} />
           </div>
           <div>
-            <h1 className="text-sm font-black text-white">KVl Pages</h1>
+            <h1 className="text-sm font-black text-white">Maxness Pages</h1>
             <p className="text-[10px] text-slate-500">Landing page builder & funnel creator{usingDemo ? " (demo data — build your first real page below)" : ""}</p>
           </div>
         </div>

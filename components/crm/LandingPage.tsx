@@ -24,7 +24,7 @@ import { kvlAnalytics } from "@/lib/tracking/sdk/client";
    (WhatsApp green on WhatsApp-specific results; Facebook blue on
    social/ads-sourced leads and channels; YouTube red purely as the
    universal "watch a video" visual convention, not a claimed integration —
-   KVl doesn't have a YouTube integration, so this stays a color choice,
+   Maxness doesn't have a YouTube integration, so this stays a color choice,
    never copy). Layered as accents on top of the existing gold identity,
    not a replacement for it.
 ══════════════════════════════════════════════ */
@@ -535,7 +535,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           {/* Logo */}
           <div className="flex items-center gap-3 flex-shrink-0">
-            <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-12 w-auto object-contain" />
+            <img src="/kvl-logo-trans.png" alt="Maxness" className="h-12 w-auto object-contain" />
           </div>
 
           <div className="hidden md:flex items-center gap-1 ml-8">
@@ -665,7 +665,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </motion.div>
 
           {/* Watch demo video — YouTube-red play-button convention, not a
-              claimed integration (KVl has no YouTube integration; this is
+              claimed integration (Maxness has no YouTube integration; this is
               purely the universal "video" visual language). Opens the
               existing video modal below. */}
           <motion.button initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.45 }}
@@ -805,7 +805,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <FadeIn className="text-center mb-16">
           <span className="text-xs font-bold uppercase tracking-widest" style={{ color:"#D4AF37" }}>Customer Success Stories</span>
           <h2 className="text-4xl md:text-5xl font-black mt-3 mb-4" style={{ color: T.text1 }}>Real Companies. Real Revenue.</h2>
-          <p className="text-lg max-w-xl mx-auto" style={{ color: T.text2 }}>See how revenue teams use KVl to close more deals, retain more customers, and grow faster.</p>
+          <p className="text-lg max-w-xl mx-auto" style={{ color: T.text2 }}>See how revenue teams use Maxness to close more deals, retain more customers, and grow faster.</p>
         </FadeIn>
 
         {/* Featured Case Study */}
@@ -820,10 +820,10 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                   <span className="px-3 py-1 rounded-full text-[11px] font-black" style={{ background:"rgba(212,175,55,0.15)", color:"#D4AF37", border:"1px solid rgba(212,175,55,0.3)" }}>FEATURED CASE STUDY</span>
                 </div>
                 <h3 className="text-2xl md:text-3xl font-black mb-4" style={{ color: T.text1 }}>
-                  "We 3× our pipeline in 90 days. KVl is the only platform we'll ever need."
+                  "We 3× our pipeline in 90 days. Maxness is the only platform we'll ever need."
                 </h3>
                 <p className="text-sm leading-relaxed mb-8" style={{ color: T.text2 }}>
-                  GrowthBridge had 30+ sales reps using 6 different tools — Sheets, HubSpot, WhatsApp personal phones, and manual email. After migrating to KVl, their pipeline became visible, automations replaced 40% of manual work, and deal close time dropped from 28 days to 17.
+                  GrowthBridge had 30+ sales reps using 6 different tools — Sheets, HubSpot, WhatsApp personal phones, and manual email. After migrating to Maxness, their pipeline became visible, automations replaced 40% of manual work, and deal close time dropped from 28 days to 17.
                 </p>
                 <div className="flex items-center gap-4 mb-8">
                   <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=56&h=56&fit=crop&q=80"
@@ -1041,7 +1041,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <img src="/kvl-logo-trans.png" alt="KVL CRM" className="h-11 w-auto object-contain" />
+              <img src="/kvl-logo-trans.png" alt="Maxness" className="h-11 w-auto object-contain" />
             </div>
             <div className="flex flex-wrap justify-center gap-6 text-xs">
               {([["Features","/features"],["Pricing","/pricing"],["Privacy","/privacy"],["Terms","/terms"],["Contact","/contact"]] as [string,string][]).map(([l,h]) => (
@@ -1050,7 +1050,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                   onMouseLeave={e => (e.currentTarget.style.color = T.text3)}>{l}</Link>
               ))}
             </div>
-            <p className="text-xs" style={{ color: T.text3 }}>© 2025 KVl CRM · FreedomWithAI</p>
+            <p className="text-xs" style={{ color: T.text3 }}>© 2025 Maxness · FreedomWithAI</p>
           </div>
         </div>
       </footer>
@@ -1088,7 +1088,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               </div>
               <div className="flex items-center justify-between mt-4 px-1">
                 <p className="text-sm font-semibold" style={{ color:"rgba(255,255,255,0.7)" }}>
-                  KVl CRM — Full Platform Overview
+                  Maxness — Full Platform Overview
                 </p>
                 <motion.button whileHover={{ scale:1.05 }} whileTap={{ scale:0.97 }}
                   onClick={() => { setVideoOpen(false); onGetStarted(); }}

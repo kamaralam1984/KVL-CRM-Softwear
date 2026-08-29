@@ -373,7 +373,7 @@ export default function KVlChat() {
           style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
         >
           <div>
-            <p className="text-sm font-bold" style={{ color: "#e2e8f0" }}>KVl</p>
+            <p className="text-sm font-bold" style={{ color: "#e2e8f0" }}>Maxness</p>
             <p className="text-xs" style={{ color: "#D4AF37" }}>FreedomWithAI</p>
           </div>
           <div className="flex items-center gap-1.5">

@@ -31,7 +31,7 @@ const UPCOMING_POSTS = [
   { id: 2, platform: "facebook"  as PlatformKey, content: "Join us for our live webinar on scaling your sales pipeline. Limited spots available!", scheduledAt: "Today, 4:30 PM",   status: "scheduled" },
   { id: 3, platform: "linkedin"  as PlatformKey, content: "5 proven strategies to increase your close rate by 40%. A thread every sales pro should bookmark.", scheduledAt: "Tomorrow, 9:00 AM", status: "scheduled" },
   { id: 4, platform: "instagram" as PlatformKey, content: "Behind the scenes of our team building event. Culture is everything ✨",            scheduledAt: "Tomorrow, 1:00 PM", status: "draft"     },
-  { id: 5, platform: "facebook"  as PlatformKey, content: "Customer spotlight: How Acme Corp 3× their revenue in 6 months using KVl CRM.", scheduledAt: "Wed, 10:00 AM",    status: "scheduled" },
+  { id: 5, platform: "facebook"  as PlatformKey, content: "Customer spotlight: How Acme Corp 3× their revenue in 6 months using Maxness.", scheduledAt: "Wed, 10:00 AM",    status: "scheduled" },
 ];
 
 const PLATFORM_STATS = {
@@ -74,12 +74,12 @@ const AI_VARIATIONS = [
     emojis: ["🚀", "📈", "💡", "🎯"],
   },
   {
-    content: "Most sales teams are leaving money on the table. Here's the truth: 68% of leads are lost due to poor follow-up. KVl CRM ensures you never miss a beat. Automate. Follow up. Close. 💰",
-    hashtags: ["#SalesAutomation", "#LeadGeneration", "#KVlCRM"],
+    content: "Most sales teams are leaving money on the table. Here's the truth: 68% of leads are lost due to poor follow-up. Maxness ensures you never miss a beat. Automate. Follow up. Close. 💰",
+    hashtags: ["#SalesAutomation", "#LeadGeneration", "#Maxness"],
     emojis: ["💰", "🤝", "✅", "📊"],
   },
   {
-    content: "Your competitors are already using AI to close deals faster. Are you? KVl CRM's Smart Insights tell you exactly when to reach out, what to say, and how to close. Try it free for 14 days. ✨",
+    content: "Your competitors are already using AI to close deals faster. Are you? Maxness's Smart Insights tell you exactly when to reach out, what to say, and how to close. Try it free for 14 days. ✨",
     hashtags: ["#SalesTech", "#AITools", "#CRM", "#GrowthHacking"],
     emojis: ["✨", "🧠", "⚡", "🏆"],
   },
@@ -241,7 +241,7 @@ function SchedulePostTab({ initialContent = "", onPreFill }: { initialContent?: 
   const handleAI = () => {
     setAiLoading(true);
     setTimeout(() => {
-      setContent("🚀 Ready to transform how your team sells? KVl CRM's AI-powered insights help you close deals 2× faster. Join 10,000+ sales professionals already winning big. Comment 'DEMO' to get started! #SalesGrowth #CRM #AI");
+      setContent("🚀 Ready to transform how your team sells? Maxness's AI-powered insights help you close deals 2× faster. Join 10,000+ sales professionals already winning big. Comment 'DEMO' to get started! #SalesGrowth #CRM #AI");
       setAiLoading(false);
     }, 1500);
   };

@@ -82,7 +82,7 @@ export async function updateSite(
 }
 
 export async function deleteSite(siteId: string): Promise<void> {
-  if (siteId === DEFAULT_SITE_ID) throw new Error("Cannot delete the default KVL site.");
+  if (siteId === DEFAULT_SITE_ID) throw new Error("Cannot delete the default Maxness site.");
   const db = getServerClient();
   const { error } = await db.from("sites").delete().eq("site_id", siteId);
   if (error) throw new Error(error.message);

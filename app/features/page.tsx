@@ -9,12 +9,12 @@ import ConsentBanner from "@/lib/tracking/sdk/ConsentBanner";
 const WHATSAPP_GREEN = "#25D366";
 
 export const metadata: Metadata = {
-  title: "Features — KVl CRM | Complete CRM Feature List",
-  description: "Explore all features of KVl CRM: AI-powered lead scoring, WhatsApp CRM, email marketing, sales pipeline, workflow automation, finance, and advanced analytics. Built for modern sales teams.",
+  title: "Features — Maxness | Complete CRM Feature List",
+  description: "Explore all features of Maxness: AI-powered lead scoring, WhatsApp CRM, email marketing, sales pipeline, workflow automation, finance, and advanced analytics. Built for modern sales teams.",
   keywords: "CRM features, AI CRM, sales pipeline software, WhatsApp CRM, email marketing CRM, lead scoring, workflow automation, sales analytics, CRM software features",
   openGraph: {
-    title: "KVl CRM Features — Everything Your Sales Team Needs",
-    description: "Discover the complete feature set of KVl CRM — from AI insights to WhatsApp integration, email campaigns, pipeline management, and finance tools.",
+    title: "Maxness Features — Everything Your Sales Team Needs",
+    description: "Discover the complete feature set of Maxness — from AI insights to WhatsApp integration, email campaigns, pipeline management, and finance tools.",
     type: "website",
   },
 };
@@ -24,7 +24,7 @@ const features = [
     category: "Artificial Intelligence",
     items: [
       { name: "AI Lead Scoring", desc: "Our proprietary AI engine analyzes over 40 behavioral signals — email opens, page visits, response time, deal stage duration — to assign a real-time score (0–100) to every lead. Reps only focus on leads most likely to convert, increasing efficiency by up to 60%." },
-      { name: "Revenue Forecasting", desc: "KVl CRM predicts monthly and quarterly revenue with up to 91% confidence by analyzing your pipeline velocity, historical win rates, seasonal trends, and rep performance patterns. Get forecasts 30, 60, and 90 days out." },
+      { name: "Revenue Forecasting", desc: "Maxness predicts monthly and quarterly revenue with up to 91% confidence by analyzing your pipeline velocity, historical win rates, seasonal trends, and rep performance patterns. Get forecasts 30, 60, and 90 days out." },
       { name: "Churn Risk Detection", desc: "Automatically flags customers showing signs of disengagement — reduced logins, overdue invoices, support ticket spikes, or declining usage — so your team can intervene before it's too late." },
       { name: "Smart Recommendations", desc: "The AI Intelligence Hub delivers actionable weekly recommendations: best time to follow up, which deals to prioritize, which reps need coaching, and which automation workflows to enable." },
     ],
@@ -50,7 +50,7 @@ const features = [
     category: "WhatsApp CRM",
     accent: WHATSAPP_GREEN,
     items: [
-      { name: "Unified WhatsApp Inbox", desc: "Manage all WhatsApp customer conversations directly inside KVl CRM. No switching between apps. See full contact context, deal status, and notes alongside every chat." },
+      { name: "Unified WhatsApp Inbox", desc: "Manage all WhatsApp customer conversations directly inside Maxness. No switching between apps. See full contact context, deal status, and notes alongside every chat." },
       { name: "Broadcast Campaigns", desc: "Send personalized WhatsApp messages to segmented contact lists. Track delivery rates, read receipts, and response rates. Schedule broadcasts for optimal engagement times." },
       { name: "Auto-Reply Workflows", desc: "Create keyword-triggered auto-replies for common questions, appointment requests, or product inquiries. Works 24/7 so you never miss an incoming lead." },
     ],
@@ -96,7 +96,7 @@ export default function FeaturesPage() {
       <ConsentBanner />
       {/* Nav */}
       <nav className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between max-w-7xl mx-auto">
-        <Link href="/" className="text-sm font-bold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">← KVl CRM</Link>
+        <Link href="/" className="text-sm font-bold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">← Maxness</Link>
         <div className="flex gap-4">
           <Link href="/pricing" className="text-sm text-slate-400 hover:text-white transition-colors">Pricing</Link>
           <Link href="/contact" className="text-sm text-slate-400 hover:text-white transition-colors">Contact</Link>
@@ -112,7 +112,7 @@ export default function FeaturesPage() {
             <span className="bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">Will Ever Need</span>
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            KVl CRM is not just a contact management tool. It is a complete revenue operating system designed to help sales teams prospect smarter, close faster, and retain customers longer — all powered by artificial intelligence.
+            Maxness is not just a contact management tool. It is a complete revenue operating system designed to help sales teams prospect smarter, close faster, and retain customers longer — all powered by artificial intelligence.
           </p>
         </div>
 
@@ -138,12 +138,12 @@ export default function FeaturesPage() {
           ))}
         </div>
 
-        {/* Why KVl CRM */}
+        {/* Why Maxness */}
         <section className="mt-20 rounded-3xl border border-blue-500/20 bg-gradient-to-br from-blue-950/30 to-violet-950/20 p-12">
-          <h2 className="text-3xl font-black mb-6 text-center">Why Teams Choose KVl CRM</h2>
+          <h2 className="text-3xl font-black mb-6 text-center">Why Teams Choose Maxness</h2>
           <div className="grid md:grid-cols-3 gap-8 text-center">
             {[
-              { stat: "3×", label: "Average Revenue Growth", desc: "Teams using KVl CRM grow revenue 3× faster than those on legacy CRM tools." },
+              { stat: "3×", label: "Average Revenue Growth", desc: "Teams using Maxness grow revenue 3× faster than those on legacy CRM tools." },
               { stat: "40%", label: "Faster Deal Closing", desc: "AI-guided selling and automated follow-ups cut average sales cycle by 40%." },
               { stat: "68%", label: "Higher Win Rate", desc: "AI lead scoring ensures reps focus on the right prospects at the right time." },
             ].map((s) => (
@@ -166,9 +166,9 @@ export default function FeaturesPage() {
           <h2 className="text-2xl font-black mb-8 text-center">Frequently Asked Questions</h2>
           <div className="space-y-4">
             {[
-              { q: "Does KVl CRM integrate with existing tools?", a: "Yes. KVl CRM integrates with Gmail, Outlook, Slack, Zapier, WhatsApp Business API, Stripe, and hundreds of other tools via our REST API and native integrations." },
-              { q: "How is KVl CRM different from Salesforce or HubSpot?", a: "KVl CRM is purpose-built for modern sales teams that need AI-first features out of the box. Unlike legacy platforms that charge extra for AI add-ons, our intelligence layer is included in every plan — with no complex setup required." },
-              { q: "Is there a mobile app?", a: "KVl CRM is a fully responsive web application that works perfectly on mobile browsers. A dedicated iOS and Android app is currently in development and will be available in Q3 2025." },
+              { q: "Does Maxness integrate with existing tools?", a: "Yes. Maxness integrates with Gmail, Outlook, Slack, Zapier, WhatsApp Business API, Stripe, and hundreds of other tools via our REST API and native integrations." },
+              { q: "How is Maxness different from Salesforce or HubSpot?", a: "Maxness is purpose-built for modern sales teams that need AI-first features out of the box. Unlike legacy platforms that charge extra for AI add-ons, our intelligence layer is included in every plan — with no complex setup required." },
+              { q: "Is there a mobile app?", a: "Maxness is a fully responsive web application that works perfectly on mobile browsers. A dedicated iOS and Android app is currently in development and will be available in Q3 2025." },
               { q: "Can I migrate data from my current CRM?", a: "Absolutely. We provide free data migration assistance for Growth and Enterprise plan customers. Our team handles the import, mapping, and validation of your existing contacts, deals, and activity history." },
             ].map((faq) => (
               <div key={faq.q} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-5">
@@ -187,7 +187,7 @@ export default function FeaturesPage() {
             <Link key={l} href={h} className="hover:text-white transition-colors">{l}</Link>
           ))}
         </div>
-        © 2025 KVl CRM · FreedomWithAI. All rights reserved.
+        © 2025 Maxness · FreedomWithAI. All rights reserved.
       </footer>
     </div>
   );

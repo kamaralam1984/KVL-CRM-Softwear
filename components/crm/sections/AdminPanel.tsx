@@ -475,7 +475,7 @@ function SitesManagementCard() {
       <Card title="Add a Site" icon={Globe}>
         <div className="space-y-3">
           <p className="text-xs text-slate-500">
-            Each site gets its own embeddable Site ID — visitors, leads, and campaigns tracked on it stay isolated from every other site (including KVL&apos;s own).
+            Each site gets its own embeddable Site ID — visitors, leads, and campaigns tracked on it stay isolated from every other site (including Maxness&apos;s own).
           </p>
           <div className="grid sm:grid-cols-2 gap-3">
             <input
@@ -521,7 +521,7 @@ function SitesManagementCard() {
         {loading ? (
           <p className="text-xs text-slate-500">Loading…</p>
         ) : sites.length === 0 ? (
-          <p className="text-xs text-slate-500">No sites yet — the default KVL site is bootstrapped automatically and doesn&apos;t appear here.</p>
+          <p className="text-xs text-slate-500">No sites yet — the default Maxness site is bootstrapped automatically and doesn&apos;t appear here.</p>
         ) : (
           <div className="space-y-1">
             {sites.map((site) => (

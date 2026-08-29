@@ -267,14 +267,14 @@ export interface WhiteLabelConfig {
 }
 
 export const DEFAULT_WHITE_LABEL: WhiteLabelConfig = {
-  brandName:    "KVl CRM",
+  brandName:    "Maxness",
   tagline:      "Premium Sales Suite",
   supportEmail: "support@kvlcrm.com",
   salesEmail:   "sales@kvlcrm.com",
   website:      "kvlcrm.com",
   address:      "",
   phone:        "",
-  footerText:   "© 2025 KVl CRM · FreedomWithAI. All rights reserved.",
+  footerText:   "© 2025 Maxness · FreedomWithAI. All rights reserved.",
   logoUrl:      "",
 };
 

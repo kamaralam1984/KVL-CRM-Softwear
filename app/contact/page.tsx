@@ -42,7 +42,7 @@ const faqs = [
   },
   {
     q: "Where are your servers located?",
-    a: "KVl CRM infrastructure runs on enterprise cloud providers with data centers in the US, EU, and Asia-Pacific. EU customers can request data residency within the European Union to comply with GDPR requirements.",
+    a: "Maxness infrastructure runs on enterprise cloud providers with data centers in the US, EU, and Asia-Pacific. EU customers can request data residency within the European Union to comply with GDPR requirements.",
   },
 ];
 
@@ -76,7 +76,7 @@ export default function ContactPage() {
   return (
     <div className="min-h-screen bg-[#05080f] text-white">
       <nav className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between max-w-5xl mx-auto">
-        <Link href="/" className="text-sm font-bold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">← KVl CRM</Link>
+        <Link href="/" className="text-sm font-bold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">← Maxness</Link>
         <div className="flex gap-4">
           <Link href="/features" className="text-sm text-slate-400 hover:text-white transition-colors">Features</Link>
           <Link href="/pricing" className="text-sm text-slate-400 hover:text-white transition-colors">Pricing</Link>
@@ -92,7 +92,7 @@ export default function ContactPage() {
             <span className="bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">Hear From You</span>
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Whether you are exploring KVl CRM for your team, need help with an existing account, want to discuss a partnership, or have a question about our plans — our team is here to help. We respond to every message within 4 business hours.
+            Whether you are exploring Maxness for your team, need help with an existing account, want to discuss a partnership, or have a question about our plans — our team is here to help. We respond to every message within 4 business hours.
           </p>
         </div>
 
@@ -243,7 +243,7 @@ export default function ContactPage() {
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Company</p>
                   <p className="text-white font-semibold">FreedomWithAI</p>
-                  <p>Operating KVl CRM platform</p>
+                  <p>Operating Maxness platform</p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">General Inquiries</p>
@@ -268,7 +268,7 @@ export default function ContactPage() {
 
             <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-6">
               <h3 className="text-sm font-bold text-white mb-2">Want a Live Demo?</h3>
-              <p className="text-xs text-slate-400 leading-relaxed mb-3">Book a 30-minute personalized walkthrough with one of our product specialists. We will show you exactly how KVl CRM can work for your specific industry and team size.</p>
+              <p className="text-xs text-slate-400 leading-relaxed mb-3">Book a 30-minute personalized walkthrough with one of our product specialists. We will show you exactly how Maxness can work for your specific industry and team size.</p>
               <p className="text-xs text-blue-400 font-medium">Select "Sales & Pricing" in the form →</p>
             </div>
 
@@ -297,7 +297,7 @@ export default function ContactPage() {
         {/* CTA */}
         <div className="mt-16 rounded-3xl border border-blue-500/20 bg-gradient-to-br from-blue-950/30 to-violet-950/20 p-12 text-center">
           <h2 className="text-2xl font-black mb-3">Not Ready to Talk Yet?</h2>
-          <p className="text-slate-400 text-sm max-w-lg mx-auto mb-6">Start a 14-day free trial and explore all features of KVl CRM on your own — no credit card required, no commitment.</p>
+          <p className="text-slate-400 text-sm max-w-lg mx-auto mb-6">Start a 14-day free trial and explore all features of Maxness on your own — no credit card required, no commitment.</p>
           <Link href="/" className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold hover:opacity-90 transition-opacity text-sm">
             Start Free Trial →
           </Link>
@@ -310,7 +310,7 @@ export default function ContactPage() {
             <Link key={l} href={h} className="hover:text-white transition-colors">{l}</Link>
           ))}
         </div>
-        © 2025 KVl CRM · FreedomWithAI. All rights reserved.
+        © 2025 Maxness · FreedomWithAI. All rights reserved.
       </footer>
     </div>
   );

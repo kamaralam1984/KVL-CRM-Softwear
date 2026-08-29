@@ -77,7 +77,7 @@ export default function ModuleDetailModal({ module: mod, dark, onClose, onGetSta
                   </svg>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: mod.color }}>KVl CRM</p>
+                  <p className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: mod.color }}>Maxness</p>
                   <h1 className="text-3xl md:text-4xl font-black mb-2" style={{ color: dark ? "#ffffff" : "#0d0d0d" }}>{mod.title}</h1>
                   <p className="text-base font-medium" style={{ color: dark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)" }}>{mod.tagline}</p>
                 </div>

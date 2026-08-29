@@ -14,12 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KVl CRM — Enterprise CRM Platform",
+  title: "Maxness — Enterprise CRM Platform",
   description: "AI-powered enterprise CRM for modern sales teams",
   // Phase 34 — PWA installability. The push/VAPID infra already existed
   // (Phase 17); this was the missing manifest + theme-color wiring.
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "KVl CRM" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Maxness" },
 };
 
 export const viewport: Viewport = {
