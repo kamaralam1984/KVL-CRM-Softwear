@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { makeDemoToken } from "@/lib/security/demoToken";
+import { confirmEmailIfPending } from "@/lib/actions/auth";
 
 /* ── Types ───────────────────────────────────────────── */
 export interface AuthUser {
@@ -134,7 +135,14 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
 
     if (isSupabaseConfigured()) {
       const supabase = getSupabaseClient();
-      const { data, error: err } = await supabase.auth.signInWithPassword({ email: lEmail.toLowerCase(), password: lPw });
+      let { data, error: err } = await supabase.auth.signInWithPassword({ email: lEmail.toLowerCase(), password: lPw });
+      if (err) {
+        // Most likely cause: the account is stuck pending email confirmation
+        // (this project has "Confirm email" on and no reliable mailer) —
+        // auto-confirm it server-side and retry once before giving up.
+        await confirmEmailIfPending(lEmail);
+        ({ data, error: err } = await supabase.auth.signInWithPassword({ email: lEmail.toLowerCase(), password: lPw }));
+      }
       setLoading(false);
       if (err) { setError(err.message); return; }
       const meta = data.user?.user_metadata ?? {};
@@ -204,10 +212,20 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
     if (isSupabaseConfigured()) {
       const supabase = getSupabaseClient();
       const { data, error: err } = await supabase.auth.signUp({ email: sEmail.toLowerCase(), password: sPw, options: { data: { name: sName.trim(), role: "Member" } } });
+      if (err) { setLoading(false); setError(err.message); return; }
+      let session = data.session;
+      if (data.user && !session) {
+        // This project requires email confirmation with no reliable mailer
+        // behind it — auto-confirm server-side so signup stays one step,
+        // matching the "Open Access" promise on this screen, then sign in
+        // to get a real session instead of leaving the user stuck.
+        await confirmEmailIfPending(sEmail);
+        const retry = await supabase.auth.signInWithPassword({ email: sEmail.toLowerCase(), password: sPw });
+        if (retry.error) { setLoading(false); setError(retry.error.message); return; }
+        session = retry.data.session;
+      }
       setLoading(false);
-      if (err) { setError(err.message); return; }
-      if (data.user && !data.session) { setError("Check your email to confirm your account, then sign in."); return; }
-      const user: AuthUser = { id: data.user?.id ?? `u_${Date.now()}`, name: sName.trim(), email: sEmail.toLowerCase(), role: "Member", avatar: sName.split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase(), accessToken: data.session?.access_token };
+      const user: AuthUser = { id: data.user?.id ?? `u_${Date.now()}`, name: sName.trim(), email: sEmail.toLowerCase(), role: "Member", avatar: sName.split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase(), accessToken: session?.access_token };
       localStorage.setItem("crm_user", JSON.stringify(user));
       onAuth(user); return;
     }
