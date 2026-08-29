@@ -159,12 +159,14 @@ export async function analyzeSeo(
     return prop.startsWith("og:");
   });
 
-  // 8. Images missing alt.
+  // 8. Images missing alt. An empty alt="" is the correct, deliberate
+  // pattern for a purely decorative image (tells screen readers to skip
+  // it) — only a genuinely absent alt attribute is a real accessibility gap.
   const imgTags = src.match(/<img\b[^>]*>/gi) ?? [];
   let imagesMissingAlt = 0;
   for (const tag of imgTags) {
     const alt = getAttr(tag, "alt");
-    if (alt === undefined || alt.length === 0) imagesMissingAlt++;
+    if (alt === undefined) imagesMissingAlt++;
   }
 
   // 9. robots.txt + sitemap.xml (best effort, short timeout).

@@ -124,7 +124,6 @@ export default function CRMApp() {
 
 function CRMAppInner() {
   const [user, setUser]                     = useState<AuthUser | null>(null);
-  const [authChecked, setAuthChecked]       = useState(false);
   const [view, setView]                     = useState<AppView>("landing");
   const [activeSection, setActiveSection]   = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -132,13 +131,16 @@ function CRMAppInner() {
   const { darkMode, toggleDark } = useTheme();
   const [saConfig, setSaConfig]             = useState(() => loadSAConfig());
 
-  /* Restore session from localStorage on mount (theme itself is restored by ThemeProvider) */
+  /* Restore session from localStorage on mount (theme itself is restored by
+     ThemeProvider). Deliberately NOT gated behind a "checked yet?" flag that
+     blanks the first render — the landing page renders immediately (real
+     server-rendered HTML for SEO/scanners/perceived load), and swaps to the
+     dashboard a moment later for an already-logged-in visitor. */
   useEffect(() => {
     try {
       const saved = localStorage.getItem("crm_user");
       if (saved) { setUser(JSON.parse(saved)); setView("app"); }
     } catch { /* ignore */ }
-    setAuthChecked(true);
   }, []);
 
   /* Land on Settings after the Razorpay Connect OAuth redirect so the connection banner is visible */
@@ -152,9 +154,6 @@ function CRMAppInner() {
     setActiveSection("dashboard");
     setView("landing");
   };
-
-  /* Wait for localStorage check before rendering anything */
-  if (!authChecked) return null;
 
   /* ── Global kill switch: disabling this blocks all logins ── */
   if (!saConfig.globalEnabled && user?.role !== "Super Admin") {

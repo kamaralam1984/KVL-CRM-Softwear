@@ -529,6 +529,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
       {/* ── NAVBAR ──────────────────────────────────────────── */}
       <motion.nav initial={{ y: -60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6 }}
+        aria-label="Main navigation"
         className="fixed top-0 inset-x-0 z-50 transition-all duration-500"
         style={{ background: scrolled ? T.navBg : "transparent", backdropFilter: scrolled ? "blur(20px)" : "none", borderBottom: scrolled ? `1px solid ${T.navBorder}` : "none" }}>
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center gap-6">
@@ -555,6 +556,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             {/* Theme toggle */}
             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
               onClick={toggleDark}
+              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
               className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
               style={{ background: T.toggleBg }}>
               {dark
