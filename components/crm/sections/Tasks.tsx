@@ -20,15 +20,16 @@ type TaskForm = { title: string; priority: string; due: string; assignee: string
 const emptyForm: TaskForm = { title: "", priority: "medium", due: "", assignee: "", company: "" };
 
 export default function Tasks() {
-  const [taskList, setTaskList] = useState(initialTasks);
+  const [taskList, setTaskList] = useState<typeof initialTasks>([]);
   const [filter, setFilter] = useState("All");
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<TaskForm>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Load from Supabase on mount; falls back to seed data in demo mode
+  // Load from Supabase on mount — real rows only; an empty account shows
+  // an empty state, never the seed data.
   useEffect(() => {
-    getTasks().then((rows) => { if (rows?.length) setTaskList(rows); }).catch(() => {});
+    getTasks().then((rows) => setTaskList(rows ?? [])).catch(() => {});
   }, []);
 
   const set = (k: keyof TaskForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>

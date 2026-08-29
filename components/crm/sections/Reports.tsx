@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Download, TrendingUp, FileText, Filter } from "lucide-react";
-import { salesChartData, teamPerformanceData, deals as seedDeals } from "@/lib/data";
+import { deals as seedDeals } from "@/lib/data";
 import { getDeals } from "@/lib/actions/deals";
 import { getCampaigns } from "@/lib/actions/campaigns";
 import { getLeads, type Lead } from "@/lib/actions/leads";
@@ -19,13 +19,6 @@ type TeamRow = { name: string; deals: number; revenue: number; target: number };
 
 const CustomTooltipStyle = { backgroundColor: "#0f1729", border: "1px solid #1e2d45", borderRadius: "10px", color: "#e2e8f0", fontSize: 12, padding: "8px 12px" };
 
-const quarterlyDataFallback = [
-  { quarter: "Q1 2025", revenue: 245000, target: 230000, deals: 48 },
-  { quarter: "Q2 2025", revenue: 312000, target: 280000, deals: 63 },
-  { quarter: "Q3 2025", revenue: 387000, target: 350000, deals: 78 },
-  { quarter: "Q4 2025", revenue: 467000, target: 420000, deals: 94 },
-];
-
 const monthShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const periodSlice: Record<string, number> = { "3M": 3, "6M": 6, "1Y": 12 };
@@ -33,11 +26,13 @@ const periodOptions = ["3M", "6M", "1Y"];
 
 export default function Reports() {
   const [period, setPeriod] = useState("1Y");
-  const [deals, setDeals] = useState(seedDeals);
+  const [deals, setDeals] = useState<typeof seedDeals>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   useEffect(() => {
-    getDeals().then((rows) => { if (rows?.length) setDeals(rows); }).catch(() => {});
+    // Real rows only — no seed-data fallback, so an empty account renders
+    // empty charts/tables rather than fabricated revenue figures.
+    getDeals().then((rows) => setDeals(rows ?? [])).catch(() => {});
     getCampaigns().then(setCampaigns).catch(() => {});
     getLeads().then(setLeads).catch(() => {});
   }, []);
@@ -83,9 +78,9 @@ export default function Reports() {
   const teamRows: TeamRow[] = teamRowsRaw
     .map((r) => ({ ...r, target: Math.max(Math.round(avgRev), 1) }))
     .sort((a, b) => b.revenue - a.revenue);
-  const teamTable = teamRows.length ? teamRows : (teamPerformanceData as TeamRow[]);
+  const teamTable = teamRows;
 
-  // Derive monthly revenue by bucketing real deals (created_at) by month; fall back to seed series
+  // Derive monthly revenue by bucketing real deals (created_at) by month
   type MonthRow = { month: string; revenue: number; leads: number; deals: number; order: number };
   const dealCreatedAt = (d: unknown) => (d as { created_at?: string }).created_at;
   const dealsWithDates = deals.filter((d) => dealCreatedAt(d));
@@ -99,9 +94,9 @@ export default function Reports() {
     monthBuckets[key].deals += 1;
   }
   const monthlyFromDeals = Object.values(monthBuckets).sort((a, b) => a.order - b.order);
-  const monthlyChartData = monthlyFromDeals.length ? monthlyFromDeals : salesChartData;
+  const monthlyChartData = monthlyFromDeals;
 
-  // Derive quarterly revenue vs peer-average target from real deals; fall back to seed series
+  // Derive quarterly revenue vs peer-average target from real deals
   type QuarterRow = { quarter: string; revenue: number; deals: number; order: number };
   const quarterBuckets: Record<string, QuarterRow> = {};
   for (const d of dealsWithDates) {
@@ -116,7 +111,7 @@ export default function Reports() {
   const quarterRowsRaw = Object.values(quarterBuckets).sort((a, b) => a.order - b.order);
   const avgQuarterRevenue = quarterRowsRaw.length ? quarterRowsRaw.reduce((s, r) => s + r.revenue, 0) / quarterRowsRaw.length : 0;
   const quarterlyFromDeals = quarterRowsRaw.map((r) => ({ ...r, target: Math.max(Math.round(avgQuarterRevenue), 1) }));
-  const quarterlyData = quarterlyFromDeals.length ? quarterlyFromDeals : quarterlyDataFallback;
+  const quarterlyData = quarterlyFromDeals;
 
   const chartData = monthlyChartData.slice(-periodSlice[period]);
 

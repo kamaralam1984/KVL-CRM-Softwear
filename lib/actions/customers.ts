@@ -11,8 +11,8 @@ export async function getCustomers(): Promise<Customer[]> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return seedCustomers;
-  return data as Customer[];
+  if (error) return seedCustomers;
+  return (data ?? []) as Customer[];
 }
 
 export async function createCustomer(customer: Omit<Customer, "id">): Promise<Customer> {

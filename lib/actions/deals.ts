@@ -12,8 +12,8 @@ export async function getDeals(): Promise<Deal[]> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return seedDeals;
-  return data as Deal[];
+  if (error) return seedDeals;
+  return (data ?? []) as Deal[];
 }
 
 export async function createDeal(deal: Omit<Deal, "id">): Promise<Deal> {

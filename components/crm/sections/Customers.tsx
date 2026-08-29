@@ -725,16 +725,18 @@ type TabId = typeof TABS[number]["id"];
 
 // ─── main component ────────────────────────────────────────────────────────────
 export default function Customers() {
-  const [custList, setCustList] = useState(initialCustomers);
+  const [custList, setCustList] = useState<typeof initialCustomers>([]);
+  const [custLoading, setCustLoading] = useState(true);
   const [search,   setSearch]   = useState("");
   const [showModal,setShowModal]= useState(false);
   const [form,     setForm]     = useState<CustForm>(emptyForm);
   const [editingId,setEditingId]= useState<number | null>(null);
   const [activeTab,setActiveTab]= useState<TabId>("overview");
 
-  // Load from Supabase on mount; falls back to seed data in demo mode
+  // Load from Supabase on mount — real rows only; an empty account shows
+  // an empty state, never the seed data.
   useEffect(() => {
-    getCustomers().then((rows) => { if (rows?.length) setCustList(rows); }).catch(() => {});
+    getCustomers().then((rows) => setCustList(rows ?? [])).catch(() => {}).finally(() => setCustLoading(false));
   }, []);
 
   const set = (k: keyof CustForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -878,6 +880,12 @@ export default function Customers() {
               </div>
 
               {/* Customer cards */}
+              {!custLoading && filtered.length === 0 ? (
+                <div className="glass-card rounded-2xl border border-crm-border p-10 text-center">
+                  <p className="text-sm font-medium text-slate-300">No customers yet</p>
+                  <p className="text-xs text-slate-500 mt-1">Add your first customer to see them here.</p>
+                </div>
+              ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {filtered.map((c, i) => {
                   const st = statusStyles[c.status];
@@ -975,6 +983,7 @@ export default function Customers() {
                   );
                 })}
               </div>
+              )}
             </motion.div>
           )}
 

@@ -14,8 +14,8 @@ export async function getInvoices(accessToken?: string): Promise<Invoice[]> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return seedInvoices;
-  return data as Invoice[];
+  if (error) return seedInvoices;
+  return (data ?? []) as Invoice[];
 }
 
 export async function createInvoice(invoice: Invoice, accessToken?: string): Promise<Invoice> {

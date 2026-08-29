@@ -22,16 +22,17 @@ const emptyForm: CampForm = { name: "", status: "draft", date: "" };
 const templates = ["Welcome Email", "Follow-up Series", "Deal Closed", "Re-engagement", "Product Update", "Event Invite"];
 
 export default function Email() {
-  const [campaigns, setCampaigns] = useState(initialCampaigns);
+  const [campaigns, setCampaigns] = useState<typeof initialCampaigns>([]);
   const [showModal, setShowModal] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
   const [form, setForm] = useState<CampForm>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
-  // Load from Supabase on mount; falls back to seed data in demo mode
+  // Load from Supabase on mount — real rows only; an empty account shows
+  // an empty state, never the seed data.
   useEffect(() => {
-    getEmailCampaigns().then((rows) => { if (rows?.length) setCampaigns(rows); }).catch(() => {});
+    getEmailCampaigns().then((rows) => setCampaigns(rows ?? [])).catch(() => {});
   }, []);
 
   const set = (k: keyof CampForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -143,6 +144,12 @@ export default function Email() {
             <div className="text-center">Date</div>
             <div className="text-center"></div>
           </div>
+          {campaigns.length === 0 && (
+            <div className="px-4 py-10 text-center">
+              <p className="text-sm font-medium text-slate-300">No campaigns yet</p>
+              <p className="text-xs text-slate-500 mt-1">Create your first email campaign to see it here.</p>
+            </div>
+          )}
           {campaigns.map((c, i) => {
             const st = statusStyles[c.status];
             return (

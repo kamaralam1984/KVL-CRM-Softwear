@@ -11,8 +11,8 @@ export async function getWhatsappConversations(): Promise<WhatsappConversation[]
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return seedConversations;
-  return data as WhatsappConversation[];
+  if (error) return seedConversations;
+  return (data ?? []) as WhatsappConversation[];
 }
 
 export async function createWhatsappConversation(

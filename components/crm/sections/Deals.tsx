@@ -22,14 +22,16 @@ type DealForm = { name: string; company: string; value: string; stage: string; o
 const emptyForm: DealForm = { name: "", company: "", value: "", stage: "Discovery", owner: "", probability: "50" };
 
 export default function Deals() {
-  const [dealList, setDealList] = useState(initialDeals);
+  const [dealList, setDealList] = useState<typeof initialDeals>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<DealForm>(emptyForm);
 
-  // Load from Supabase on mount; falls back to seed data in demo mode
+  // Load from Supabase on mount — real rows only; an empty account shows
+  // an empty state, never the seed data.
   useEffect(() => {
-    getDeals().then((rows) => { if (rows?.length) setDealList(rows); }).catch(() => {});
+    getDeals().then((rows) => setDealList(rows ?? [])).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const set = (k: keyof DealForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -118,6 +120,12 @@ export default function Deals() {
             <div className="text-center">Owner</div>
             <div className="text-center"></div>
           </div>
+          {!loading && filtered.length === 0 && (
+            <div className="px-4 py-10 text-center">
+              <p className="text-sm font-medium text-slate-300">No deals yet</p>
+              <p className="text-xs text-slate-500 mt-1">Add your first deal to see it here.</p>
+            </div>
+          )}
           {filtered.map((deal, i) => {
             const sc = stageColors[deal.stage] || stageColors.Discovery;
             return (

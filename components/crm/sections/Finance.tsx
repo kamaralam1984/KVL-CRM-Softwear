@@ -22,13 +22,14 @@ type InvForm = { client: string; amount: string; status: string; due: string };
 const emptyForm: InvForm = { client: "", amount: "", status: "pending", due: "" };
 
 export default function Finance() {
-  const [invoiceList, setInvoiceList] = useState(initialInvoices);
+  const [invoiceList, setInvoiceList] = useState<typeof initialInvoices>([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<InvForm>(emptyForm);
 
-  // Load from Supabase on mount; falls back to seed data in demo mode
+  // Load from Supabase on mount — real rows only; an empty account shows
+  // an empty state, never the seed data.
   useEffect(() => {
-    getInvoices(getAccessToken()).then((rows) => { if (rows?.length) setInvoiceList(rows); }).catch(() => {});
+    getInvoices(getAccessToken()).then((rows) => setInvoiceList(rows ?? [])).catch(() => {});
   }, []);
 
   const set = (k: keyof InvForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -125,6 +126,12 @@ export default function Finance() {
             <div className="text-center">Due Date</div>
             <div className="text-center">Actions</div>
           </div>
+          {invoiceList.length === 0 && (
+            <div className="px-4 py-10 text-center">
+              <p className="text-sm font-medium text-slate-300">No invoices yet</p>
+              <p className="text-xs text-slate-500 mt-1">Create your first invoice to see it here.</p>
+            </div>
+          )}
           {invoiceList.map((inv, i) => {
             const st = statusStyles[inv.status];
             const Icon = st.icon;

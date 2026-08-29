@@ -72,10 +72,11 @@ const initialMeetings: MeetingItem[] = [
 ];
 
 export default function WhatsApp() {
-  // Load conversations from Supabase on mount; falls back to seed data in demo mode
-  const [convos, setConvos] = useState(whatsappConversations);
+  // Load conversations from Supabase on mount — real rows only; an empty
+  // account shows an empty state, never the seed data.
+  const [convos, setConvos] = useState<typeof whatsappConversations>([]);
   useEffect(() => {
-    getWhatsappConversations().then((rows) => { if (rows?.length) setConvos(rows); }).catch(() => {});
+    getWhatsappConversations().then((rows) => setConvos(rows ?? [])).catch(() => {});
   }, []);
   const contacts = convos.map(c => ({ id: c.id, name: c.contact, avatar: c.avatar, segment: "Enterprise" }));
 

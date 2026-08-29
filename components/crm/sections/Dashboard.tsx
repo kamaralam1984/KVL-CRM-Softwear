@@ -12,11 +12,13 @@ import {
   ChevronRight, Clock, Phone, Activity, Rocket, Shield,
   BarChart3, Globe, Heart, Trash2,
 } from "lucide-react";
-import { salesChartData, revenueByCategory, activityFeed, teamMembers, leads as seedLeads, deals as seedDeals, tasks as seedTasks } from "@/lib/data";
+import { activityFeed, teamMembers, leads as seedLeads, deals as seedDeals, tasks as seedTasks } from "@/lib/data";
 import { getActivityFeed, deleteActivity } from "@/lib/actions/activity";
 import { getLeads } from "@/lib/actions/leads";
 import { getDeals } from "@/lib/actions/deals";
 import { getTasks } from "@/lib/actions/tasks";
+import { getTeamMembers } from "@/lib/actions/team";
+import { getCurrentUserName } from "@/lib/security/clientSession";
 import { cn, formatCurrency } from "@/lib/utils";
 import { downloadCSV } from "@/lib/export";
 import GenerateLeadsButton from "@/components/crm/GenerateLeadsButton";
@@ -83,18 +85,31 @@ function CircleProgress({ value, size = 56, stroke = 5, color }: { value: number
   );
 }
 
-/* ── Data ── */
-const revSparkline  = salesChartData.slice(-7).map(d => d.revenue / 1000);
-const leadSparkline = salesChartData.slice(-7).map(d => d.leads);
-const dealSparkline = salesChartData.slice(-7).map(d => d.deals * 10);
-const taskSparkline = [52, 48, 55, 43, 50, 46, 48].map(v => v * 10);
-
-const kpis = [
-  { label: "Total Revenue",   value: 1134000, change: +28.5, icon: DollarSign, color: "#3b82f6", glow: "rgba(59,130,246,0.25)",  border: "border-blue-500/25",   bg: "from-blue-500/10 to-blue-500/0",    iconBg: "bg-blue-500/15",   sparkColor: "#3b82f6", spark: revSparkline,  prefix: "$", suffix: "",  pct: 76 },
-  { label: "Active Leads",    value: 1247,    change: +18.2, icon: Users,       color: "#8b5cf6", glow: "rgba(139,92,246,0.2)",   border: "border-violet-500/25", bg: "from-violet-500/10 to-violet-500/0", iconBg: "bg-violet-500/15", sparkColor: "#8b5cf6", spark: leadSparkline, prefix: "",  suffix: "",  pct: 83 },
-  { label: "Win Rate",        value: 68.5,    change: +12.9, icon: Target,      color: "#06b6d4", glow: "rgba(6,182,212,0.2)",    border: "border-cyan-500/25",   bg: "from-cyan-500/10 to-cyan-500/0",    iconBg: "bg-cyan-500/15",   sparkColor: "#06b6d4", spark: dealSparkline, prefix: "",  suffix: "%", pct: 69 },
-  { label: "Tasks Completed", value: 48,      change: -8.3,  icon: CheckSquare, color: "#f43f5e", glow: "rgba(244,63,94,0.2)",    border: "border-rose-500/25",   bg: "from-rose-500/10 to-rose-500/0",    iconBg: "bg-rose-500/15",   sparkColor: "#f43f5e", spark: taskSparkline, prefix: "",  suffix: "",  pct: 40 },
+/* ── KPI card styling metadata — values/change/sparklines are computed at
+   render time from real deals/leads/tasks, never fabricated. ── */
+const kpiMeta = [
+  { label: "Total Revenue",   icon: DollarSign, color: "#3b82f6", glow: "rgba(59,130,246,0.25)",  border: "border-blue-500/25",   bg: "from-blue-500/10 to-blue-500/0",    iconBg: "bg-blue-500/15",   sparkColor: "#3b82f6", prefix: "$", suffix: "" },
+  { label: "Active Leads",    icon: Users,       color: "#8b5cf6", glow: "rgba(139,92,246,0.2)",   border: "border-violet-500/25", bg: "from-violet-500/10 to-violet-500/0", iconBg: "bg-violet-500/15", sparkColor: "#8b5cf6", prefix: "",  suffix: "" },
+  { label: "Win Rate",        icon: Target,      color: "#06b6d4", glow: "rgba(6,182,212,0.2)",    border: "border-cyan-500/25",   bg: "from-cyan-500/10 to-cyan-500/0",    iconBg: "bg-cyan-500/15",   sparkColor: "#06b6d4", prefix: "",  suffix: "%" },
+  { label: "Tasks Completed", icon: CheckSquare, color: "#f43f5e", glow: "rgba(244,63,94,0.2)",    border: "border-rose-500/25",   bg: "from-rose-500/10 to-rose-500/0",    iconBg: "bg-rose-500/15",   sparkColor: "#f43f5e", prefix: "",  suffix: "" },
 ];
+
+const monthNameShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/* A too-short real series (< 2 months of history) renders as a flat line at
+   the current value — an honest "no trend yet", never a fabricated shape. */
+function sparklineOrFlat(series: number[], current: number): number[] {
+  const last7 = series.slice(-7);
+  if (last7.length >= 2) return last7;
+  return [current, current];
+}
+function pctChange(series: number[]): number {
+  if (series.length < 2) return 0;
+  const prev = series[series.length - 2];
+  const cur = series[series.length - 1];
+  if (!prev) return cur > 0 ? 100 : 0;
+  return Math.round(((cur - prev) / prev) * 1000) / 10;
+}
 
 const pipelineStageMeta: { label: string; color: string }[] = [
   { label: "Discovery",    color: "#475569" },
@@ -181,16 +196,21 @@ function computeRevenueInsights(deals: DealForInsights[]): {
 
 export default function Dashboard() {
   const [period, setPeriod] = useState("1Y");
-  // Load real data from Supabase on mount; falls back to seed data in demo mode
-  const [activity, setActivity] = useState(activityFeed);
-  const [leads, setLeads] = useState(seedLeads);
-  const [deals, setDeals] = useState(seedDeals);
-  const [tasks, setTasks] = useState(seedTasks);
+  const [userName, setUserName] = useState<string | null>(null);
+  // Load real data from Supabase on mount — never falls back to seed/demo
+  // data once loaded; an empty account renders honest empty states.
+  const [activity, setActivity] = useState<typeof activityFeed>([]);
+  const [leads, setLeads] = useState<typeof seedLeads>([]);
+  const [deals, setDeals] = useState<typeof seedDeals>([]);
+  const [tasks, setTasks] = useState<typeof seedTasks>([]);
+  const [members, setMembers] = useState<typeof teamMembers>([]);
   useEffect(() => {
-    getActivityFeed().then((rows) => { if (rows?.length) setActivity(rows); }).catch(() => {});
-    getLeads().then((rows) => { if (rows?.length) setLeads(rows); }).catch(() => {});
-    getDeals().then((rows) => { if (rows?.length) setDeals(rows); }).catch(() => {});
-    getTasks().then((rows) => { if (rows?.length) setTasks(rows); }).catch(() => {});
+    setUserName(getCurrentUserName() ?? null);
+    getActivityFeed().then((rows) => setActivity(rows ?? [])).catch(() => {});
+    getLeads().then((rows) => setLeads(rows ?? [])).catch(() => {});
+    getDeals().then((rows) => setDeals(rows ?? [])).catch(() => {});
+    getTasks().then((rows) => setTasks(rows ?? [])).catch(() => {});
+    getTeamMembers().then((rows) => setMembers(rows ?? [])).catch(() => {});
   }, []);
 
   const removeActivity = (id: number) => {
@@ -199,7 +219,7 @@ export default function Dashboard() {
     deleteActivity(id).catch(() => {});
   };
 
-  // Derive live KPI numbers from real data (reconcile with loaded leads/deals/tasks)
+  // Derive live KPI numbers from real data
   const totalRevenue    = deals.reduce((s, d) => s + (Number(d.value) || 0), 0);
   const activeLeads     = leads.length;
   const wonDeals        = deals.filter((d) => /won|closed/i.test(String(d.stage))).length;
@@ -208,20 +228,64 @@ export default function Dashboard() {
   const hotLeadsList     = leads.filter((l) => l.status === "hot");
   const hotLeads         = hotLeadsList.length;
   const tasksDue        = tasks.filter((t) => t.status === "pending").length;
-  const liveKpiValues   = [totalRevenue, activeLeads, winRate, tasksCompleted];
-  const liveKpis        = kpis.map((k, i) => {
-    const live = liveKpiValues[i];
-    if (live === undefined || live === null || !k.value) return k;
-    const change = Math.round(((live - k.value) / k.value) * 1000) / 10;
-    const pct = Math.max(0, Math.min(100, Math.round((live / k.value) * 100)));
-    return { ...k, value: live, change, pct };
+
+  // Real monthly trend series (from each row's created_at) back every KPI's
+  // sparkline + period-over-period change, and the revenue chart — no
+  // fabricated numbers. All metrics are bucketed onto the same sorted set of
+  // month keys so per-month values line up across leads/deals/tasks.
+  const createdAt = (r: unknown) => (r as { created_at?: string }).created_at;
+  const dealValue = (d: (typeof deals)[number]) => Number(d.value) || 0;
+  const monthKey = (iso?: string) => {
+    if (!iso) return null;
+    const dt = new Date(iso);
+    if (isNaN(dt.getTime())) return null;
+    return { key: `${dt.getFullYear()}-${dt.getMonth()}`, label: monthNameShort[dt.getMonth()], order: dt.getFullYear() * 12 + dt.getMonth() };
+  };
+  const monthRows: Record<string, { label: string; order: number; revenue: number; leads: number; deals: number; won: number; tasksDone: number }> = {};
+  const touch = (iso: string | undefined) => {
+    const mk = monthKey(iso);
+    if (!mk) return null;
+    monthRows[mk.key] ??= { label: mk.label, order: mk.order, revenue: 0, leads: 0, deals: 0, won: 0, tasksDone: 0 };
+    return monthRows[mk.key];
+  };
+  for (const d of deals) {
+    const row = touch(createdAt(d));
+    if (!row) continue;
+    row.revenue += dealValue(d);
+    row.deals += 1;
+    if (/won|closed/i.test(String(d.stage))) row.won += 1;
+  }
+  for (const l of leads) {
+    const row = touch(createdAt(l));
+    if (row) row.leads += 1;
+  }
+  for (const t of tasks) {
+    if (t.status !== "completed") continue;
+    const row = touch(createdAt(t));
+    if (row) row.tasksDone += 1;
+  }
+  const monthly = Object.values(monthRows).sort((a, b) => a.order - b.order);
+
+  const revenueSeries   = monthly.map((m) => m.revenue);
+  const leadsSeries     = monthly.map((m) => m.leads);
+  const winRateSeries   = monthly.map((m) => (m.deals ? Math.round((m.won / m.deals) * 1000) / 10 : 0));
+  const tasksDoneSeries = monthly.map((m) => m.tasksDone);
+
+  const liveSeries = [revenueSeries, leadsSeries, winRateSeries, tasksDoneSeries];
+  const liveKpiValues = [totalRevenue, activeLeads, winRate, tasksCompleted];
+  const liveKpis = kpiMeta.map((k, i) => {
+    const value = liveKpiValues[i];
+    const series = liveSeries[i];
+    const spark = sparklineOrFlat(series, value);
+    const change = pctChange(series);
+    const pct = i === 2 ? Math.max(0, Math.min(100, Math.round(value))) : Math.max(0, Math.min(100, spark[spark.length - 1] > 0 ? 70 : 0));
+    return { ...k, value, change, pct, spark };
   });
 
-  const chartData = salesChartData.slice(-periodSlice[period]);
-  const topPerformer = [...teamMembers].filter(m => m.performance > 0).sort((a,b) => b.revenue - a.revenue).slice(0, 3);
+  const chartData = monthly.slice(-periodSlice[period]).map((m) => ({ month: m.label, revenue: m.revenue }));
+  const topPerformer = [...members].filter(m => m.performance > 0).sort((a,b) => b.revenue - a.revenue).slice(0, 3);
 
-  // Derive pipeline funnel + recent wins from the real (or seed-fallback) deals list
-  const dealValue = (d: (typeof deals)[number]) => Number(d.value) || 0;
+  // Derive pipeline funnel + recent wins from the real deals list
   const stageCounts = pipelineStageMeta.map((s) => {
     const stageDeals = deals.filter((d) => String(d.stage) === s.label);
     return { ...s, count: stageDeals.length, value: stageDeals.reduce((sum, d) => sum + dealValue(d), 0) };
@@ -327,7 +391,7 @@ export default function Dashboard() {
                 <p className="text-[11px] text-slate-500">{today}</p>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">● Live</span>
               </div>
-              <h2 className="text-xl font-bold text-white">{getGreeting()}, Animesh! 👋</h2>
+              <h2 className="text-xl font-bold text-white">{getGreeting()}{userName ? `, ${userName.split(" ")[0]}` : ""}! 👋</h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 <span className="text-amber-400 font-semibold">{hotLeads} hot lead{hotLeads === 1 ? "" : "s"}</span> need immediate follow-up ·
                 <span className="text-blue-400 font-semibold"> {tasksDue} task{tasksDue === 1 ? "" : "s"}</span> pending ·

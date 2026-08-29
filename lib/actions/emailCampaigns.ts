@@ -11,8 +11,8 @@ export async function getEmailCampaigns(): Promise<EmailCampaign[]> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return seedCampaigns;
-  return data as EmailCampaign[];
+  if (error) return seedCampaigns;
+  return (data ?? []) as EmailCampaign[];
 }
 
 export async function createEmailCampaign(campaign: Omit<EmailCampaign, "id">): Promise<EmailCampaign> {

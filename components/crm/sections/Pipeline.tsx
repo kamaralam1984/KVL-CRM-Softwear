@@ -22,14 +22,15 @@ type DealForm = { name: string; company: string; value: string; owner: string; p
 const emptyForm: DealForm = { name: "", company: "", value: "", owner: "", probability: "50" };
 
 export default function Pipeline() {
-  const [dealList, setDealList] = useState(initialDeals);
+  const [dealList, setDealList] = useState<typeof initialDeals>([]);
   const [modalStage, setModalStage] = useState<string | null>(null);
   const [form, setForm] = useState<DealForm>(emptyForm);
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
 
-  // Load from Supabase on mount; falls back to seed data in demo mode
+  // Load from Supabase on mount — real rows only; an empty account shows
+  // empty pipeline columns, never the seed data.
   useEffect(() => {
-    fetchDeals().then((rows) => { if (rows?.length) setDealList(rows); }).catch(() => {});
+    fetchDeals().then((rows) => setDealList(rows ?? [])).catch(() => {});
   }, []);
 
   const set = (k: keyof DealForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>

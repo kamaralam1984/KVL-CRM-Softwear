@@ -18,3 +18,15 @@ export function getAccessToken(): string | undefined {
     return undefined;
   }
 }
+
+export function getCurrentUserName(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = localStorage.getItem("crm_user");
+    if (!raw) return undefined;
+    const user = JSON.parse(raw) as { name?: unknown };
+    return typeof user?.name === "string" ? user.name : undefined;
+  } catch {
+    return undefined;
+  }
+}

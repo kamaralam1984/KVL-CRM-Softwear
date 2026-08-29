@@ -11,8 +11,8 @@ export async function getActivityFeed(): Promise<Activity[]> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return seedActivity;
-  return data as Activity[];
+  if (error) return seedActivity;
+  return (data ?? []) as Activity[];
 }
 
 export async function createActivity(activity: Omit<Activity, "id">): Promise<Activity> {

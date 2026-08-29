@@ -14,8 +14,8 @@ export async function getTeamMembers(accessToken?: string): Promise<TeamMember[]
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return seedTeam;
-  return data as TeamMember[];
+  if (error) return seedTeam;
+  return (data ?? []) as TeamMember[];
 }
 
 export async function createTeamMember(member: Omit<TeamMember, "id">, accessToken?: string): Promise<TeamMember> {

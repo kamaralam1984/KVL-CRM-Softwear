@@ -23,20 +23,23 @@ const emptyForm: MemberForm = { name: "", role: "", email: "", status: "online" 
 const roles = ["Senior AE", "Account Manager", "Account Executive", "BDR", "Sales Engineer"];
 
 export default function Team() {
-  const [members, setMembers] = useState(initialMembers);
+  const [members, setMembers] = useState<typeof initialMembers>([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<MemberForm>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Load from Supabase on mount; falls back to seed data in demo mode
+  // Load from Supabase on mount — real rows only; an empty account shows
+  // an empty state, never the seed data.
   useEffect(() => {
-    getTeamMembers(getAccessToken()).then((rows) => { if (rows?.length) setMembers(rows); }).catch(() => {});
+    getTeamMembers(getAccessToken()).then((rows) => setMembers(rows ?? [])).catch(() => {});
   }, []);
 
   const set = (k: keyof MemberForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
-  const topPerformer = members.reduce((a, b) => a.performance > b.performance ? a : b);
+  const topPerformer = members.length
+    ? members.reduce((a, b) => a.performance > b.performance ? a : b)
+    : null;
 
   const closeModal = () => {
     setShowModal(false);
@@ -135,8 +138,14 @@ export default function Team() {
 
           {/* Team Cards */}
           <div className="col-span-2 grid grid-cols-2 gap-3 content-start">
+            {members.length === 0 && (
+              <div className="col-span-2 glass-card rounded-2xl border border-crm-border p-10 text-center">
+                <p className="text-sm font-medium text-slate-300">No team members yet</p>
+                <p className="text-xs text-slate-500 mt-1">Add your first team member to see them here.</p>
+              </div>
+            )}
             {members.map((m, i) => {
-              const isTop = m.id === topPerformer.id && m.performance > 0;
+              const isTop = topPerformer !== null && m.id === topPerformer.id && m.performance > 0;
               return (
                 <motion.div
                   key={m.id}

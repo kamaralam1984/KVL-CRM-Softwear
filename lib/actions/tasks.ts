@@ -11,8 +11,8 @@ export async function getTasks(): Promise<Task[]> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return seedTasks;
-  return data as Task[];
+  if (error) return seedTasks;
+  return (data ?? []) as Task[];
 }
 
 export async function createTask(task: Omit<Task, "id">): Promise<Task> {

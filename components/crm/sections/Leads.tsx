@@ -28,7 +28,8 @@ type LeadForm = { name: string; company: string; email: string; phone: string; v
 const emptyForm: LeadForm = { name: "", company: "", email: "", phone: "", value: "", stage: "Discovery", status: "warm" };
 
 export default function Leads() {
-  const [leadList, setLeadList] = useState(initialLeads);
+  const [leadList, setLeadList] = useState<typeof initialLeads>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [sortByScore, setSortByScore] = useState(false);
@@ -37,9 +38,11 @@ export default function Leads() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
-  // Load from Supabase on mount; falls back to seed data in demo mode
+  // Load from Supabase on mount — real rows only; an empty account shows
+  // an empty state, never the seed data (seed only ever backs a genuine
+  // fetch error, inside getLeads() itself).
   useEffect(() => {
-    getLeads().then((rows) => { if (rows?.length) setLeadList(rows); }).catch(() => {});
+    getLeads().then((rows) => setLeadList(rows ?? [])).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const set = (k: keyof LeadForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -222,6 +225,12 @@ export default function Leads() {
         </div>
 
         {/* Leads Grid */}
+        {!loading && filtered.length === 0 ? (
+          <div className="glass-card rounded-2xl border border-crm-border p-10 text-center">
+            <p className="text-sm font-medium text-slate-300">No leads yet</p>
+            <p className="text-xs text-slate-500 mt-1">Add your first lead, or connect a lead source, to see it here.</p>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {filtered.map((lead, i) => {
             const sc = statusColors[lead.status as keyof typeof statusColors];
@@ -340,6 +349,7 @@ export default function Leads() {
             );
           })}
         </div>
+        )}
       </div>
 
       <Modal

@@ -12,8 +12,8 @@ export async function getLeads(): Promise<Lead[]> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return seedLeads;
-  return data as Lead[];
+  if (error) return seedLeads;
+  return (data ?? []) as Lead[];
 }
 
 // Wave 10 — `site_id` isn't part of the base `Lead` type (derived from
