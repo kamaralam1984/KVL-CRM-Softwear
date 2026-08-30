@@ -141,12 +141,13 @@ function WebinarEditor({ webinar, onClose, onSaved }: { webinar: WebinarRow; onC
 
 export default function Webinars() {
   const [webinars, setWebinars] = useState<WebinarRow[]>([]);
+  const [loadingWebinars, setLoadingWebinars] = useState(true);
   const [editing, setEditing] = useState<WebinarRow | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
-    getWebinars(undefined, getAccessToken()).then(setWebinars).catch(() => {});
+    getWebinars(undefined, getAccessToken()).then(setWebinars).catch(() => {}).finally(() => setLoadingWebinars(false));
     isReminderEmailConfigured().then(setEmailConfigured).catch(() => setEmailConfigured(false));
   }, []);
 
@@ -211,7 +212,9 @@ export default function Webinars() {
         </div>
       </div>
 
-      {webinars.length === 0 ? (
+      {loadingWebinars ? (
+        <div className="flex items-center justify-center py-24 text-xs text-slate-600">Loading webinars…</div>
+      ) : webinars.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center py-24 text-slate-600">
           <Video size={28} className="mb-2 opacity-40" />
           <p className="text-xs">No webinars yet — create one above.</p>

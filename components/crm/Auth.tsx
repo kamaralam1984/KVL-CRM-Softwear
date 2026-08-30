@@ -116,8 +116,10 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
   const cardBg   = dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.9)";
   const cardBrd  = dark ? "rgba(212,175,55,0.2)"   : "rgba(212,175,55,0.15)";
   const text1    = dark ? "#ffffff"                : "#0D0D0D";
-  const text2    = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)";
-  const text3    = dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.22)";
+  // WCAG AA needs >=4.5:1 for normal text — 0.45/0.22 measured well under that
+  // against these backgrounds (as low as 1.69:1); bumped to comfortably pass.
+  const text2    = dark ? "rgba(255,255,255,0.52)" : "rgba(0,0,0,0.56)";
+  const text3    = dark ? "rgba(255,255,255,0.48)" : "rgba(0,0,0,0.58)";
   const inputBg  = dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
   const inputBrd = dark ? "rgba(255,255,255,0.1)"  : "rgba(0,0,0,0.1)";
   const divider  = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";

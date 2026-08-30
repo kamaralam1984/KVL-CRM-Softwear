@@ -15,6 +15,7 @@ const GOLD = "#D4AF37";
 
 export default function Membership() {
   const [tiers, setTiers] = useState<MembershipTier[]>([]);
+  const [loadingTiers, setLoadingTiers] = useState(true);
   const [selected, setSelected] = useState<MembershipTier | null>(null);
   const [content, setContent] = useState<CourseContentItem[]>([]);
   const [showTierForm, setShowTierForm] = useState(false);
@@ -23,7 +24,7 @@ export default function Membership() {
   const [contentForm, setContentForm] = useState({ title: "", contentUrl: "", dripDay: "0" });
 
   useEffect(() => {
-    getMembershipTiers(undefined, getAccessToken()).then((rows) => { setTiers(rows); setSelected(rows[0] ?? null); }).catch(() => {});
+    getMembershipTiers(undefined, getAccessToken()).then((rows) => { setTiers(rows); setSelected(rows[0] ?? null); }).catch(() => {}).finally(() => setLoadingTiers(false));
   }, []);
 
   useEffect(() => {
@@ -89,7 +90,9 @@ export default function Membership() {
           </div>
         )}
 
-        {tiers.length === 0 ? (
+        {loadingTiers ? (
+          <div className="flex items-center justify-center py-20 text-xs text-slate-600">Loading membership tiers…</div>
+        ) : tiers.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20 text-slate-600">
             <Crown size={28} className="mb-2 opacity-40" />
             <p className="text-xs">No membership tiers yet — create one above.</p>

@@ -11,15 +11,6 @@ const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type CalEvent = { id: number; day: number; month: number; year: number; title: string; time: string; type: string; color: string };
 
-const initialEvents: CalEvent[] = [
-  { id: 1, day: 25, month: 11, year: 2025, title: "Call: RetailPro Demo", time: "10:00 AM", type: "call", color: "blue" },
-  { id: 2, day: 25, month: 11, year: 2025, title: "Team Standup", time: "9:00 AM", type: "meeting", color: "violet" },
-  { id: 3, day: 26, month: 11, year: 2025, title: "Proposal Review: HealthTech AI", time: "2:00 PM", type: "meeting", color: "cyan" },
-  { id: 4, day: 27, month: 11, year: 2025, title: "Call: Nexus Systems Closing", time: "11:00 AM", type: "call", color: "emerald" },
-  { id: 5, day: 28, month: 11, year: 2025, title: "Q4 Review Presentation", time: "3:00 PM", type: "meeting", color: "violet" },
-  { id: 6, day: 30, month: 11, year: 2025, title: "Contract Signing: RetailPro", time: "1:00 PM", type: "call", color: "emerald" },
-];
-
 const typeIcons: Record<string, typeof Video> = { call: Phone, meeting: Video, team: Users };
 const colorClasses: Record<string, { bg: string; text: string; border: string }> = {
   blue: { bg: "bg-blue-500/15", text: "text-blue-400", border: "border-blue-500/20" },
@@ -38,13 +29,15 @@ export default function Calendar() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
-  const [events, setEvents] = useState<CalEvent[]>(initialEvents);
+  const [events, setEvents] = useState<CalEvent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<EventForm>(emptyForm);
 
-  // Load from Supabase on mount; falls back to seed data in demo mode
+  // Load from Supabase on mount — real rows only; an empty account shows
+  // an empty state, never the seed data.
   useEffect(() => {
-    getEvents().then((rows) => { if (rows?.length) setEvents(rows); }).catch(() => {});
+    getEvents().then((rows) => setEvents(rows ?? [])).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const set = (k: keyof EventForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -142,10 +135,10 @@ export default function Calendar() {
 
           <div className="glass-card rounded-2xl border border-crm-border p-4 flex flex-col">
             <h3 className="text-sm font-semibold text-slate-200 mb-3">
-              {currentEvents.length > 0 ? `Events — ${monthNames[month]}` : `No events in ${monthNames[month]}`}
+              {loading ? "Loading events…" : currentEvents.length > 0 ? `Events — ${monthNames[month]}` : `No events in ${monthNames[month]}`}
             </h3>
             <div className="space-y-2 flex-1 overflow-y-auto">
-              {currentEvents.length === 0 && (
+              {!loading && currentEvents.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <p className="text-xs text-slate-600 mb-3">No events this month</p>
                   <button onClick={() => setShowModal(true)} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">

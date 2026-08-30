@@ -29,12 +29,13 @@ const EVENT_OPTIONS: { key: EventKey; label: string }[] = [
 
 function ApiKeysCard() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const load = () => getApiKeys(getAccessToken()).then(setKeys).catch(() => {});
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load().finally(() => setLoading(false)); }, []);
 
   const create = async () => {
     const res = await createApiKey(name.trim() || "Unnamed key", getAccessToken());
@@ -100,7 +101,8 @@ function ApiKeysCard() {
             )}
           </div>
         ))}
-        {keys.length === 0 && <p className="text-xs text-slate-600">No API keys yet.</p>}
+        {loading && <p className="text-xs text-slate-600">Loading…</p>}
+        {!loading && keys.length === 0 && <p className="text-xs text-slate-600">No API keys yet.</p>}
       </div>
     </div>
   );
@@ -149,12 +151,13 @@ function DeliveryHistory({ webhookId }: { webhookId: string }) {
 
 function WebhooksCard() {
   const [webhooks, setWebhooks] = useState<WebhookRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [url, setUrl] = useState("");
   const [events, setEvents] = useState<Set<EventKey>>(new Set(["lead.created"]));
   const [error, setError] = useState("");
 
   const load = () => getWebhooks(getAccessToken()).then(setWebhooks).catch(() => {});
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load().finally(() => setLoading(false)); }, []);
 
   const toggleEvent = (key: EventKey) => {
     setEvents((prev) => {
@@ -228,7 +231,8 @@ function WebhooksCard() {
             <DeliveryHistory webhookId={w.id} />
           </div>
         ))}
-        {webhooks.length === 0 && <p className="text-xs text-slate-600">No webhooks configured.</p>}
+        {loading && <p className="text-xs text-slate-600">Loading…</p>}
+        {!loading && webhooks.length === 0 && <p className="text-xs text-slate-600">No webhooks configured.</p>}
       </div>
     </div>
   );

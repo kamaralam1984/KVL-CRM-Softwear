@@ -192,10 +192,11 @@ function FormEditor({ form, onClose, onSaved }: { form: FormRow; onClose: () => 
 
 export default function Forms() {
   const [forms, setForms] = useState<FormRow[]>([]);
+  const [loadingForms, setLoadingForms] = useState(true);
   const [editing, setEditing] = useState<FormRow | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  useEffect(() => { getForms(undefined, getAccessToken()).then(setForms).catch(() => {}); }, []);
+  useEffect(() => { getForms(undefined, getAccessToken()).then(setForms).catch(() => {}).finally(() => setLoadingForms(false)); }, []);
 
   const createNew = () => {
     const name = "Untitled Form";
@@ -250,7 +251,9 @@ export default function Forms() {
         </button>
       </div>
 
-      {forms.length === 0 ? (
+      {loadingForms ? (
+        <div className="flex items-center justify-center py-24 text-xs text-slate-600">Loading forms…</div>
+      ) : forms.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center py-24 text-slate-600">
           <ClipboardList size={28} className="mb-2 opacity-40" />
           <p className="text-xs">No forms yet — create one above.</p>

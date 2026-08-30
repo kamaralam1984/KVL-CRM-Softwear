@@ -599,17 +599,18 @@ function AnalyticsTab() {
 function CallTrackingTab() {
   const [numbers, setNumbers] = useState<TrackingNumber[]>([]);
   const [logs, setLogs] = useState<CallLog[]>([]);
+  const [loadingTracking, setLoadingTracking] = useState(true);
   const [form, setForm] = useState({ areaCode: "415", campaignName: "", forwardToNumber: "" });
   const [creating, setCreating] = useState(false);
   const [msg, setMsg] = useState("");
   const [twilioConfigured, setTwilioConfigured] = useState<boolean | null>(null);
 
-  const load = () => {
-    getTrackingNumbers(DEFAULT_SITE_ID, getAccessToken()).then(setNumbers).catch(() => {});
-    getCallLogs(DEFAULT_SITE_ID, getAccessToken()).then(setLogs).catch(() => {});
-  };
+  const load = () => Promise.all([
+    getTrackingNumbers(DEFAULT_SITE_ID, getAccessToken()).then(setNumbers).catch(() => {}),
+    getCallLogs(DEFAULT_SITE_ID, getAccessToken()).then(setLogs).catch(() => {}),
+  ]);
   useEffect(() => {
-    load();
+    load().finally(() => setLoadingTracking(false));
     isTelephonyConfigured().then(setTwilioConfigured).catch(() => setTwilioConfigured(false));
   }, []);
 
@@ -667,7 +668,9 @@ function CallTrackingTab() {
 
       <div style={card}>
         <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", marginBottom: 12 }}>Tracking Numbers ({numbers.length})</p>
-        {numbers.length === 0 ? (
+        {loadingTracking ? (
+          <p style={{ fontSize: 12, color: "#64748b" }}>Loading…</p>
+        ) : numbers.length === 0 ? (
           <p style={{ fontSize: 12, color: "#64748b" }}>No tracking numbers yet — provision one above.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -689,7 +692,9 @@ function CallTrackingTab() {
 
       <div style={card}>
         <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", marginBottom: 12 }}>Recent Calls ({logs.length})</p>
-        {logs.length === 0 ? (
+        {loadingTracking ? (
+          <p style={{ fontSize: 12, color: "#64748b" }}>Loading…</p>
+        ) : logs.length === 0 ? (
           <p style={{ fontSize: 12, color: "#64748b" }}>No calls logged yet.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

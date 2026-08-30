@@ -21,6 +21,7 @@ const EMERALD = "#00A86B";
 
 export default function Affiliates() {
   const [affiliates, setAffiliates] = useState<Affiliate[]>([]);
+  const [loadingAffiliates, setLoadingAffiliates] = useState(true);
   const [selected, setSelected] = useState<Affiliate | null>(null);
   const [commissions, setCommissions] = useState<AffiliateCommission[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -37,7 +38,7 @@ export default function Affiliates() {
   };
 
   useEffect(() => {
-    getAffiliates(getAccessToken()).then((rows) => { setAffiliates(rows); selectAffiliate(rows[0] ?? null); }).catch(() => {});
+    getAffiliates(getAccessToken()).then((rows) => { setAffiliates(rows); selectAffiliate(rows[0] ?? null); }).catch(() => {}).finally(() => setLoadingAffiliates(false));
   }, []);
 
   useEffect(() => {
@@ -115,7 +116,9 @@ export default function Affiliates() {
           </div>
         )}
 
-        {affiliates.length === 0 ? (
+        {loadingAffiliates ? (
+          <div className="flex items-center justify-center py-20 text-xs text-slate-600">Loading affiliates…</div>
+        ) : affiliates.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20 text-slate-600">
             <Users2 size={28} className="mb-2 opacity-40" />
             <p className="text-xs">No affiliates yet — add one above.</p>

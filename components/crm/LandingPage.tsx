@@ -42,7 +42,7 @@ function makeTheme(dark: boolean) {
     navBorder:       "rgba(212,175,55,0.12)",
     text1:           "#ffffff",
     text2:           "rgba(255,255,255,0.52)",
-    text3:           "rgba(255,255,255,0.22)",
+    text3:           "rgba(255,255,255,0.48)", // was 0.22 (1.85:1) — WCAG AA fail; now 4.95:1
     cardBg:          "rgba(255,255,255,0.025)",
     cardBorder:      "rgba(255,255,255,0.07)",
     cardHoverBg:     "rgba(212,175,55,0.05)",
@@ -92,8 +92,8 @@ function makeTheme(dark: boolean) {
     navBg:           "rgba(248,246,241,0.96)",
     navBorder:       "rgba(212,175,55,0.18)",
     text1:           "#0D0D0D",
-    text2:           "rgba(0,0,0,0.52)",
-    text3:           "rgba(0,0,0,0.28)",
+    text2:           "rgba(0,0,0,0.56)", // was 0.52 (4.20:1) — WCAG AA fail; now 4.84:1
+    text3:           "rgba(0,0,0,0.58)", // was 0.28 (1.98:1) — WCAG AA fail; now 5.21:1
     cardBg:          "rgba(255,255,255,0.85)",
     cardBorder:      "rgba(0,0,0,0.07)",
     cardHoverBg:     "rgba(212,175,55,0.07)",
@@ -516,6 +516,18 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
     return () => window.removeEventListener("scroll", fn);
   }, []);
 
+  // Escape closes whichever modal is open (ModuleDetailModal handles its own).
+  useEffect(() => {
+    if (!videoOpen && !demoOpen) return;
+    const fn = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setVideoOpen(false);
+      setDemoOpen(false);
+    };
+    document.addEventListener("keydown", fn);
+    return () => document.removeEventListener("keydown", fn);
+  }, [videoOpen, demoOpen]);
+
   const T = makeTheme(dark);
 
   // Gold gradient stays same in both modes
@@ -587,7 +599,11 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 <a key={l} href={`#${l.toLowerCase().replace(/ /g,"-")}`} onClick={() => setMenuOpen(false)}
                   className="block px-3 py-2 text-sm rounded-lg" style={{ color: T.text2 }}>{l}</a>
               ))}
-              <button onClick={onGetStarted} className="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-black text-black" style={{ background: goldGrad }}>
+              <button onClick={() => { setMenuOpen(false); onGetStarted(); }}
+                className="block w-full text-left px-3 py-2 text-sm rounded-lg" style={{ color: T.text2 }}>
+                Sign In
+              </button>
+              <button onClick={() => { setMenuOpen(false); onGetStarted(); }} className="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-black text-black" style={{ background: goldGrad }}>
                 Get Started Free
               </button>
             </motion.div>
