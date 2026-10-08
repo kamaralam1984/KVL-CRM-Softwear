@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X, Send, Mic, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,44 @@ interface Message {
   time: string;
 }
 
+interface Rect { x: number; y: number; w: number; h: number }
+
+const MIN_W = 320;
+const MIN_H = 360;
+const MARGIN = 24;
+const STORAGE_KEY = "crm_ai_chat_rect";
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));
+
+// Keep the window fully on-screen and within the min/max size limits.
+function fit(r: Rect): Rect {
+  const w = clamp(r.w, Math.min(MIN_W, window.innerWidth), window.innerWidth);
+  const h = clamp(r.h, Math.min(MIN_H, window.innerHeight), window.innerHeight);
+  return { w, h, x: clamp(r.x, 0, window.innerWidth - w), y: clamp(r.y, 0, window.innerHeight - h) };
+}
+
+function initialRect(): Rect {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
+    if (saved && ["x", "y", "w", "h"].every((k) => typeof saved[k] === "number")) return fit(saved);
+  } catch { /* ignore */ }
+  const w = Math.min(384, window.innerWidth - MARGIN * 2);
+  const h = Math.min(560, window.innerHeight - MARGIN * 2);
+  return fit({ w, h, x: window.innerWidth - w - MARGIN, y: window.innerHeight - h - MARGIN });
+}
+
+// Edge/corner handles: dir letters say which sides move (n/s/e/w).
+const HANDLES: { dir: string; cls: string; cursor: string }[] = [
+  { dir: "n",  cls: "top-0 left-3 right-3 h-1.5",       cursor: "ns-resize" },
+  { dir: "s",  cls: "bottom-0 left-3 right-3 h-1.5",    cursor: "ns-resize" },
+  { dir: "e",  cls: "right-0 top-3 bottom-3 w-1.5",     cursor: "ew-resize" },
+  { dir: "w",  cls: "left-0 top-3 bottom-3 w-1.5",      cursor: "ew-resize" },
+  { dir: "nw", cls: "top-0 left-0 w-3 h-3",             cursor: "nwse-resize" },
+  { dir: "ne", cls: "top-0 right-0 w-3 h-3",            cursor: "nesw-resize" },
+  { dir: "sw", cls: "bottom-0 left-0 w-3 h-3",          cursor: "nesw-resize" },
+  { dir: "se", cls: "bottom-0 right-0 w-3 h-3",         cursor: "nwse-resize" },
+];
+
 interface AIAssistantProps {
   open: boolean;
   onClose: () => void;
@@ -39,6 +77,57 @@ export default function AIAssistant({ open, onClose }: AIAssistantProps) {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<Rect | null>(null);
+  const rectRef = useRef<Rect | null>(null);
+
+  useEffect(() => { rectRef.current = rect; }, [rect]);
+
+  useEffect(() => {
+    if (open && !rectRef.current) setRect(initialRect());
+  }, [open]);
+
+  // Re-fit when the browser window is resized so the box never gets lost.
+  useEffect(() => {
+    const onResize = () => setRect((r) => (r ? fit(r) : r));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // mode "move" drags the whole box; otherwise it's a resize direction.
+  const startGesture = useCallback((e: React.PointerEvent, mode: string) => {
+    if (e.button !== 0 || !rectRef.current) return;
+    if (mode === "move" && (e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
+    const start = rectRef.current;
+    const sx = e.clientX, sy = e.clientY;
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      let { x, y, w, h } = start;
+      if (mode === "move") {
+        x = clamp(start.x + dx, 0, window.innerWidth - w);
+        y = clamp(start.y + dy, 0, window.innerHeight - h);
+      } else {
+        if (mode.includes("e")) w = clamp(start.w + dx, MIN_W, window.innerWidth - start.x);
+        if (mode.includes("s")) h = clamp(start.h + dy, MIN_H, window.innerHeight - start.y);
+        if (mode.includes("w")) { w = clamp(start.w - dx, MIN_W, start.x + start.w); x = start.x + start.w - w; }
+        if (mode.includes("n")) { h = clamp(start.h - dy, MIN_H, start.y + start.h); y = start.y + start.h - h; }
+      }
+      setRect({ x, y, w, h });
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      document.body.style.userSelect = prevSelect;
+      try { if (rectRef.current) localStorage.setItem(STORAGE_KEY, JSON.stringify(rectRef.current)); } catch { /* ignore */ }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -95,17 +184,31 @@ export default function AIAssistant({ open, onClose }: AIAssistantProps) {
 
   return (
     <AnimatePresence>
-      {open && (
+      {open && rect && (
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
           transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-          className="fixed bottom-6 right-6 w-96 h-[560px] glass-card border rounded-2xl flex flex-col z-50 overflow-hidden"
-          style={{ boxShadow: "0 24px 64px rgba(0,0,0,0.4), 0 0 32px rgba(59,130,246,0.1)", borderColor: "var(--border-col)" }}
+          className="fixed glass-card border rounded-2xl flex flex-col z-50 overflow-hidden"
+          style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, boxShadow: "0 24px 64px rgba(0,0,0,0.4), 0 0 32px rgba(59,130,246,0.1)", borderColor: "var(--border-col)" }}
         >
-          {/* Header */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-crm-border" style={{ background: "rgba(59,130,246,0.08)" }}>
+          {/* Resize handles */}
+          {HANDLES.map((h) => (
+            <div
+              key={h.dir}
+              onPointerDown={(e) => startGesture(e, h.dir)}
+              className={cn("absolute z-10", h.cls)}
+              style={{ cursor: h.cursor, touchAction: "none" }}
+            />
+          ))}
+
+          {/* Header (drag to move) */}
+          <div
+            onPointerDown={(e) => startGesture(e, "move")}
+            className="flex items-center gap-3 px-4 py-3 border-b border-crm-border cursor-move select-none"
+            style={{ background: "rgba(59,130,246,0.08)", touchAction: "none" }}
+          >
             <div className="w-8 h-8 rounded-xl gradient-bg flex items-center justify-center neon-blue">
               <Sparkles size={15} className="text-white" />
             </div>
