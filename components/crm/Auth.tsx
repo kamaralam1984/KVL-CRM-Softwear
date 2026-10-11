@@ -192,7 +192,7 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
     if (isSupabaseConfigured()) {
       setLoading(true);
       const supabase = getSupabaseClient();
-      const { error: err } = await supabase.auth.resetPasswordForEmail(lEmail.toLowerCase());
+      const { error: err } = await supabase.auth.resetPasswordForEmail(lEmail.toLowerCase(), { redirectTo: `${window.location.origin}/reset-password` });
       setLoading(false);
       if (err) { setError(err.message); return; }
       setError(`Password reset link sent to ${lEmail}. Check your inbox.`);
