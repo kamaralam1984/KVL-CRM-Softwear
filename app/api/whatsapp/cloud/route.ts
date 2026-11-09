@@ -10,6 +10,7 @@ import { rateLimit } from "@/lib/security/rateLimit";
 import { clientIp } from "../../analytics/shared";
 import { verifyMetaSignature } from "@/lib/messaging/metaSignature";
 import { processInboundWhatsapp } from "@/lib/messaging/inboundWhatsapp";
+import { applyDeliveryStatus, type DeliveryStatus } from "@/lib/messaging/status";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
 }
 
 interface CloudPayload {
-  entry?: { changes?: { value?: { messages?: { from?: string; id?: string; type?: string; text?: { body?: string }; button?: { text?: string }; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } } }[] } }[] }[];
+  entry?: { changes?: { value?: { statuses?: { id?: string; status?: string; errors?: { title?: string; message?: string }[] }[]; messages?: { from?: string; id?: string; type?: string; text?: { body?: string }; button?: { text?: string }; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } } }[] } }[] }[];
 }
 
 export async function POST(req: NextRequest) {
@@ -44,6 +45,11 @@ export async function POST(req: NextRequest) {
     const payload = JSON.parse(raw) as CloudPayload;
     for (const entry of payload.entry ?? []) {
       for (const change of entry.changes ?? []) {
+        for (const st of change.value?.statuses ?? []) {
+          if (st.id && ["sent", "delivered", "read", "failed"].includes(st.status ?? "")) {
+            await applyDeliveryStatus(st.id, st.status as DeliveryStatus, st.errors?.[0]?.message ?? st.errors?.[0]?.title ?? "");
+          }
+        }
         for (const m of change.value?.messages ?? []) {
           if (!m.from) continue;
           const text = m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? `[${m.type ?? "message"}]`;

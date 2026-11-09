@@ -1,18 +1,18 @@
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_SEQUENCE, adjustForQuietHours, buildCtx, classifyInbound, fallbackNudge,
-  needsAiNudge, renderTemplate, stepDueAt,
+  needsAiNudge, renderTemplate, stepDueAt, templateParams, tzOffsetForPhone,
 } from "./sequence";
 
 // IST = UTC+5:30. 06:30 UTC = 12:00 IST; 17:00 UTC = 22:30 IST; 02:00 UTC = 07:30 IST.
 const utc = (h: number, m = 0, d = 10) => new Date(Date.UTC(2026, 0, d, h, m));
 
 describe("default sequence", () => {
-  it("spans 90 days, is time-ordered, and uses all three channels", () => {
+  it("spans 90 days, is time-ordered, and uses WhatsApp, email, call and voicemail", () => {
     const hrs = DEFAULT_SEQUENCE.steps.map((s) => s.atHours);
     expect([...hrs].sort((a, b) => a - b)).toEqual(hrs);
     expect(Math.max(...hrs)).toBe(90 * 24);
-    expect(new Set(DEFAULT_SEQUENCE.steps.map((s) => s.channel))).toEqual(new Set(["whatsapp", "email", "call"]));
+    expect(new Set(DEFAULT_SEQUENCE.steps.map((s) => s.channel))).toEqual(new Set(["whatsapp", "email", "call", "voicemail"]));
   });
   it("email steps always have a subject", () => {
     for (const s of DEFAULT_SEQUENCE.steps.filter((x) => x.channel === "email")) expect(s.subject).toBeTruthy();
@@ -22,7 +22,7 @@ describe("default sequence", () => {
 describe("renderTemplate / buildCtx", () => {
   it("fills placeholders and falls back for missing lead fields", () => {
     const ctx = buildCtx({ name: "Rahul Sharma", company: "", owner: "" }, "KVL");
-    expect(ctx).toEqual({ firstName: "Rahul", company: "your business", brand: "KVL", owner: "the team" });
+    expect(ctx).toEqual({ firstName: "Rahul", company: "your business", brand: "KVL", owner: "the team", bookingLink: "", paymentLink: "" });
     expect(renderTemplate("Hi {{firstName}} from {{brand}} re {{company}}", ctx)).toBe("Hi Rahul from KVL re your business");
   });
 });
@@ -77,5 +77,29 @@ describe("fallbackNudge", () => {
     const ctx = buildCtx({ name: "Priya", company: "Acme", owner: "Sarah" }, "KVL");
     expect(fallbackNudge(ctx, 0).body).toContain("Priya");
     expect(fallbackNudge(ctx, 1).body).toContain("Sarah");
+  });
+});
+
+describe("optional [[blocks]] and links", () => {
+  const base = buildCtx({ name: "Priya", company: "Acme", owner: "Sam" }, "KVL");
+  it("drops the block when its variable is empty", () => expect(renderTemplate("Hi {{firstName}}! [[Book: {{bookingLink}}]] Thanks", base)).toBe("Hi Priya! Thanks"));
+  it("keeps the block when the link is set", () => {
+    const ctx = buildCtx({ name: "Priya" }, "KVL", { bookingLink: "https://cal.test/x" });
+    expect(renderTemplate("Hi {{firstName}}! [[Book: {{bookingLink}}]] Thanks", ctx)).toBe("Hi Priya! Book: https://cal.test/x Thanks");
+  });
+  it("every default step renders cleanly with and without links", () => {
+    for (const links of [{}, { bookingLink: "https://b", paymentLink: "https://p" }]) {
+      for (const s of DEFAULT_SEQUENCE.steps) { const out = renderTemplate(s.body, buildCtx({ name: "A B" }, "KVL", links)); expect(out).not.toMatch(/\{\{|\[\[|\]\]/); }
+    }
+  });
+  it("templateParams lists variables in order of appearance", () => expect(templateParams("Hi {{firstName}}, {{brand}} for {{company}}", base)).toEqual(["Priya", "KVL", "Acme"]));
+});
+
+describe("timezones", () => {
+  it("maps country codes", () => { expect(tzOffsetForPhone("+971501234567")).toBe(240); expect(tzOffsetForPhone("+14155550123")).toBe(-300); expect(tzOffsetForPhone("+919812345678")).toBe(330); expect(tzOffsetForPhone("9812345678")).toBe(330); });
+  it("quiet hours follow the lead's local time", () => {
+    const t = new Date(Date.UTC(2026, 0, 10, 17, 0)); // 22:30 IST (quiet) but 21:00 in Dubai (quiet) and 17:00 in London (fine)
+    expect(adjustForQuietHours(t, 0)).toEqual(t);
+    expect(adjustForQuietHours(t, 330).getTime()).toBeGreaterThan(t.getTime());
   });
 });

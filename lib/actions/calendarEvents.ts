@@ -10,6 +10,10 @@ export type CalendarEvent = {
   time: string;
   type: string;
   color: string;
+  contact_phone?: string;
+  contact_email?: string;
+  meeting_url?: string;
+  lead_id?: number | null;
 };
 
 export async function getEvents(): Promise<CalendarEvent[]> {

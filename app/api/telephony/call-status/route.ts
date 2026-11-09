@@ -29,18 +29,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 
+    // Click-to-call passes ?log=<call_logs.id> (recordings arrive on a different CallSid than the agent leg).
+    const logId = req.nextUrl.searchParams.get("log") ?? "";
     const callSid = params.CallSid ?? params.ParentCallSid ?? "";
-    if (!callSid) return NextResponse.json({ ok: true });
+    if (!callSid && !logId) return NextResponse.json({ ok: true });
+
+    // Only overwrite fields the event actually carries (a status event must not blank an earlier recording URL).
+    const patch: Record<string, unknown> = {};
+    const status = params.CallStatus ?? params.DialCallStatus;
+    const dur = params.CallDuration ?? params.DialCallDuration ?? params.RecordingDuration;
+    if (status) patch.status = status;
+    if (dur) patch.duration_seconds = Number(dur);
+    if (params.RecordingUrl) patch.recording_url = params.RecordingUrl;
+    if (!Object.keys(patch).length) return NextResponse.json({ ok: true });
 
     const db = getServerClient();
-    await db
-      .from("call_logs")
-      .update({
-        status: params.CallStatus ?? params.DialCallStatus ?? "completed",
-        duration_seconds: params.CallDuration ? Number(params.CallDuration) : params.DialCallDuration ? Number(params.DialCallDuration) : null,
-        recording_url: params.RecordingUrl ?? "",
-      })
-      .eq("provider_call_sid", callSid);
+    await (logId ? db.from("call_logs").update(patch).eq("id", logId) : db.from("call_logs").update(patch).eq("provider_call_sid", callSid));
 
     return NextResponse.json({ ok: true });
   } catch (err) {

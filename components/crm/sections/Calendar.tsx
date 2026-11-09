@@ -22,8 +22,8 @@ const colorClasses: Record<string, { bg: string; text: string; border: string }>
 const inputCls = "w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-crm-border text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-blue-500/50 transition-colors";
 const selectCls = "w-full px-3 py-2 rounded-xl bg-[#0a1628] border border-crm-border text-xs text-slate-200 outline-none focus:border-blue-500/50 transition-colors";
 
-type EventForm = { title: string; day: string; time: string; type: string; color: string };
-const emptyForm: EventForm = { title: "", day: "", time: "", type: "meeting", color: "blue" };
+type EventForm = { title: string; day: string; time: string; type: string; color: string; contact_phone: string; contact_email: string; meeting_url: string };
+const emptyForm: EventForm = { title: "", day: "", time: "", type: "meeting", color: "blue", contact_phone: "", contact_email: "", meeting_url: "" };
 
 export default function Calendar() {
   const now = new Date();
@@ -72,6 +72,10 @@ export default function Calendar() {
       time: form.time || "12:00 PM",
       type: form.type,
       color: form.color,
+      // Reminder Engine: client gets WhatsApp/email reminders 24h, 2h and 15 min before.
+      contact_phone: form.contact_phone.trim(),
+      contact_email: form.contact_email.trim(),
+      meeting_url: form.meeting_url.trim(),
     };
     setEvents((prev) => [...prev, newEvent]);
     // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
@@ -207,6 +211,21 @@ export default function Calendar() {
               </select>
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Client phone (for reminders)</label>
+              <input className={inputCls} placeholder="+91 98123 45678" value={form.contact_phone} onChange={set("contact_phone")} />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-500 mb-1 block">Client email</label>
+              <input className={inputCls} type="email" placeholder="client@company.com" value={form.contact_email} onChange={set("contact_email")} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Meeting link (optional)</label>
+            <input className={inputCls} placeholder="https://meet.google.com/…" value={form.meeting_url} onChange={set("meeting_url")} />
+          </div>
+          <p className="text-[10px] text-slate-500">With a phone or email, the client is reminded automatically 24h, 2h and 15 min before.</p>
           <div className="flex gap-2 pt-2">
             <button onClick={() => setShowModal(false)} className="flex-1 py-2 rounded-xl border border-crm-border text-xs text-slate-400 hover:bg-white/[0.04] transition-colors">Cancel</button>
             <button onClick={addEvent} disabled={!form.title.trim() || !form.day} className="flex-1 py-2 rounded-xl gradient-bg text-white text-xs font-medium disabled:opacity-40">Add Event</button>

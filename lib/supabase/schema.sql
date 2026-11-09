@@ -1358,3 +1358,161 @@ alter table followup_events enable row level security;
 drop policy if exists "Authenticated can access followup_events" on followup_events;
 create policy "Authenticated can access followup_events" on followup_events for all using (auth.role() = 'authenticated');
 create index if not exists followup_events_enrollment_idx on followup_events (enrollment_id, created_at desc);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Communications completion pack — DNC, delivery status, team alerts, email
+-- log/tracking/inbox, templates, settings, call outcomes, editable follow-up
+-- sequences, Reminder Engine. Everything idempotent (re-runnable).
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Central opt-out / Do-Not-Contact list. One row per (contact, channel);
+-- channel 'all' blocks every channel. phone is stored as digits only.
+create table if not exists suppressions (
+  id         uuid primary key default gen_random_uuid(),
+  phone      text not null default '',
+  email      text not null default '',
+  channel    text not null default 'all' check (channel in ('all','whatsapp','sms','email','call')),
+  reason     text default '',
+  source     text default '',   -- inbound_stop | unsubscribe_link | bounce | complaint | manual | call_outcome
+  created_at timestamptz default now()
+);
+alter table suppressions enable row level security;
+drop policy if exists "Authenticated can access suppressions" on suppressions;
+create policy "Authenticated can access suppressions" on suppressions for all using (auth.role() = 'authenticated');
+create unique index if not exists suppressions_phone_uidx on suppressions (phone, channel) where phone <> '';
+create unique index if not exists suppressions_email_uidx on suppressions (email, channel) where email <> '';
+
+-- Delivery status + assignment on the unified inbox.
+alter table messages add column if not exists error text default '';
+alter table messages add column if not exists delivered_at timestamptz;
+alter table messages add column if not exists read_at timestamptz;
+create index if not exists messages_provider_idx on messages (provider_message_id);
+alter table conversations add column if not exists assigned_to text default '';
+alter table conversations add column if not exists last_auto_reply_at timestamptz;
+
+-- In-app team notifications (bell icon) — instant alert on client replies etc.
+create table if not exists notifications (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null default 'info',
+  title      text not null,
+  body       text default '',
+  lead_id    int references leads(id) on delete set null,
+  priority   text not null default 'normal' check (priority in ('low','normal','high')),
+  read       boolean not null default false,
+  created_at timestamptz default now()
+);
+alter table notifications enable row level security;
+drop policy if exists "Authenticated can access notifications" on notifications;
+create policy "Authenticated can access notifications" on notifications for all using (auth.role() = 'authenticated');
+create index if not exists notifications_unread_idx on notifications (read, created_at desc);
+
+-- Every email in/out (thread inbox + open/click/bounce tracking via Resend webhooks).
+create table if not exists email_log (
+  id          uuid primary key default gen_random_uuid(),
+  direction   text not null check (direction in ('outbound','inbound')),
+  provider_id text,
+  thread_key  text default '',
+  lead_id     int references leads(id) on delete set null,
+  from_email  text default '',
+  to_email    text default '',
+  subject     text default '',
+  body        text default '',
+  status      text not null default 'sent',   -- sent | delivered | bounced | complained | received | failed | mock
+  opens       int not null default 0,
+  clicks      int not null default 0,
+  error       text default '',
+  sent_by     text default '',                 -- automation | ai | human email
+  created_at  timestamptz default now()
+);
+alter table email_log enable row level security;
+drop policy if exists "Authenticated can access email_log" on email_log;
+create policy "Authenticated can access email_log" on email_log for all using (auth.role() = 'authenticated');
+create index if not exists email_log_provider_idx on email_log (provider_id);
+create index if not exists email_log_thread_idx on email_log (thread_key, created_at);
+create index if not exists email_log_lead_idx on email_log (lead_id, created_at desc);
+
+-- WhatsApp templates (Meta-approved), email templates and quick replies in one table.
+create table if not exists message_templates (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null check (kind in ('whatsapp','email','quick_reply')),
+  name       text not null,
+  subject    text default '',
+  body       text not null default '',
+  meta_name  text default '',        -- whatsapp: Meta template name
+  language   text default 'en',
+  approved   boolean not null default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table message_templates enable row level security;
+drop policy if exists "Authenticated can access message_templates" on message_templates;
+create policy "Authenticated can access message_templates" on message_templates for all using (auth.role() = 'authenticated');
+create index if not exists message_templates_kind_idx on message_templates (kind, name);
+
+-- Key/value settings: business_hours, auto_reply, ai_answer, knowledge_base, payment_link, booking_link, team_alerts.
+create table if not exists comms_settings (
+  key        text primary key,
+  value      jsonb not null default '{}',
+  updated_at timestamptz default now()
+);
+alter table comms_settings enable row level security;
+drop policy if exists "Authenticated can access comms_settings" on comms_settings;
+create policy "Authenticated can access comms_settings" on comms_settings for all using (auth.role() = 'authenticated');
+
+-- Call desk: link calls to leads + outcome / callback.
+alter table call_logs add column if not exists lead_id int references leads(id) on delete set null;
+alter table call_logs add column if not exists to_number text default '';
+alter table call_logs add column if not exists outcome text default '';   -- interested | callback | not_picked | busy | wrong_number | not_interested | voicemail
+alter table call_logs add column if not exists notes text default '';
+alter table call_logs add column if not exists callback_at timestamptz;
+alter table call_logs add column if not exists agent text default '';
+create index if not exists call_logs_lead_idx on call_logs (lead_id, created_at desc);
+
+-- Editable follow-up sequences + per-enrollment snapshot (editing a sequence never disturbs in-flight leads).
+create table if not exists followup_sequences (
+  id          uuid primary key default gen_random_uuid(),
+  key         text not null unique,
+  name        text not null,
+  steps       jsonb not null default '[]',
+  duration_days int not null default 90,
+  is_default  boolean not null default false,
+  match_source text default '',   -- optional: use for leads whose tags/source contain this text
+  updated_at  timestamptz default now()
+);
+alter table followup_sequences enable row level security;
+drop policy if exists "Authenticated can access followup_sequences" on followup_sequences;
+create policy "Authenticated can access followup_sequences" on followup_sequences for all using (auth.role() = 'authenticated');
+alter table followup_enrollments add column if not exists steps jsonb;
+alter table followup_enrollments add column if not exists tz_offset_min int not null default 330;
+
+-- Reminder Engine.
+create table if not exists reminders (
+  id           uuid primary key default gen_random_uuid(),
+  kind         text not null default 'custom' check (kind in ('task','callback','meeting','invoice','custom')),
+  audience     text not null default 'team' check (audience in ('team','client')),
+  lead_id      int references leads(id) on delete set null,
+  assignee     text default '',
+  to_phone     text default '',
+  to_email     text default '',
+  title        text not null,
+  body         text default '',
+  remind_at    timestamptz not null,
+  status       text not null default 'pending' check (status in ('pending','sent','failed','cancelled','skipped')),
+  sent_at      timestamptz,
+  error        text default '',
+  dedupe_key   text unique,
+  created_at   timestamptz default now()
+);
+alter table reminders enable row level security;
+drop policy if exists "Authenticated can access reminders" on reminders;
+create policy "Authenticated can access reminders" on reminders for all using (auth.role() = 'authenticated');
+create index if not exists reminders_due_idx on reminders (status, remind_at);
+alter table tasks add column if not exists reminded_at timestamptz;
+alter table tasks add column if not exists escalated_at timestamptz;
+alter table team_members add column if not exists phone text default '';
+alter table calendar_events add column if not exists lead_id int references leads(id) on delete set null;
+alter table calendar_events add column if not exists contact_phone text default '';
+alter table calendar_events add column if not exists contact_email text default '';
+alter table calendar_events add column if not exists meeting_url text default '';
+alter table invoices add column if not exists contact_phone text default '';
+alter table invoices add column if not exists contact_email text default '';

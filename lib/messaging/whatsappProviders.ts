@@ -109,3 +109,65 @@ export async function sendWhatsAppQr(to: string, body: string): Promise<SendResu
     return { ok: false, mock: false, detail: String(err) };
   }
 }
+
+// ── Media + templates ────────────────────────────────────────────────────────
+
+export function mediaKind(url: string): "image" | "video" | "document" {
+  const ext = url.split("?")[0].split(".").pop()?.toLowerCase() ?? "";
+  if (["jpg", "jpeg", "png", "webp"].includes(ext)) return "image";
+  if (["mp4", "3gp"].includes(ext)) return "video";
+  return "document";
+}
+
+export async function sendWhatsAppCloudMedia(to: string, mediaUrl: string, caption = ""): Promise<SendResult> {
+  const token = process.env.WHATSAPP_CLOUD_TOKEN, phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
+  const digits = waDigits(to);
+  if (!token || !phoneNumberId) {
+    console.log(`[messaging:whatsapp-cloud:mock] → ${digits} | media ${mediaUrl} | ${caption}`);
+    return { ok: true, mock: true, detail: "logged (mock) — WhatsApp Cloud API not configured" };
+  }
+  try {
+    const kind = mediaKind(mediaUrl);
+    const filename = decodeURIComponent(mediaUrl.split("?")[0].split("/").pop() ?? "file");
+    const media = kind === "document" ? { link: mediaUrl, caption, filename } : { link: mediaUrl, caption };
+    const r = await cloudPost(phoneNumberId, token, { to: digits, type: kind, [kind]: media });
+    if (r.res.ok) return { ok: true, mock: false, providerMessageId: r.json.messages?.[0]?.id };
+    return { ok: false, mock: false, detail: `cloud ${r.res.status}: ${r.json.error?.message ?? ""}` };
+  } catch (err) { return { ok: false, mock: false, detail: String(err) }; }
+}
+
+export async function sendWhatsAppQrMedia(to: string, mediaUrl: string, caption = ""): Promise<SendResult> {
+  const base = process.env.WHATSAPP_QR_URL, secret = process.env.WHATSAPP_QR_SECRET;
+  const digits = waDigits(to);
+  if (!base || !secret) {
+    console.log(`[messaging:whatsapp-qr:mock] → ${digits} | media ${mediaUrl}`);
+    return { ok: true, mock: true, detail: "logged (mock) — WhatsApp QR service not configured" };
+  }
+  try {
+    const res = await fetch(`${base.replace(/\/$/, "")}/send`, {
+      method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ to: digits, body: caption, mediaUrl, mediaKind: mediaKind(mediaUrl) }), signal: AbortSignal.timeout(60_000),
+    });
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; id?: string; error?: string };
+    if (!res.ok || json.ok === false) return { ok: false, mock: false, detail: `qr ${res.status}: ${json.error ?? "send failed"}` };
+    return { ok: true, mock: false, providerMessageId: json.id };
+  } catch (err) { return { ok: false, mock: false, detail: String(err) }; }
+}
+
+export async function sendWhatsAppCloudTemplate(to: string, name: string, language: string, params: string[]): Promise<SendResult> {
+  const token = process.env.WHATSAPP_CLOUD_TOKEN, phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
+  const digits = waDigits(to);
+  if (!token || !phoneNumberId) {
+    console.log(`[messaging:whatsapp-cloud:mock] → ${digits} | template ${name} ${JSON.stringify(params)}`);
+    return { ok: true, mock: true, detail: "logged (mock) — WhatsApp Cloud API not configured" };
+  }
+  try {
+    const clean = params.map((p) => ({ type: "text", text: p.replace(/[\r\n\t]+/g, " ").slice(0, 1000) }));
+    const r = await cloudPost(phoneNumberId, token, {
+      to: digits, type: "template",
+      template: { name, language: { code: language }, ...(clean.length ? { components: [{ type: "body", parameters: clean }] } : {}) },
+    });
+    if (r.res.ok) return { ok: true, mock: false, providerMessageId: r.json.messages?.[0]?.id };
+    return { ok: false, mock: false, detail: `cloud template ${r.res.status}: ${r.json.error?.message ?? ""}` };
+  } catch (err) { return { ok: false, mock: false, detail: String(err) }; }
+}

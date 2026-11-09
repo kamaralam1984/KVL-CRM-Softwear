@@ -1,8 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Bell, Sparkles, ChevronDown, Sun, Moon, Command, X, LogOut, Settings, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getNotifications, markNotificationsRead } from "@/lib/actions/comms";
+import { getAccessToken } from "@/lib/security/clientSession";
 
 const sectionTitles: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: "Dashboard", subtitle: "Overview & Analytics" },
@@ -18,6 +20,7 @@ const sectionTitles: Record<string, { title: string; subtitle: string }> = {
   reports: { title: "Reports & Analytics", subtitle: "Business intelligence" },
   finance: { title: "Finance", subtitle: "Revenue & invoicing" },
   automation: { title: "Automation", subtitle: "Workflow automation" },
+  comms: { title: "Comms Hub", subtitle: "WhatsApp · Email · Calls · Reminders" },
   ai: { title: "AI Insights", subtitle: "Intelligent recommendations" },
   settings: { title: "Settings", subtitle: "Configure your workspace" },
 };
@@ -41,12 +44,31 @@ export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDa
 
   const info = sectionTitles[activeSection] || { title: activeSection, subtitle: "" };
 
-  const notifications = [
-    { id: 1, text: "Deal closed: SkyNet Robotics — $520K", time: "5m ago", dot: "bg-emerald-500" },
-    { id: 2, text: "New lead from HealthTech AI", time: "18m ago", dot: "bg-blue-500" },
-    { id: 3, text: "Invoice INV-2025-005 is overdue", time: "1h ago", dot: "bg-rose-500" },
-    { id: 4, text: "Task due: RetailPro contract", time: "2h ago", dot: "bg-amber-500" },
-  ];
+  // Real team alerts (client replies, payment intent, overdue replies, failures) — polled every 30s.
+  const [notifications, setNotifications] = useState<{ id: string; text: string; time: string; dot: string; read: boolean }[]>([]);
+  const loadNotifications = useCallback(async () => {
+    try {
+      const { items } = await getNotifications(getAccessToken());
+      setNotifications(items.map((n) => ({
+        id: String(n.id), read: Boolean(n.read),
+        text: `${n.title}${n.body ? ` — ${String(n.body).slice(0, 80)}` : ""}`,
+        time: new Date(String(n.created_at)).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }),
+        dot: n.priority === "high" ? "bg-rose-500" : n.kind === "reply" ? "bg-emerald-500" : "bg-blue-500",
+      })));
+    } catch { /* offline / demo mode: keep the list empty */ }
+  }, []);
+  useEffect(() => {
+    const first = setTimeout(loadNotifications, 0);
+    const t = setInterval(loadNotifications, 30_000);
+    return () => { clearTimeout(first); clearInterval(t); };
+  }, [loadNotifications]);
+  const unread = notifications.filter((n) => !n.read).length;
+  const toggleNotifications = () => {
+    const opening = !showNotifications;
+    setShowNotifications(opening);
+    if (opening && unread) markNotificationsRead(getAccessToken()).then(() => setTimeout(loadNotifications, 4000));
+  };
+
 
   return (
     <header className="h-14 flex items-center gap-4 px-5 border-b flex-shrink-0" style={{ background: "var(--nav-bg)", borderColor: "var(--border-col)" }}>
@@ -89,11 +111,12 @@ export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDa
       {/* Notification */}
       <div className="relative">
         <button
-          onClick={() => setShowNotifications(!showNotifications)}
+          onClick={toggleNotifications}
+          aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
           className="relative w-8 h-8 rounded-lg flex items-center justify-center border border-crm-border bg-white/[0.03] hover:bg-white/[0.06] hover:border-blue-500/30 transition-all"
         >
           <Bell size={15} className="text-slate-400" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full" />
+          {unread > 0 && <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{unread > 9 ? "9+" : unread}</span>}
         </button>
         <AnimatePresence>
           {showNotifications && (
@@ -112,6 +135,7 @@ export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDa
                 </button>
               </div>
               <div className="max-h-64 overflow-y-auto">
+                {notifications.length === 0 && <p className="px-4 py-6 text-center text-xs text-slate-500">No notifications yet — client replies and payment alerts will appear here.</p>}
                 {notifications.map((n) => (
                   <div key={n.id} className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors cursor-pointer border-b border-crm-border/50 last:border-0">
                     <div className={cn("w-2 h-2 rounded-full mt-1.5 flex-shrink-0", n.dot)} />
@@ -121,9 +145,6 @@ export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDa
                     </div>
                   </div>
                 ))}
-              </div>
-              <div className="px-4 py-2 text-center">
-                <button className="text-xs text-blue-400 hover:text-blue-300">View all notifications</button>
               </div>
             </motion.div>
           )}

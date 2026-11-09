@@ -2,7 +2,7 @@
 // Defines the 90-day "never let a lead go cold" cadence, message templating,
 // quiet-hours scheduling (IST) and inbound-reply classification.
 
-export type FollowUpChannel = "whatsapp" | "email" | "call";
+export type FollowUpChannel = "whatsapp" | "email" | "call" | "voicemail";
 
 export interface SequenceStep {
   /** Hours after enrollment (cumulative from start, not from previous step). */
@@ -10,7 +10,10 @@ export interface SequenceStep {
   channel: FollowUpChannel;
   /** Email subject (email steps only). */
   subject?: string;
-  /** Message body / call script. Supports {{firstName}} {{company}} {{brand}} {{owner}}. */
+  /** WhatsApp only: name of an approved entry in the template manager — sent as a Meta template (works outside the 24h window). */
+  waTemplate?: string;
+  /** Message body / call script. Supports {{firstName}} {{company}} {{brand}} {{owner}} {{bookingLink}} {{paymentLink}}.
+   *  Wrap optional text in [[ ... ]] — it is dropped when a variable inside is empty (e.g. no booking link set). */
   body: string;
 }
 
@@ -50,15 +53,17 @@ export const DEFAULT_SEQUENCE: SequenceDef = {
     { atHours: 0, channel: "whatsapp", body: "Hi {{firstName}}, thanks for your interest in {{brand}}! I'm {{owner}} — happy to help {{company}}. What's the main goal you want to achieve right now?" },
     { atHours: 0, channel: "email", subject: "Welcome to {{brand}}, {{firstName}}", body: "Hi {{firstName}},\n\nThanks for reaching out. We help businesses like {{company}} get more clients with a proper CRM + automation setup.\n\nReply to this email with your biggest challenge and I'll send a tailored plan.\n\n— {{owner}}, {{brand}}" },
     { atHours: 2 * H, channel: "call", body: "Intro call to {{firstName}} ({{company}}): understand needs, budget, timeline, decision maker. Goal: book a demo." },
-    { atHours: 1 * D, channel: "whatsapp", body: "Hi {{firstName}}, quick follow-up from {{brand}}. Would a 15-min demo this week work for {{company}}? Just reply with a time that suits you." },
+    { atHours: 1 * D, channel: "whatsapp", body: "Hi {{firstName}}, quick follow-up from {{brand}}. Would a 15-min demo this week work for {{company}}? [[Pick a slot: {{bookingLink}}]] Or just reply with a time that suits you." },
     { atHours: 2 * D, channel: "email", subject: "How businesses like {{company}} grow with us", body: "Hi {{firstName}},\n\nHere's how similar businesses cut manual follow-ups and closed more deals with {{brand}}.\n\nWant me to show you the same setup for {{company}}? Reply \"demo\" and I'll share slots.\n\n— {{owner}}" },
     { atHours: 3 * D, channel: "call", body: "Follow-up call to {{firstName}}: did they see our messages? Offer demo, handle objections." },
-    { atHours: 5 * D, channel: "whatsapp", body: "Hi {{firstName}}, just checking in — any questions about {{brand}} I can answer for {{company}}?" },
-    { atHours: 7 * D, channel: "email", subject: "Your proposal & pricing — {{brand}}", body: "Hi {{firstName}},\n\nI can put together a clear proposal and pricing for {{company}} — no obligation. Shall I send it over?\n\n— {{owner}}" },
+    { atHours: 4 * D, channel: "voicemail", body: "Voicemail drop: short friendly note from {{owner}} at {{brand}} asking {{firstName}} to call back." },
+    { atHours: 5 * D, channel: "whatsapp", body: "Hi {{firstName}}, just checking in — any questions about {{brand}} I can answer for {{company}}? [[Book a quick call here: {{bookingLink}}]]" },
+    { atHours: 7 * D, channel: "email", subject: "Your proposal & pricing — {{brand}}", body: "Hi {{firstName}},\n\nI can put together a clear proposal and pricing for {{company}} — no obligation. Shall I send it over? [[Or book a call: {{bookingLink}}]]\n\n— {{owner}}" },
     // ── Weeks 2–4: steady nurture ──
     { atHours: 10 * D, channel: "whatsapp", body: "Hi {{firstName}}, {{owner}} from {{brand}} here. Is now still a good time to look at this for {{company}}, or should I check back later?" },
     { atHours: 14 * D, channel: "call", body: "2-week check-in call to {{firstName}}: any blockers? Offer a limited-time onboarding slot." },
     { atHours: 14 * D, channel: "email", subject: "Still thinking it over, {{firstName}}?", body: "Hi {{firstName}},\n\nTotally fine to take your time. If budget, timing or a team decision is the hold-up, tell me and I'll help find a way that works for {{company}}.\n\n— {{owner}}" },
+    { atHours: 20 * D, channel: "voicemail", body: "Voicemail drop: 3-week check-in from {{owner}} at {{brand}}." },
     { atHours: 21 * D, channel: "whatsapp", body: "Hi {{firstName}}, we just helped another business get started in under a week. Happy to do the same for {{company}} — want the details?" },
     { atHours: 28 * D, channel: "email", subject: "A quick idea for {{company}}", body: "Hi {{firstName}},\n\nOne small change that usually gives quick wins: automating your lead follow-ups. I can show you in 10 minutes how it'd work for {{company}}.\n\n— {{owner}}" },
     { atHours: 35 * D, channel: "call", body: "Month-1 call to {{firstName}}: re-qualify, check timeline, ask what would make them ready to start." },
@@ -79,42 +84,72 @@ export interface TemplateCtx {
   company: string;
   brand: string;
   owner: string;
+  bookingLink: string;
+  paymentLink: string;
 }
 
+const VAR = /\{\{(firstName|company|brand|owner|bookingLink|paymentLink)\}\}/g;
+
+/** Fills {{vars}}. A [[optional block]] is removed entirely if any variable inside it is empty. */
 export function renderTemplate(tpl: string, ctx: TemplateCtx): string {
-  return tpl.replace(/\{\{(firstName|company|brand|owner)\}\}/g, (_, k: keyof TemplateCtx) => ctx[k] || "");
+  const fill = (t: string) => t.replace(VAR, (_, k: keyof TemplateCtx) => ctx[k] || "");
+  const withBlocks = tpl.replace(/\[\[([\s\S]*?)\]\]/g, (_, inner: string) => {
+    const vars = [...inner.matchAll(VAR)].map((m) => m[1] as keyof TemplateCtx);
+    return vars.some((v) => !ctx[v]) ? "" : fill(inner);
+  });
+  return fill(withBlocks).replace(/[ \t]+\n/g, "\n").replace(/ {2,}/g, " ").trim();
 }
 
-export function buildCtx(lead: { name?: string | null; company?: string | null; owner?: string | null }, brand: string): TemplateCtx {
+/** Values for a Meta template's {{1}} {{2}}… — the named variables of `body` in order of appearance. */
+export function templateParams(body: string, ctx: TemplateCtx): string[] {
+  return [...body.matchAll(VAR)].map((m) => ctx[m[1] as keyof TemplateCtx] || "-");
+}
+
+export function buildCtx(
+  lead: { name?: string | null; company?: string | null; owner?: string | null },
+  brand: string,
+  links: { bookingLink?: string; paymentLink?: string } = {},
+): TemplateCtx {
   const name = (lead.name ?? "").trim();
   return {
     firstName: name.split(/\s+/)[0] || "there",
     company: (lead.company ?? "").trim() || "your business",
     brand,
     owner: (lead.owner ?? "").trim() || "the team",
+    bookingLink: links.bookingLink ?? "",
+    paymentLink: links.paymentLink ?? "",
   };
 }
 
-// ── Scheduling (IST quiet hours) ─────────────────────────────────────────────
+// ── Scheduling (lead-local quiet hours) ─────────────────────────────────────
 
-const IST_OFFSET_MS = 5.5 * 3_600_000;
-export const QUIET_START_HOUR = 21; // 9 PM IST
-export const QUIET_END_HOUR = 9;    // 9 AM IST
+export const IST_OFFSET_MIN = 330;
+export const QUIET_START_HOUR = 21; // 9 PM lead-local
+export const QUIET_END_HOUR = 9;    // 9 AM lead-local
 export const SEND_HOUR = 10;        // where deferred messages land
 
-/** Never message clients 9 PM–9 AM IST. Returns `at` if allowed, else next 10:00 IST. */
-export function adjustForQuietHours(at: Date): Date {
-  const ist = new Date(at.getTime() + IST_OFFSET_MS);
-  const hour = ist.getUTCHours();
-  if (hour >= QUIET_END_HOUR && hour < QUIET_START_HOUR) return at;
-  const next = new Date(ist);
-  if (hour >= QUIET_START_HOUR) next.setUTCDate(next.getUTCDate() + 1);
-  next.setUTCHours(SEND_HOUR, 0, 0, 0);
-  return new Date(next.getTime() - IST_OFFSET_MS);
+/** Rough UTC offset (minutes) from a phone's country code; defaults to IST. */
+export function tzOffsetForPhone(phone: string | null | undefined): number {
+  const d = String(phone ?? "").replace(/\D/g, "");
+  const table: [string, number][] = [["971", 240], ["966", 180], ["974", 180], ["965", 180], ["968", 240], ["977", 345], ["880", 360], ["94", 330], ["92", 300], ["65", 480], ["60", 480], ["61", 600], ["44", 0], ["49", 60], ["33", 60], ["91", 330], ["1", -300]];
+  if (!String(phone ?? "").trim().startsWith("+") && d.length <= 10) return IST_OFFSET_MIN; // local number → assume home market
+  return table.find(([c]) => d.startsWith(c))?.[1] ?? IST_OFFSET_MIN;
 }
 
-export function stepDueAt(startedAt: Date, step: SequenceStep): Date {
-  return adjustForQuietHours(new Date(startedAt.getTime() + step.atHours * 3_600_000));
+/** Never message clients 9 PM–9 AM (their local time). Returns `at` if allowed, else next 10:00 local. */
+export function adjustForQuietHours(at: Date, tzOffsetMin = IST_OFFSET_MIN): Date {
+  const offMs = tzOffsetMin * 60_000;
+  const local = new Date(at.getTime() + offMs);
+  const hour = local.getUTCHours();
+  if (hour >= QUIET_END_HOUR && hour < QUIET_START_HOUR) return at;
+  const next = new Date(local);
+  if (hour >= QUIET_START_HOUR) next.setUTCDate(next.getUTCDate() + 1);
+  next.setUTCHours(SEND_HOUR, 0, 0, 0);
+  return new Date(next.getTime() - offMs);
+}
+
+export function stepDueAt(startedAt: Date, step: SequenceStep, tzOffsetMin = IST_OFFSET_MIN): Date {
+  return adjustForQuietHours(new Date(startedAt.getTime() + step.atHours * 3_600_000), tzOffsetMin);
 }
 
 // ── Inbound reply classification ─────────────────────────────────────────────

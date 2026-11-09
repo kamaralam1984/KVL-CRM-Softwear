@@ -1,10 +1,10 @@
 name: Follow-up Engine Cron
 
-# Every 15 min: send due 90-day drip steps + AI soft nudges for replies that
+# Every 5 min: send due 90-day drip steps + AI soft nudges for replies that
 # have had no human answer in 24h. Manual trigger also available.
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:

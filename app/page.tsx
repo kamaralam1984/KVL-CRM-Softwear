@@ -47,6 +47,7 @@ import Affiliates from "@/components/crm/sections/Affiliates";
 import Developers from "@/components/crm/sections/Developers";
 import Forms from "@/components/crm/sections/Forms";
 import Webinars from "@/components/crm/sections/Webinars";
+import CommsHub from "@/components/crm/sections/CommsHub";
 import PlanGate from "@/components/crm/PlanGate";
 import AccessDenied from "@/components/crm/AccessDenied";
 import { loadSAConfig, getEffectiveFeatures, type FeatureKey } from "@/lib/superAdmin";
@@ -93,6 +94,7 @@ const sectionMap: Record<string, React.ComponentType> = {
   developers:  Developers,
   forms:       Forms,
   webinars:    Webinars,
+  comms:       CommsHub,
   settings:    Settings,
   admin:       AdminPanel,
   superadmin:  SuperAdminPanel,

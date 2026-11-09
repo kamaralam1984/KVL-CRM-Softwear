@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Briefcase, CheckSquare, Calendar,
   GitBranch, MessageCircle, Mail, UserCheck, BarChart3,
   Wallet, Zap, Brain, Settings, ChevronLeft, ChevronRight,
-  TrendingUp, Sparkles, LogOut, Bell, Shield, Lock, Crown, Megaphone, Search, Share2, MessageSquare, Inbox, Headphones, ShoppingBag, Layout, Target, Gauge, Bot, FileText, Radar, Star,
+  TrendingUp, Sparkles, LogOut, Bell, Shield, Lock, Crown, Megaphone, Search, Share2, MessageSquare, MessagesSquare, Inbox, Headphones, ShoppingBag, Layout, Target, Gauge, Bot, FileText, Radar, Star,
   GraduationCap, Users2, Webhook, ClipboardList, Video,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -67,6 +67,7 @@ const menuSections = [
   {
     label: "System",
     items: [
+      { id: "comms",      label: "Comms Hub",    icon: MessagesSquare },
       { id: "velorachat", label: "Maxness Chat", icon: MessageSquare },
       { id: "veloramail", label: "Maxness Mail", icon: Inbox },
       { id: "helpdesk",    label: "Helpdesk",     icon: Headphones },

@@ -15,13 +15,23 @@
 // or unapproved — only logs a warning — matching "never throw" here too.
 
 import { findApprovedSmsTemplate } from "@/lib/actions/smsTemplates";
-import { whatsappProvider, sendWhatsAppCloud, sendWhatsAppQr, isCloudConfigured, isQrConfigured } from "./whatsappProviders";
+import { whatsappProvider, sendWhatsAppCloud, sendWhatsAppQr, sendWhatsAppCloudMedia, sendWhatsAppQrMedia, sendWhatsAppCloudTemplate, isCloudConfigured, isQrConfigured } from "./whatsappProviders";
+import { isSuppressed } from "@/lib/compliance/dnc";
+import { unsubscribeUrl } from "@/lib/compliance/token";
+import { getServerClient } from "@/lib/supabase/server";
+
+/** Marketing/follow-up sends honour the central DNC list. `bypassSuppression` is for
+ *  internal/team alerts and genuinely transactional messages only. */
+export interface SendOpts { bypassSuppression?: boolean }
+const OPTED_OUT: SendResult = { ok: false, mock: false, suppressed: true, detail: "Contact has opted out (DNC list)" };
 
 export interface SendResult {
   ok: boolean;
   mock: boolean;
   providerMessageId?: string;
   detail?: string;
+  /** true → not sent because the contact is on the DNC list. */
+  suppressed?: boolean;
 }
 
 async function twilioSend(params: {
@@ -29,6 +39,7 @@ async function twilioSend(params: {
   to: string;
   body: string;
   mockPrefix: string;
+  mediaUrl?: string;
 }): Promise<SendResult> {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
@@ -41,6 +52,9 @@ async function twilioSend(params: {
 
   try {
     const form = new URLSearchParams({ From: from, To: to, Body: body });
+    if (params.mediaUrl) form.set("MediaUrl", params.mediaUrl);
+    // Real delivery status (queued → sent → delivered/read/failed) comes back to this webhook.
+    if (process.env.NEXT_PUBLIC_APP_URL) form.set("StatusCallback", `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/api/messaging/twilio-status`);
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
       method: "POST",
       headers: {
@@ -63,7 +77,8 @@ async function twilioSend(params: {
 }
 
 /** `to` is a bare E.164 phone number (e.g. "+919812345678"), not `whatsapp:`-prefixed. */
-export function sendWhatsApp(to: string, body: string): Promise<SendResult> {
+export async function sendWhatsApp(to: string, body: string, opts: SendOpts = {}): Promise<SendResult> {
+  if (!opts.bypassSuppression && (await isSuppressed({ phone: to }, "whatsapp"))) return OPTED_OUT;
   // Own-number providers (Meta Cloud API / QR service) — see whatsappProviders.ts.
   const provider = whatsappProvider();
   if (provider === "cloud") return sendWhatsAppCloud(to, body);
@@ -73,7 +88,26 @@ export function sendWhatsApp(to: string, body: string): Promise<SendResult> {
   return twilioSend({ from, to: target, body, mockPrefix: "whatsapp" });
 }
 
-export async function sendSms(to: string, body: string, templateKey?: string): Promise<SendResult> {
+/** Image / PDF / brochure. `caption` is shown under the media. */
+export async function sendWhatsAppMedia(to: string, mediaUrl: string, caption = "", opts: SendOpts = {}): Promise<SendResult> {
+  if (!opts.bypassSuppression && (await isSuppressed({ phone: to }, "whatsapp"))) return OPTED_OUT;
+  const provider = whatsappProvider();
+  if (provider === "cloud") return sendWhatsAppCloudMedia(to, mediaUrl, caption);
+  if (provider === "qr") return sendWhatsAppQrMedia(to, mediaUrl, caption);
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  const target = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
+  return twilioSend({ from, to: target, body: caption, mockPrefix: "whatsapp", mediaUrl });
+}
+
+/** Approved Meta template (works outside the 24h window). Non-Cloud providers send `fallbackBody` as plain text. */
+export async function sendWhatsAppTemplate(to: string, tpl: { metaName: string; language?: string; params: string[]; fallbackBody: string }, opts: SendOpts = {}): Promise<SendResult> {
+  if (!opts.bypassSuppression && (await isSuppressed({ phone: to }, "whatsapp"))) return OPTED_OUT;
+  if (whatsappProvider() === "cloud" && tpl.metaName) return sendWhatsAppCloudTemplate(to, tpl.metaName, tpl.language ?? "en", tpl.params);
+  return sendWhatsApp(to, tpl.fallbackBody, { bypassSuppression: true });
+}
+
+export async function sendSms(to: string, body: string, templateKey?: string, opts: SendOpts = {}): Promise<SendResult> {
+  if (!opts.bypassSuppression && (await isSuppressed({ phone: to }, "sms"))) return OPTED_OUT;
   if (templateKey) {
     const tpl = await findApprovedSmsTemplate(templateKey);
     if (tpl) {
@@ -157,28 +191,60 @@ export function isMetaMessagingConfigured(): boolean {
 // can't be reused for a single reminder email. This calls Resend's regular
 // /emails endpoint instead, same credentials (RESEND_API_KEY,
 // OUTREACH_FROM_EMAIL), same mock-fallback/never-throw convention.
-export async function sendEmail(to: string, subject: string, body: string): Promise<SendResult> {
+export interface EmailOpts extends SendOpts {
+  leadId?: number;
+  sentBy?: string;          // automation | ai | human
+  /** Skip the unsubscribe footer/headers (internal & transactional mail only). */
+  transactional?: boolean;
+}
+
+async function logEmail(row: Record<string, unknown>): Promise<void> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+  try {
+    const db = getServerClient();
+    let leadId = row.lead_id as number | undefined;
+    if (!leadId && row.to_email) {
+      const { data } = await db.from("leads").select("id").ilike("email", String(row.to_email)).limit(1).maybeSingle();
+      leadId = data?.id as number | undefined;
+    }
+    await db.from("email_log").insert({ ...row, lead_id: leadId ?? null, thread_key: String(row.to_email ?? "").toLowerCase() });
+  } catch (err) { console.error("[messaging:email] log failed:", err); }
+}
+
+export async function sendEmail(to: string, subject: string, body: string, opts: EmailOpts = {}): Promise<SendResult> {
+  if (!opts.bypassSuppression && (await isSuppressed({ email: to }, "email"))) return OPTED_OUT;
   const key = process.env.RESEND_API_KEY;
   const from = process.env.OUTREACH_FROM_EMAIL ?? process.env.MARKETING_FROM_EMAIL;
+
+  // Unsubscribe footer + RFC 8058 one-click headers on everything except transactional/internal mail.
+  const unsub = opts.transactional ? null : unsubscribeUrl(to);
+  const html = unsub ? `${body}<br><br><hr style="border:none;border-top:1px solid #ddd"><p style="font-size:11px;color:#888">Don't want these emails? <a href="${unsub}">Unsubscribe</a></p>` : body;
+  const headers = unsub ? { "List-Unsubscribe": `<${unsub}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : undefined;
+  const base = { direction: "outbound", from_email: from ?? "", to_email: to, subject, body, sent_by: opts.sentBy ?? "automation", lead_id: opts.leadId };
+
   if (!key || !from) {
     console.log(`[messaging:email:mock] → ${to} | ${subject}`);
+    await logEmail({ ...base, status: "mock" });
     return { ok: true, mock: true, detail: "logged (mock) — Resend not configured" };
   }
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject, html: body }),
+      body: JSON.stringify({ from, to, subject, html, ...(headers ? { headers } : {}) }),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       console.error(`[messaging:email] send HTTP ${res.status}`, text);
+      await logEmail({ ...base, status: "failed", error: `resend ${res.status}` });
       return { ok: false, mock: false, detail: `resend ${res.status}` };
     }
     const j = (await res.json()) as { id?: string };
+    await logEmail({ ...base, status: "sent", provider_id: j.id });
     return { ok: true, mock: false, providerMessageId: j.id };
   } catch (err) {
     console.error("[messaging:email] send error:", err);
+    await logEmail({ ...base, status: "failed", error: String(err) });
     return { ok: false, mock: false, detail: String(err) };
   }
 }

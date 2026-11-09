@@ -84,7 +84,7 @@ async function start() {
 
 // ── Paced send queue ─────────────────────────────────────────────────────────
 let chain = Promise.resolve();
-function enqueueSend(to, body) {
+function enqueueSend(to, body, mediaUrl, mediaKind) {
   const job = chain.then(async () => {
     const today = new Date().toDateString();
     if (state.day !== today) { state.day = today; state.sentToday = 0; }
@@ -92,7 +92,11 @@ function enqueueSend(to, body) {
     if (state.sentToday >= DAILY_CAP) throw new Error(`Daily cap of ${DAILY_CAP} reached`);
     const [hit] = (await sock.onWhatsApp(to)) || [];
     if (!hit?.exists) throw new Error("Number is not on WhatsApp");
-    const res = await sock.sendMessage(hit.jid, { text: body });
+    const content = !mediaUrl ? { text: body }
+      : mediaKind === "image" ? { image: { url: mediaUrl }, caption: body }
+      : mediaKind === "video" ? { video: { url: mediaUrl }, caption: body }
+      : { document: { url: mediaUrl }, caption: body, fileName: decodeURIComponent(mediaUrl.split("?")[0].split("/").pop() || "file"), mimetype: "application/octet-stream" };
+    const res = await sock.sendMessage(hit.jid, content);
     state.sentToday++;
     await sleep(MIN_GAP_MS + Math.random() * (MAX_GAP_MS - MIN_GAP_MS));
     return res?.key?.id;
@@ -126,9 +130,10 @@ http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/status") return json(res, 200, { ok: true, state: state.conn, me: state.me, sentToday: state.sentToday, dailyCap: DAILY_CAP });
 
     if (req.method === "POST" && url.pathname === "/send") {
-      const { to, body } = await readJson(req);
-      if (!/^\d{8,15}$/.test(String(to || "")) || !body || typeof body !== "string") return json(res, 400, { ok: false, error: "need digits-only 'to' and 'body'" });
-      try { return json(res, 200, { ok: true, id: await enqueueSend(to, body) }); }
+      const { to, body = "", mediaUrl, mediaKind } = await readJson(req);
+      if (!/^\d{8,15}$/.test(String(to || "")) || typeof body !== "string" || (!body && !mediaUrl)) return json(res, 400, { ok: false, error: "need digits-only 'to' and 'body' (or mediaUrl)" });
+      if (mediaUrl && !/^https:\/\//.test(String(mediaUrl))) return json(res, 400, { ok: false, error: "mediaUrl must be https" });
+      try { return json(res, 200, { ok: true, id: await enqueueSend(to, body, mediaUrl, mediaKind) }); }
       catch (err) { return json(res, 502, { ok: false, error: String(err.message || err) }); }
     }
     if (req.method === "POST" && url.pathname === "/logout") { await sock?.logout().catch(() => {}); return json(res, 200, { ok: true }); }
