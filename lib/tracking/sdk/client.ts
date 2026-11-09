@@ -25,7 +25,7 @@ const MAX_RETRIES = 3;
 
 // Wave 10 (Multi-Tenant Embed) — matches lib/sites/store.ts's DEFAULT_SITE_ID.
 // Duplicated as a literal rather than imported: this file ships to the
-// browser, and lib/sites/store.ts pulls in the server-only Supabase client.
+// browser, and lib/sites/store.ts pulls in the server-only database client.
 const DEFAULT_SITE_ID = "kvl-default";
 
 interface SessionState {

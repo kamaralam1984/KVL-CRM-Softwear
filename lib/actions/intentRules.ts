@@ -7,7 +7,7 @@
 // other sites simply inherit lib/intent/rules.ts's in-code DEFAULT_RULES
 // until a future wave adds per-site rule management UI (not needed yet: a
 // new site works correctly with sensible defaults from day one).
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 
 export interface IntentRuleRow {
@@ -19,7 +19,7 @@ export interface IntentRuleRow {
 }
 
 export async function getIntentRules(): Promise<IntentRuleRow[]> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("intent_scoring_rules")
     .select("*")
@@ -30,7 +30,7 @@ export async function getIntentRules(): Promise<IntentRuleRow[]> {
 }
 
 export async function updateIntentRule(ruleKey: string, points: number): Promise<void> {
-  const db = getServerClient();
+  const db = getDb();
   const { error } = await db
     .from("intent_scoring_rules")
     .update({ points })

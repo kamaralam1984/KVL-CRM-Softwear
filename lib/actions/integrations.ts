@@ -6,7 +6,7 @@
 // them getRazorpayConnectUrl reports `configured: false` so the UI can show
 // a clear "not configured" state instead of a broken redirect.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 
 // Note: getRazorpayConnectUrl/exchangeRazorpayCode are deliberately NOT
@@ -64,7 +64,7 @@ export async function exchangeRazorpayCode(
     }
     const data = await res.json();
 
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("integration_connections").upsert(
       {
         provider: "razorpay",
@@ -86,7 +86,7 @@ export async function exchangeRazorpayCode(
 export async function getConnectedProviders(accessToken?: string): Promise<string[]> {
   if (!(await assertCan(accessToken, "settings", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("integration_connections").select("provider");
     if (error) throw error;
     return (data ?? []).map((r) => String(r.provider));
@@ -99,7 +99,7 @@ export async function getConnectedProviders(accessToken?: string): Promise<strin
 export async function disconnectProvider(provider: string, accessToken?: string): Promise<void> {
   if (!(await assertCan(accessToken, "settings", "delete"))) return;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("integration_connections").delete().eq("provider", provider);
     if (error) console.error("[integrations] disconnectProvider failed:", error.message);
   } catch (err) {

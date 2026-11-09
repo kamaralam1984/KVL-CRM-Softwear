@@ -3,7 +3,7 @@ import type { Lead } from "@/lib/actions/leads";
 
 // Phase 17 — Lead Intelligence & Acquisition Engine, Wave 8 (Security Hardening + Tests)
 // Spec's explicit "critical test case": Anonymous → Identified Lead. This mocks
-// Supabase + the action/automation modules so the dedup/idempotency/creation
+// the database + the action/automation modules so the dedup/idempotency/creation
 // logic in resolveIdentity() is genuinely exercised without a live database.
 
 interface FakeLeadRow {
@@ -28,8 +28,8 @@ let leads: FakeLeadRow[];
 let links: FakeLinkRow[];
 let nextLeadId: number;
 
-vi.mock("@/lib/supabase/server", () => ({
-  getServerClient: () => ({
+vi.mock("@/lib/db", () => ({
+  getDb: () => ({
     from(table: string) {
       if (table === "visitor_identity_links") {
         return {

@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { clientIp } from "../../analytics/shared";
 import { verifyTwilioSignature } from "@/lib/messaging/twilioSignature";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     if (params.RecordingUrl) patch.recording_url = params.RecordingUrl;
     if (!Object.keys(patch).length) return NextResponse.json({ ok: true });
 
-    const db = getServerClient();
+    const db = getDb();
     await (logId ? db.from("call_logs").update(patch).eq("id", logId) : db.from("call_logs").update(patch).eq("provider_call_sid", callSid));
 
     return NextResponse.json({ ok: true });

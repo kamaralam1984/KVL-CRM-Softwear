@@ -19,7 +19,7 @@
 // of the twilio-provider path above, not usable telephony providers alone.
 
 import type { CallProvider, CallRequest, CallResult } from "./types";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 // Gap-check fix — also requires VOICE_RELAY_SHARED_SECRET: the relay
 // rejects every connection with no valid token (see voice-relay/server.js's
@@ -59,7 +59,7 @@ async function placeTwilioStreamCall(req: CallRequest, to: string): Promise<Call
     // provider_call_sid once the call ends and the transcript is known —
     // reuses Phase 41's call_logs table rather than a parallel one.
     try {
-      const db = getServerClient();
+      const db = getDb();
       await db.from("call_logs").insert({
         from_number: from,
         direction: "outbound",

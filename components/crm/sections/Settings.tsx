@@ -72,7 +72,7 @@ export default function Settings() {
     { name: "Client Portal — Beta", plan: "Starter", active: false },
   ]);
 
-  // ── DLT Templates (Phase 37 — real, Supabase-backed) ──────────────────────
+  // ── DLT Templates (Phase 37 — real, database-backed) ──────────────────────
   const [smsTemplates, setSmsTemplates] = useState<Record<string, SmsTplForm>>(
     Object.fromEntries(SMS_TEMPLATE_KEYS.map((t) => [t.key, { dltEntityId: "", dltTemplateId: "", approved: false }])),
   );

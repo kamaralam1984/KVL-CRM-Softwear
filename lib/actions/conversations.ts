@@ -5,7 +5,7 @@
 // getWhatsappConversations) when the new tables are empty, so the UI never
 // looks broken in demo mode or right after this migration runs.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { getWhatsappConversations, createWhatsappConversation, updateWhatsappConversation, type WhatsappConversation } from "./whatsapp";
 import { handleInboundReply, handleHumanReply } from "@/lib/followup/engine";
@@ -57,7 +57,7 @@ async function legacyAsConversations(): Promise<Conversation[]> {
 export async function getConversations(channel?: Channel, accessToken?: string): Promise<Conversation[]> {
   if (!(await assertCan(accessToken, "whatsapp", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     let q = db.from("conversations").select("*").order("last_message_at", { ascending: false });
     if (channel) q = q.eq("channel", channel);
     const { data, error } = await q;
@@ -73,7 +73,7 @@ export async function getMessages(conversationId: string, accessToken?: string):
   if (!(await assertCan(accessToken, "whatsapp", "read"))) return [];
   if (conversationId.startsWith("legacy-")) return []; // legacy rows have no message thread
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("messages")
       .select("*")
@@ -95,7 +95,7 @@ export async function ensureConversation(
   contactName: string,
 ): Promise<string | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: existing } = await db
       .from("conversations")
       .select("id")
@@ -119,7 +119,7 @@ export async function ensureConversation(
 
 async function recordMessage(conversationId: string, direction: "inbound" | "outbound", body: string, providerMessageId?: string): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("messages").insert({ conversation_id: conversationId, direction, body, provider_message_id: providerMessageId ?? null });
     await db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", conversationId);
   } catch (err) {
@@ -143,7 +143,7 @@ export async function recordInboundMessage(
   if (!conversationId) return { conversationId: null, leadId: null };
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("messages").insert({ conversation_id: conversationId, direction: "inbound", body, provider_message_id: providerMessageId ?? null });
     const { data: convRow } = await db.from("conversations").select("unread_count").eq("id", conversationId).maybeSingle();
     await db.from("conversations").update({
@@ -205,7 +205,7 @@ export async function sendFromLegacyConversation(
 
 async function leadIdOfConversation(conversationId: string): Promise<number | undefined> {
   try {
-    const { data } = await getServerClient().from("conversations").select("lead_id").eq("id", conversationId).maybeSingle();
+    const { data } = await getDb().from("conversations").select("lead_id").eq("id", conversationId).maybeSingle();
     return (data?.lead_id as number | null) ?? undefined;
   } catch { return undefined; }
 }
@@ -215,7 +215,7 @@ async function leadIdOfConversation(conversationId: string): Promise<number | un
 // from being recorded above).
 export async function linkConversationToLead(conversationId: string, leadId: number): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("conversations").update({ lead_id: leadId }).eq("id", conversationId);
   } catch (err) {
     console.error("[conversations] linkConversationToLead failed:", err);
@@ -237,7 +237,7 @@ export async function ensureWebchatConversation(
   name: string,
 ): Promise<string | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: existing } = await db
       .from("conversations")
       .select("id")
@@ -264,7 +264,7 @@ export async function ensureWebchatConversation(
 // non-atomic-increment caveat as recordInboundMessage above).
 export async function postWebchatVisitorMessage(conversationId: string, body: string): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("messages").insert({ conversation_id: conversationId, direction: "inbound", body });
     await handleInboundReply({ leadId: await leadIdOfConversation(conversationId) }, body);
     const { data: convRow } = await db.from("conversations").select("unread_count").eq("id", conversationId).maybeSingle();
@@ -294,7 +294,7 @@ export async function verifyWebchatConversationOwnership(
   visitorId: string,
 ): Promise<boolean> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db
       .from("conversations")
       .select("id")
@@ -316,7 +316,7 @@ export async function verifyWebchatConversationOwnership(
 // dashboard's Live Activity tab (docs/ACQUISITION_ENGINE_ROADMAP.md §17.6a).
 export async function getWebchatMessagesSince(conversationId: string, sinceIso: string): Promise<Message[]> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("messages")
       .select("*")

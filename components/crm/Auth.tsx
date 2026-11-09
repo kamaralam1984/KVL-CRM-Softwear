@@ -6,9 +6,8 @@ import {
   Check, AlertCircle, Globe, Code, Shield, Sun, Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { isAuthEnabled, signInWithPassword, signUp as apiSignUp, requestPasswordReset, startOAuth, consumeOAuthHash } from "@/lib/auth/client";
 import { makeDemoToken } from "@/lib/security/demoToken";
-import { confirmEmailIfPending } from "@/lib/actions/auth";
 
 /* ── Types ───────────────────────────────────────────── */
 export interface AuthUser {
@@ -17,7 +16,7 @@ export interface AuthUser {
   email:  string;
   role:   string;
   avatar: string;
-  /** Bearer token for server-side RBAC (Phase 18) — a real Supabase JWT when
+  /** Bearer token for server-side RBAC (Phase 18) — a real signed session token when
    *  configured, or a demo-mode token otherwise. Optional so every existing
    *  reader of AuthUser/crm_user keeps working unchanged. */
   accessToken?: string;
@@ -34,9 +33,6 @@ const DEMO_ACCOUNTS: Record<string, { id: string; password: string; name: string
   "sarah@aicrmpro.com":        { id: "2",  password: "demo123",  name: "Sarah Chen",  role: "Senior AE" },
   "demo@crm.com":              { id: "3",  password: "demo",     name: "Demo User",   role: "Viewer" },
 };
-function isSupabaseConfigured() {
-  return process.env.NEXT_PUBLIC_SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL.includes("your-project");
-}
 
 /* ── Password strength ───────────────────────────────── */
 function passwordStrength(pw: string) {
@@ -99,6 +95,24 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
   const [sPw2,   setSPw2]   = useState("");
   const [agreed, setAgreed] = useState(false);
 
+  // Returning from Google/GitHub sign-in: the session token is in the URL hash; also show provider errors.
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const qs = new URLSearchParams(window.location.search);
+      const authError = qs.get("auth_error");
+      if (authError) { setError(authError); history.replaceState(null, "", window.location.pathname); }
+      const r = await consumeOAuthHash();
+      if (!r) return;
+      if (r.error || !r.user) { setError(r.error ?? "Sign-in failed."); return; }
+      const name = r.user.name || r.user.email.split("@")[0];
+      const user: AuthUser = { id: r.user.id, name, email: r.user.email, role: r.user.role || "Member", avatar: name.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase(), accessToken: r.accessToken };
+      localStorage.setItem("crm_user", JSON.stringify(user));
+      onAuth(user);
+    }, 0);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const pwStr = passwordStrength(sPw);
 
   useEffect(() => {
@@ -135,21 +149,12 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
     if (!lEmail || !lPw) { setError("Please fill in all fields."); return; }
     setLoading(true);
 
-    if (isSupabaseConfigured()) {
-      const supabase = getSupabaseClient();
-      let { data, error: err } = await supabase.auth.signInWithPassword({ email: lEmail.toLowerCase(), password: lPw });
-      if (err) {
-        // Most likely cause: the account is stuck pending email confirmation
-        // (this project has "Confirm email" on and no reliable mailer) —
-        // auto-confirm it server-side and retry once before giving up.
-        await confirmEmailIfPending(lEmail);
-        ({ data, error: err } = await supabase.auth.signInWithPassword({ email: lEmail.toLowerCase(), password: lPw }));
-      }
+    if (isAuthEnabled()) {
+      const r = await signInWithPassword(lEmail.toLowerCase(), lPw);
       setLoading(false);
-      if (err) { setError(err.message); return; }
-      const meta = data.user?.user_metadata ?? {};
-      const name = (meta.name as string) || lEmail.split("@")[0];
-      const user: AuthUser = { id: data.user?.id ?? "su", name, email: lEmail.toLowerCase(), role: (meta.role as string) || "Member", avatar: name.split(" ").map((w:string) => w[0]).join("").substring(0,2).toUpperCase(), accessToken: data.session?.access_token };
+      if (r.error || !r.user) { setError(r.error ?? "Sign-in failed."); return; }
+      const name = r.user.name || lEmail.split("@")[0];
+      const user: AuthUser = { id: r.user.id, name, email: r.user.email, role: r.user.role || "Member", avatar: name.split(" ").map((w:string) => w[0]).join("").substring(0,2).toUpperCase(), accessToken: r.accessToken };
       if (remember) localStorage.setItem("crm_user", JSON.stringify(user));
       onAuth(user); return;
     }
@@ -171,31 +176,24 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
 
   const handleOAuth = async (provider: "google" | "github") => {
     setError("");
-    if (!isSupabaseConfigured()) {
-      setError(`Demo mode: ${provider === "google" ? "Google" : "GitHub"} sign-in needs Supabase configured with an OAuth provider. Use email + password instead.`);
+    if (!isAuthEnabled()) {
+      setError(`Demo mode: ${provider === "google" ? "Google" : "GitHub"} sign-in needs the database and OAuth keys configured. Use email + password instead.`);
       return;
     }
     setLoading(true);
-    const supabase = getSupabaseClient();
-    const { error: err } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: `${window.location.origin}/api/auth/callback` },
-    });
+    startOAuth(provider); // full-page redirect to the provider; the session comes back in the URL hash
     setLoading(false);
-    if (err) setError(err.message);
-    // On success the browser is redirected to the provider — no further action here.
   };
 
   const handleForgotPassword = async () => {
     setError("");
     if (!lEmail) { setError("Enter your email above, then click \"Forgot password?\" to get a reset link."); return; }
-    if (isSupabaseConfigured()) {
+    if (isAuthEnabled()) {
       setLoading(true);
-      const supabase = getSupabaseClient();
-      const { error: err } = await supabase.auth.resetPasswordForEmail(lEmail.toLowerCase(), { redirectTo: `${window.location.origin}/reset-password` });
+      const r = await requestPasswordReset(lEmail.toLowerCase());
       setLoading(false);
-      if (err) { setError(err.message); return; }
-      setError(`Password reset link sent to ${lEmail}. Check your inbox.`);
+      if (r.error) { setError(r.error); return; }
+      setError(`If an account exists for ${lEmail}, a password reset link has been sent. Check your inbox.`);
       return;
     }
     setError("Demo mode: any email + password (min 4 chars) signs you in, so no reset is needed.");
@@ -211,23 +209,11 @@ export default function Auth({ onAuth, onBack }: AuthProps) {
     if (!agreed) { setError("Please accept the terms to continue."); return; }
     setLoading(true);
 
-    if (isSupabaseConfigured()) {
-      const supabase = getSupabaseClient();
-      const { data, error: err } = await supabase.auth.signUp({ email: sEmail.toLowerCase(), password: sPw, options: { data: { name: sName.trim(), role: "Member" } } });
-      if (err) { setLoading(false); setError(err.message); return; }
-      let session = data.session;
-      if (data.user && !session) {
-        // This project requires email confirmation with no reliable mailer
-        // behind it — auto-confirm server-side so signup stays one step,
-        // matching the "Open Access" promise on this screen, then sign in
-        // to get a real session instead of leaving the user stuck.
-        await confirmEmailIfPending(sEmail);
-        const retry = await supabase.auth.signInWithPassword({ email: sEmail.toLowerCase(), password: sPw });
-        if (retry.error) { setLoading(false); setError(retry.error.message); return; }
-        session = retry.data.session;
-      }
+    if (isAuthEnabled()) {
+      const r = await apiSignUp(sEmail.toLowerCase(), sPw, { name: sName.trim(), role: "Member" });
       setLoading(false);
-      const user: AuthUser = { id: data.user?.id ?? `u_${Date.now()}`, name: sName.trim(), email: sEmail.toLowerCase(), role: "Member", avatar: sName.split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase(), accessToken: session?.access_token };
+      if (r.error || !r.user) { setError(r.error ?? "Sign-up failed."); return; }
+      const user: AuthUser = { id: r.user.id, name: sName.trim(), email: r.user.email, role: r.user.role || "Member", avatar: sName.split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase(), accessToken: r.accessToken };
       localStorage.setItem("crm_user", JSON.stringify(user));
       onAuth(user); return;
     }

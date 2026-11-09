@@ -10,7 +10,7 @@
 //      └─ 90 days over ─▶ completed (+ human task to decide)
 
 import Anthropic from "@anthropic-ai/sdk";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { sendWhatsApp, sendWhatsAppTemplate, sendSms, sendEmail, isWhatsAppConfigured, isSmsConfigured } from "@/lib/messaging/send";
 import { logOutboundMessage } from "@/lib/messaging/outbound";
 import { initiateCall } from "@/lib/voice";
@@ -64,13 +64,13 @@ function log(where: string, err: unknown) {
 
 async function event(enrollmentId: string, kind: string, channel = "", ok = true, detail = "") {
   try {
-    await getServerClient().from("followup_events").insert({ enrollment_id: enrollmentId, kind, channel, ok, detail: detail.slice(0, 500) });
+    await getDb().from("followup_events").insert({ enrollment_id: enrollmentId, kind, channel, ok, detail: detail.slice(0, 500) });
   } catch (err) { log("event", err); }
 }
 
 async function humanTask(title: string, lead: LeadRow | null, priority: "high" | "medium", tag: string) {
   try {
-    await getServerClient().from("tasks").insert({
+    await getDb().from("tasks").insert({
       title, priority, due: "Today", assignee: lead?.owner || "Unassigned", status: "pending",
       tags: ["Automation", "Follow-up Engine", tag], company: lead?.company || lead?.name || "",
     });
@@ -82,7 +82,7 @@ async function humanTask(title: string, lead: LeadRow | null, priority: "high" |
 /** Picks the sequence for a lead: a source-matched custom one, else the default (DB override or built-in). */
 export async function resolveSequence(lead: { tags?: string[] | null }): Promise<{ key: string; steps: SequenceStep[]; durationDays: number }> {
   try {
-    const { data } = await getServerClient().from("followup_sequences").select("*");
+    const { data } = await getDb().from("followup_sequences").select("*");
     const rows = (data ?? []) as { key: string; steps: SequenceStep[]; duration_days: number; is_default: boolean; match_source: string | null }[];
     const tags = (lead.tags ?? []).map((t) => t.toLowerCase());
     const hit = rows.find((r) => r.match_source && tags.some((t) => t.includes(r.match_source!.toLowerCase()))) ?? rows.find((r) => r.is_default);
@@ -96,7 +96,7 @@ export async function resolveSequence(lead: { tags?: string[] | null }): Promise
 /** Idempotent — enrolling an already-enrolled lead is a no-op. */
 export async function enrollLead(leadId: number): Promise<{ ok: boolean; enrollmentId?: string }> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: lead } = await db.from("leads").select("id,phone,tags").eq("id", leadId).maybeSingle();
     const seq = await resolveSequence({ tags: (lead?.tags as string[] | null) ?? [] });
     const tz = tzOffsetForPhone(lead?.phone as string | null);
@@ -120,7 +120,7 @@ export async function enrollLead(leadId: number): Promise<{ ok: boolean; enrollm
 
 async function getLiveEnrollments(leadIds: number[]): Promise<EnrollmentWithLead[]> {
   if (!leadIds.length) return [];
-  const { data } = await getServerClient()
+  const { data } = await getDb()
     .from("followup_enrollments")
     .select(`*, ${LEAD_COLS}`)
     .in("lead_id", leadIds)
@@ -132,7 +132,7 @@ async function getLiveEnrollments(leadIds: number[]): Promise<EnrollmentWithLead
 export async function findLeadIds(contact: { phone?: string; email?: string; leadId?: number }): Promise<number[]> {
   try {
     if (contact.leadId) return [contact.leadId];
-    const db = getServerClient();
+    const db = getDb();
     const ids = new Set<number>();
     if (contact.phone) {
       const want = normalizePhone(contact.phone).replace(/\D/g, "").slice(-10);
@@ -154,7 +154,7 @@ export async function findLeadIds(contact: { phone?: string; email?: string; lea
 // ── State transitions ────────────────────────────────────────────────────────
 
 async function setStatus(e: EnrollmentRow, status: EnrollmentStatus, reason: string, patch: Record<string, unknown> = {}) {
-  await getServerClient().from("followup_enrollments").update({ status, stop_reason: reason, next_run_at: TERMINAL_STATUSES.includes(status) ? null : e.next_run_at, ...patch }).eq("id", e.id);
+  await getDb().from("followup_enrollments").update({ status, stop_reason: reason, next_run_at: TERMINAL_STATUSES.includes(status) ? null : e.next_run_at, ...patch }).eq("id", e.id);
 }
 
 /** When the client says they're ready to pay: send the payment link instantly (dynamic Razorpay link if the lead has a value, else the saved static link). */
@@ -162,7 +162,7 @@ async function autoSendPaymentLink(lead: LeadRow, enrollmentId: string): Promise
   try {
     const s = await getCommsSettings();
     let link = s.links.paymentLink;
-    const { data: row } = await getServerClient().from("leads").select("value").eq("id", lead.id).maybeSingle();
+    const { data: row } = await getDb().from("leads").select("value").eq("id", lead.id).maybeSingle();
     const value = Number(row?.value ?? 0);
     if (value > 0 && isRazorpayApiConfigured()) {
       const r = await createRazorpayPaymentLink(Math.round(value * 100), `${BRAND} — ${lead.company || lead.name}`, { name: lead.name ?? "", email: lead.email ?? "", contact: lead.phone ?? "" });
@@ -191,7 +191,7 @@ export async function handleInboundReply(
     // Instant team alert — even when the lead has no live enrollment.
     let owner: string | undefined = enrollments[0]?.leads?.owner || undefined;
     if (leadIds.length && !enrollments.length) {
-      const { data } = await getServerClient().from("leads").select("id,name,company,owner").eq("id", leadIds[0]).maybeSingle();
+      const { data } = await getDb().from("leads").select("id,name,company,owner").eq("id", leadIds[0]).maybeSingle();
       owner = (data?.owner as string) || undefined;
       if (intent !== "optout") await notifyTeam({ kind: "reply", leadId: leadIds[0], priority: intent === "payment_intent" ? "high" : "normal", title: `${via} reply from ${data?.company || data?.name || "a lead"}`, body: text.slice(0, 200) });
     }
@@ -236,7 +236,7 @@ export async function handleHumanReply(contact: { phone?: string; email?: string
 /** Payment received / deal closed / manual stop. Works on ANY non-final status. */
 export async function endFollowUp(leadId: number, status: "won" | "payment_ready" | "stopped", reason: string): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db.from("followup_enrollments").select("*").eq("lead_id", leadId).not("status", "in", "(won,completed,stopped)");
     for (const e of (data ?? []) as EnrollmentRow[]) {
       await setStatus(e, status, reason);
@@ -252,7 +252,7 @@ export async function endFollowUpByContact(contact: { phone?: string; email?: st
 
 export async function setPaused(enrollmentId: string, paused: boolean): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("followup_enrollments").update(paused
       ? { status: "paused" }
       : { status: "active", next_run_at: new Date().toISOString() }).eq("id", enrollmentId);
@@ -263,7 +263,7 @@ export async function setPaused(enrollmentId: string, paused: boolean): Promise<
 /** Pull the next scheduled touch forward/back (used by call outcomes: "not picked → WhatsApp now"). */
 export async function scheduleNextTouch(leadId: number, at: Date): Promise<void> {
   try {
-    await getServerClient().from("followup_enrollments").update({ next_run_at: at.toISOString() }).eq("lead_id", leadId).eq("status", "active");
+    await getDb().from("followup_enrollments").update({ next_run_at: at.toISOString() }).eq("lead_id", leadId).eq("status", "active");
   } catch (err) { log("scheduleNextTouch", err); }
 }
 
@@ -333,7 +333,7 @@ async function doVoicemail(lead: LeadRow): Promise<Delivery> {
 export async function runDueSteps(now = new Date()): Promise<{ processed: number; sent: number; failed: number; skipped: number; completed: number; mock: number; stopped: number }> {
   const out = { processed: 0, sent: 0, failed: 0, skipped: 0, completed: 0, mock: 0, stopped: 0 };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const settings = await getCommsSettings();
     const { data } = await db.from("followup_enrollments")
       .select(`*, ${LEAD_COLS}`)
@@ -439,7 +439,7 @@ export async function draftSoftNudge(ctx: TemplateCtx, lastClientMessage: string
 
 async function lastInboundText(lead: LeadRow): Promise<string> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: convs } = await db.from("conversations").select("id").eq("lead_id", lead.id);
     const ids = (convs ?? []).map((c) => c.id as string);
     const { data: em } = await db.from("email_log").select("body,created_at").eq("lead_id", lead.id).eq("direction", "inbound").order("created_at", { ascending: false }).limit(1);
@@ -452,7 +452,7 @@ async function lastInboundText(lead: LeadRow): Promise<string> {
 export async function runAiNudges(now = new Date()): Promise<{ checked: number; nudged: number; escalated: number }> {
   const out = { checked: 0, nudged: 0, escalated: 0 };
   try {
-    const { data } = await getServerClient().from("followup_enrollments")
+    const { data } = await getDb().from("followup_enrollments")
       .select(`*, ${LEAD_COLS}`)
       .eq("status", "replied_waiting").limit(BATCH);
 
@@ -474,7 +474,7 @@ export async function runAiNudges(now = new Date()): Promise<{ checked: number; 
       out.nudged++;
 
       const count = e.ai_nudge_count + 1;
-      await getServerClient().from("followup_enrollments").update({ ai_nudge_count: count, last_ai_nudge_at: now.toISOString() }).eq("id", e.id);
+      await getDb().from("followup_enrollments").update({ ai_nudge_count: count, last_ai_nudge_at: now.toISOString() }).eq("id", e.id);
       if (count === 1) {
         await humanTask(`⏰ Reply overdue (24h+) — ${e.leads.company || e.leads.name} is waiting. AI sent a holding message.`, e.leads, "high", "Reply Overdue");
         await notifyTeam({ kind: "overdue_reply", leadId: e.lead_id, priority: "high", title: `⏰ ${e.leads.company || e.leads.name} has waited 24h+ for a reply`, body: "AI sent a holding message — please reply personally." });

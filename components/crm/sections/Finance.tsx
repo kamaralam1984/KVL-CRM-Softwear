@@ -26,7 +26,7 @@ export default function Finance() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<InvForm>(emptyForm);
 
-  // Load from Supabase on mount — real rows only; an empty account shows
+  // Load from the database on mount — real rows only; an empty account shows
   // an empty state, never the seed data.
   useEffect(() => {
     getInvoices(getAccessToken()).then((rows) => setInvoiceList(rows ?? [])).catch(() => {});
@@ -55,7 +55,7 @@ export default function Finance() {
       due: form.due || "TBD",
     };
     setInvoiceList((prev) => [...prev, newInvoice]);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic add stays)
     createInvoice(newInvoice, getAccessToken()).catch(() => {});
     setShowModal(false);
     setForm(emptyForm);
@@ -63,13 +63,13 @@ export default function Finance() {
 
   const markPaid = (id: string) => {
     setInvoiceList((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status: "paid" } : inv)));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic update stays)
     updateInvoice(id, { status: "paid" }, getAccessToken()).catch(() => {});
   };
 
   const removeInvoice = (id: string) => {
     setInvoiceList((prev) => prev.filter((inv) => inv.id !== id));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic remove stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic remove stays)
     deleteInvoice(id, getAccessToken()).catch(() => {});
   };
 

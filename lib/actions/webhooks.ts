@@ -14,7 +14,7 @@
 // events. See lib/security/requireAction.ts's assertCanStrict doc comment.
 
 import { randomBytes } from "crypto";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCanStrict } from "@/lib/security/requireAction";
 import { isSafeWebhookUrl } from "@/lib/security/ssrfGuard";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
@@ -42,7 +42,7 @@ export type WebhookDelivery = {
 export async function getWebhooks(accessToken?: string): Promise<Webhook[]> {
   if (!(await assertCanStrict(accessToken, "developers", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("webhooks").select("*").order("created_at", { ascending: false });
     if (error) return [];
     return (data ?? []) as Webhook[];
@@ -60,7 +60,7 @@ export async function createWebhookSubscription(
   if (!(await assertCanStrict(accessToken, "developers", "create"))) return { ok: false };
   if (!(await isSafeWebhookUrl(endpointUrl))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("webhooks").insert({
       site_id: DEFAULT_SITE_ID,
       endpoint_url: endpointUrl,
@@ -78,7 +78,7 @@ export async function createWebhookSubscription(
 export async function deleteWebhook(id: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCanStrict(accessToken, "developers", "delete"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("webhooks").delete().eq("id", id);
     if (error) return { ok: false };
     return { ok: true };
@@ -91,7 +91,7 @@ export async function deleteWebhook(id: string, accessToken?: string): Promise<{
 export async function getWebhookDeliveries(webhookId: string, accessToken?: string): Promise<WebhookDelivery[]> {
   if (!(await assertCanStrict(accessToken, "developers", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("webhook_deliveries").select("*").eq("webhook_id", webhookId).order("created_at", { ascending: false }).limit(20);
     if (error) return [];
     return (data ?? []) as WebhookDelivery[];

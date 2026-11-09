@@ -3,7 +3,7 @@
 // Every function fails soft (never throws) — a tracking write must never
 // break the visitor's page or bubble a 500 back to a real browser.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import type { AttributionParams, DeviceContext } from "./types";
 
 function log(where: string, err: unknown) {
@@ -34,7 +34,7 @@ interface VisitorRow {
 // every read-modify-write by site_id closes that: a mismatched site_id now
 // makes `existing` come back null, and the write is skipped entirely.
 async function getVisitorRow(visitorId: string, siteId: string): Promise<VisitorRow | null> {
-  const db = getServerClient();
+  const db = getDb();
   const { data } = await db
     .from("visitors")
     .select(
@@ -63,7 +63,7 @@ export async function upsertVisitor(
   siteId: string
 ): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const increment = input.pageViewIncrement ?? 0;
 
     await db.from("visitors").upsert(
@@ -120,7 +120,7 @@ export async function recordSessionStart(
   siteId: string
 ): Promise<{ isReturning: boolean; previousLastSeenAt: string | null }> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const now = new Date().toISOString();
     const a = input.attribution;
 
@@ -230,7 +230,7 @@ export async function recordSessionEnd(
   siteId: string
 ): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db
       .from("visitor_sessions")
       .update({
@@ -258,7 +258,7 @@ export async function recordEvents(
 ): Promise<void> {
   if (!events.length) return;
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("visitor_events").insert(
       events.map((e) => ({
         visitor_id: e.visitorId,
@@ -276,7 +276,7 @@ export async function recordEvents(
 
 export async function markVisitorIdentified(visitorId: string, siteId: string): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("visitors").update({ identified: true }).eq("visitor_id", visitorId).eq("site_id", siteId);
   } catch (err) {
     log("markVisitorIdentified", err);
@@ -290,7 +290,7 @@ export async function markVisitorIdentified(visitorId: string, siteId: string): 
  */
 export async function getVisitorAttribution(visitorId: string, siteId: string): Promise<{ source: string; campaign: string } | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db
       .from("visitors")
       .select("first_touch_source, first_touch_campaign, last_touch_source, last_touch_campaign")
@@ -325,7 +325,7 @@ export async function recordPushSubscription(
   siteId: string
 ): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("push_subscriptions").upsert(
       { visitor_id: input.visitorId, site_id: siteId, endpoint: input.endpoint, p256dh: input.p256dh, auth: input.auth, revoked_at: null },
       { onConflict: "endpoint" }
@@ -344,7 +344,7 @@ export async function recordConsent(
   siteId: string
 ): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("tracking_consents").insert({
       visitor_id: input.visitorId,
       site_id: siteId,

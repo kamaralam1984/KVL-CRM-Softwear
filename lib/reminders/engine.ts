@@ -3,7 +3,7 @@
 // callbacks (call outcome or a client's "call me tomorrow 5pm"), plus manual ones.
 // Every client reminder honours the DNC list and the lead's quiet hours, and is skipped if the
 // underlying task/invoice is already done. Never throws.
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { sendText } from "@/lib/followup/engine";
 import { adjustForQuietHours, tzOffsetForPhone, renderTemplate, buildCtx } from "@/lib/followup/sequence";
 import { notifyTeam } from "@/lib/notify/team";
@@ -24,7 +24,7 @@ export interface NewReminder {
 
 export async function createReminder(r: NewReminder): Promise<string | null> {
   try {
-    const { data, error } = await getServerClient().from("reminders").insert({
+    const { data, error } = await getDb().from("reminders").insert({
       kind: r.kind, audience: r.audience, lead_id: r.leadId ?? null, assignee: r.assignee ?? "", to_phone: r.toPhone ?? "", to_email: r.toEmail ?? "",
       title: r.title.slice(0, 200), body: r.body ?? "", remind_at: r.remindAt.toISOString(), dedupe_key: r.dedupeKey ?? null,
     }).select("id").single();
@@ -36,7 +36,7 @@ export async function createReminder(r: NewReminder): Promise<string | null> {
 // ── Sources → reminders (idempotent via dedupe_key) ─────────────────────────
 
 async function scanTasks(now: Date): Promise<number> {
-  const db = getServerClient();
+  const db = getDb();
   const { data } = await db.from("tasks").select("id,title,due,assignee,status,company").neq("status", "completed").limit(500);
   let n = 0;
   for (const t of data ?? []) {
@@ -55,7 +55,7 @@ function eventStart(ev: { day: number; month: number; year: number; time?: strin
 }
 
 async function scanMeetings(now: Date): Promise<number> {
-  const db = getServerClient();
+  const db = getDb();
   const { data } = await db.from("calendar_events").select("*").gte("year", now.getUTCFullYear() - 1).limit(500);
   let n = 0;
   for (const ev of data ?? []) {
@@ -76,7 +76,7 @@ async function scanMeetings(now: Date): Promise<number> {
 }
 
 async function scanInvoices(now: Date): Promise<number> {
-  const db = getServerClient();
+  const db = getDb();
   const { data } = await db.from("invoices").select("*").neq("status", "paid").limit(500);
   let n = 0;
   for (const inv of data ?? []) {
@@ -106,7 +106,7 @@ export async function scanSources(now = new Date()): Promise<number> {
 async function alreadyDone(dedupe: string | null): Promise<boolean> {
   if (!dedupe) return false;
   const [kind, id] = dedupe.split(":");
-  const db = getServerClient();
+  const db = getDb();
   if (kind === "task") { const { data } = await db.from("tasks").select("status").eq("id", id).maybeSingle(); return !data || data.status === "completed"; }
   if (kind === "inv") { const { data } = await db.from("invoices").select("status").eq("id", id).maybeSingle(); return !data || data.status === "paid"; }
   return false;
@@ -116,7 +116,7 @@ export async function runDueReminders(now = new Date()): Promise<{ scanned: numb
   const out = { scanned: 0, sent: 0, failed: 0, skipped: 0, deferred: 0 };
   try {
     out.scanned = await scanSources(now);
-    const db = getServerClient();
+    const db = getDb();
     const settings = await getCommsSettings();
     const { data } = await db.from("reminders").select("*").eq("status", "pending").lte("remind_at", now.toISOString()).order("remind_at").limit(100);
 

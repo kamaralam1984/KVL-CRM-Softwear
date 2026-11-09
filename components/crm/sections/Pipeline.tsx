@@ -27,7 +27,7 @@ export default function Pipeline() {
   const [form, setForm] = useState<DealForm>(emptyForm);
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
 
-  // Load from Supabase on mount — real rows only; an empty account shows
+  // Load from the database on mount — real rows only; an empty account shows
   // empty pipeline columns, never the seed data.
   useEffect(() => {
     fetchDeals().then((rows) => setDealList(rows ?? [])).catch(() => {});
@@ -60,7 +60,7 @@ export default function Pipeline() {
       avatar,
     };
     setDealList((prev) => [...prev, newDeal]);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...dealData } = newDeal;
     createDeal(dealData).catch(() => {});
     setModalStage(null);
@@ -74,14 +74,14 @@ export default function Pipeline() {
     const next = stages[idx + 1]?.id;
     if (!next) return;
     setDealList((prev) => prev.map((d) => (d.id === dealId ? { ...d, stage: next } : d)));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic update stays)
     updateDeal(dealId, { stage: next }).catch(() => {});
     setMenuOpenId(null);
   };
 
   const removeDeal = (dealId: number) => {
     setDealList((prev) => prev.filter((d) => d.id !== dealId));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic removal stays)
     deleteDeal(dealId).catch(() => {});
     setMenuOpenId(null);
   };

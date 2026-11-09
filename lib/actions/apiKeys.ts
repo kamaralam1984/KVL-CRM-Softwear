@@ -12,7 +12,7 @@
 // lib/security/requireAction.ts's assertCanStrict doc comment.
 
 import { createHash, randomBytes } from "crypto";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCanStrict } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 
@@ -33,7 +33,7 @@ function hashKey(key: string): string {
 export async function getApiKeys(accessToken?: string): Promise<ApiKey[]> {
   if (!(await assertCanStrict(accessToken, "developers", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("api_keys").select("id, site_id, name, key_prefix, active, last_used_at, created_at").order("created_at", { ascending: false });
     if (error) return [];
     return (data ?? []) as ApiKey[];
@@ -47,7 +47,7 @@ export async function createApiKey(name: string, accessToken?: string): Promise<
   if (!(await assertCanStrict(accessToken, "developers", "create"))) return { ok: false };
   try {
     const plainKey = `kvl_live_${randomBytes(24).toString("hex")}`;
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("api_keys").insert({
       site_id: DEFAULT_SITE_ID,
       name: name || "Unnamed key",
@@ -65,7 +65,7 @@ export async function createApiKey(name: string, accessToken?: string): Promise<
 export async function revokeApiKey(id: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCanStrict(accessToken, "developers", "delete"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("api_keys").update({ active: false }).eq("id", id);
     if (error) return { ok: false };
     return { ok: true };

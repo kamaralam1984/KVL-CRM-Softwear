@@ -97,7 +97,7 @@ and status — treat it the same way as `docs/GROWTH_PLATFORM_ROADMAP.md`.
   stays anonymous — visible only as a `visitor_id`, source/campaign, pages, and an intent
   score — until they voluntarily submit contact info (form, WhatsApp, signup, etc.). No
   invasive fingerprinting, no covert PII collection, no selling visitor data.
-- **Extend-only applies here too.** New tables are additive (`lib/supabase/schema.sql`);
+- **Extend-only applies here too.** New tables are additive (`lib/db/schema.sql`);
   never rename or repurpose an existing table/column.
 - **Module conventions:** tracking SDK + collection live in `lib/tracking/` (types, ids,
   attribution, store, `sdk/`); later waves add `lib/attribution/` (campaigns/multi-touch)

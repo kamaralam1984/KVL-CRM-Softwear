@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { sendSms, sendInstagramDm, sendMessengerMessage, isMetaMessagingConfigured, sendEmail, isEmailConfigured } from "./send";
 
 describe("sendSms (Phase 37 — optional DLT templateKey)", () => {
-  it("never throws and still mocks when neither Twilio nor Supabase is configured", async () => {
+  it("never throws and still mocks when neither Twilio nor the database is configured", async () => {
     const result = await sendSms("+919812345678", "hello", "missed_call_reply");
     expect(result.ok).toBe(true);
     expect(result.mock).toBe(true);

@@ -3,7 +3,7 @@
 // public-facing `submitForm()` for the render route.
 
 import { headers } from "next/headers";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
@@ -59,7 +59,7 @@ export type FormRow = {
 export async function getForms(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<FormRow[]> {
   if (!(await assertCan(accessToken, "funnels", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("forms").select("*").eq("site_id", siteId).order("created_at", { ascending: false });
     if (error) { console.error("[forms] getForms failed:", error.message); return []; }
     return (data ?? []) as FormRow[];
@@ -73,7 +73,7 @@ export async function getForms(siteId = DEFAULT_SITE_ID, accessToken?: string): 
 // lib/actions/pages.ts::getPageBySlug).
 export async function getFormBySlug(slug: string, siteId = DEFAULT_SITE_ID): Promise<FormRow | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("forms").select("*").eq("site_id", siteId).eq("slug", slug).eq("published", true).maybeSingle();
     if (error || !data) return null;
     return data as FormRow;
@@ -91,7 +91,7 @@ export async function saveForm(
   const siteId = input.siteId ?? DEFAULT_SITE_ID;
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     if (input.id) {
       const { data, error } = await db
         .from("forms")
@@ -121,7 +121,7 @@ export async function saveForm(
 export async function publishForm(id: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "funnels", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("forms").update({ published: true }).eq("id", id);
     if (error) { console.error("[forms] publishForm failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -134,7 +134,7 @@ export async function publishForm(id: string, accessToken?: string): Promise<{ o
 export async function deleteForm(id: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "funnels", "delete"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("forms").delete().eq("id", id);
     if (error) { console.error("[forms] deleteForm failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -157,7 +157,7 @@ export async function submitForm(
 
     const answers = sanitizeAnswers(rawAnswers);
 
-    const db = getServerClient();
+    const db = getDb();
     const { data: form, error: formErr } = await db.from("forms").select("*").eq("id", formId).eq("published", true).maybeSingle();
     if (formErr || !form) return { ok: false };
 

@@ -2,7 +2,7 @@
 // Phase 27 — Commerce Suite I. CRUD for `orders`/`order_items`.
 
 import { endFollowUpByContact } from "@/lib/followup/engine";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import { createRazorpayOrder } from "@/lib/payments/razorpay";
@@ -32,7 +32,7 @@ export type OrderWithItems = OrderRow & { items: (OrderItemInput & { id: string 
 export async function getOrders(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<OrderWithItems[]> {
   if (!(await assertCan(accessToken, "commerce", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: orders, error } = await db.from("orders").select("*").eq("site_id", siteId).order("created_at", { ascending: false });
     if (error || !orders?.length) return [];
 
@@ -59,7 +59,7 @@ export async function createOrder(
   const orderNumber = `VC-${Date.now().toString(36).toUpperCase()}`;
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     const rzp = await createRazorpayOrder(Math.round(amount * 100), orderNumber);
 
     const { data: order, error } = await db.from("orders").insert({
@@ -92,7 +92,7 @@ export async function createOrder(
 export async function updateOrderStatus(id: string, status: OrderStatus, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "commerce", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("orders").update({ status }).eq("id", id);
     if (error) { console.error("[commerce] updateOrderStatus failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -106,7 +106,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus, accessT
 // webhook's own signature verification is the auth for this write).
 export async function markOrderPaidByProviderRef(providerRef: string): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("orders").update({ payment_status: "paid" }).eq("payment_provider_ref", providerRef).select().maybeSingle();
     if (error) { console.error("[commerce] markOrderPaidByProviderRef failed:", error.message); return; }
     if (data) {

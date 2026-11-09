@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { clientIp } from "../../analytics/shared";
 import { verifyTwilioSignature } from "@/lib/messaging/twilioSignature";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { recordSessionStart } from "@/lib/tracking/store";
 import { recordTouchpoint } from "@/lib/attribution/touchpoints";
 import { generateSessionId } from "@/lib/tracking/ids";
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     const callerNumber = normalizePhone(params.From ?? "");
     const callSid = params.CallSid ?? "";
 
-    const db = getServerClient();
+    const db = getDb();
     const { data: trackingNumber } = await db.from("tracking_numbers").select("*").eq("phone_number", dialedNumber).maybeSingle();
     if (!trackingNumber || !trackingNumber.forward_to_number) return fallbackTwiml();
 

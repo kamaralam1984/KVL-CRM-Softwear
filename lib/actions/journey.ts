@@ -2,7 +2,7 @@
 // Phase 17 — Lead Intelligence & Acquisition Engine, Wave 6b (Attribution + Landing Pages + Lead Journey)
 // On-demand, single-visitor fetch — called only when that visitor's Journey
 // modal is opened, never prefetched for the whole list.
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import type { CampaignTouchpoint } from "@/lib/attribution/types";
 import type { VisitorEvent } from "@/lib/tracking/types";
 
@@ -19,7 +19,7 @@ export interface VisitorJourney {
 }
 
 export async function getVisitorJourney(visitorId: string): Promise<VisitorJourney> {
-  const db = getServerClient();
+  const db = getDb();
 
   const [touchpointsRes, eventsRes, linkRes] = await Promise.all([
     db.from("campaign_touchpoints").select("*").eq("visitor_id", visitorId).order("occurred_at", { ascending: true }),

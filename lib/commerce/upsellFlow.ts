@@ -5,11 +5,11 @@
 // order/step completes so a checkout flow can redirect into the next
 // upsell/downsell offer, the literal GHL "one-click upsell funnel" pattern.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 export async function getNextFunnelStepUrl(funnelId: string, currentStepOrder: number): Promise<string | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: step, error } = await db
       .from("funnel_steps")
       .select("page_id")
@@ -30,7 +30,7 @@ export async function getNextFunnelStepUrl(funnelId: string, currentStepOrder: n
 
 export async function getFunnelSteps(funnelId: string): Promise<{ id: string; stepOrder: number; stepType: string; pageId: number | null }[]> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("funnel_steps")
       .select("*")

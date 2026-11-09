@@ -2,7 +2,7 @@
 // Phase 41 — Call Tracking (Dynamic Number Insertion). CRUD for
 // `tracking_numbers`/`call_logs` + the provisioning action the UI calls.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import { provisionTrackingNumber, isTwilioNumberProvisioningConfigured } from "@/lib/telephony/numbers";
@@ -45,7 +45,7 @@ export type CallLog = {
 export async function getTrackingNumbers(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<TrackingNumber[]> {
   if (!(await assertCan(accessToken, "marketing", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("tracking_numbers").select("*").eq("site_id", siteId).order("created_at", { ascending: false });
     if (error) return [];
     return (data ?? []) as TrackingNumber[];
@@ -67,7 +67,7 @@ export async function createTrackingNumber(
     const result = await provisionTrackingNumber(input.areaCode, input.appBaseUrl);
     if (!result.ok || !result.phoneNumber) return { ok: false, mock: result.mock };
 
-    const db = getServerClient();
+    const db = getDb();
     const siteId = input.siteId ?? DEFAULT_SITE_ID;
 
     let campaignId: number | null = null;
@@ -100,7 +100,7 @@ export async function createTrackingNumber(
 export async function deleteTrackingNumber(id: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "marketing", "delete"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("tracking_numbers").delete().eq("id", id);
     if (error) return { ok: false };
     return { ok: true };
@@ -113,7 +113,7 @@ export async function deleteTrackingNumber(id: string, accessToken?: string): Pr
 export async function getCallLogs(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<CallLog[]> {
   if (!(await assertCan(accessToken, "marketing", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: numbers } = await db.from("tracking_numbers").select("id").eq("site_id", siteId);
     const ids = (numbers ?? []).map((n) => n.id);
     if (!ids.length) return [];

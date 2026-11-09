@@ -2,21 +2,13 @@ import type { NextConfig } from "next";
 
 // Security headers (AI Website Analyzer's security.ts checks for the mere
 // presence of each header — not directive strictness — but connect-src still
-// has to be genuinely correct or every client-side Supabase call breaks.
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const supabaseOrigin = (() => {
-  try {
-    return supabaseUrl ? new URL(supabaseUrl).origin : "";
-  } catch {
-    return "";
-  }
-})();
-const supabaseWsOrigin = supabaseOrigin.replace(/^http/, "ws");
+// has to be genuinely correct). All data access happens server-side (Neon Postgres
+// via DATABASE_URL), so the browser only ever talks to this same origin.
 
 // Audited against every external origin this app actually loads client-side:
-// Supabase (all CRM data), Unsplash + Mixkit (landing-page media), YouTube
-// (webinar room embed). No Razorpay/Google-OAuth script or iframe is loaded
-// client-side — both redirect full-page, so they need no CSP allowance.
+// Unsplash + Mixkit (landing-page media), YouTube (webinar room embed).
+// No Razorpay/Google-OAuth script or iframe is loaded client-side — both
+// redirect full-page, so they need no CSP allowance.
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
@@ -24,7 +16,7 @@ const csp = [
   "img-src 'self' data: https:",
   "font-src 'self' data:",
   "media-src 'self' https://assets.mixkit.co",
-  `connect-src 'self' ${supabaseOrigin} ${supabaseWsOrigin}`.trim(),
+  "connect-src 'self'",
   "frame-src 'self' https://www.youtube.com",
   "frame-ancestors 'self'",
   "base-uri 'self'",

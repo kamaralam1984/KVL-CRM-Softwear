@@ -18,7 +18,7 @@
 // documented My Business Business Information / Account Management APIs as
 // of this writing; re-verify against current docs once real credentials exist.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 const AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -72,7 +72,7 @@ export async function exchangeGoogleBusinessCode(
     }
     const data = await res.json();
 
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("integration_connections").upsert(
       {
         provider: "google_business",
@@ -93,7 +93,7 @@ export async function exchangeGoogleBusinessCode(
 
 export async function isGoogleBusinessConnected(): Promise<boolean> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db.from("integration_connections").select("provider").eq("provider", "google_business").maybeSingle();
     return Boolean(data);
   } catch (err) {
@@ -119,7 +119,7 @@ export async function fetchGoogleReviews(locationId: string): Promise<GoogleRevi
   if (!clientId) return [];
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: conn } = await db.from("integration_connections").select("access_token").eq("provider", "google_business").maybeSingle();
     if (!conn?.access_token) return [];
 

@@ -1,11 +1,11 @@
 "use server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { tasks as seedTasks } from "@/lib/data";
 
 export type Task = (typeof seedTasks)[number];
 
 export async function getTasks(): Promise<Task[]> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("tasks")
     .select("*")
@@ -16,7 +16,7 @@ export async function getTasks(): Promise<Task[]> {
 }
 
 export async function createTask(task: Omit<Task, "id">): Promise<Task> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("tasks")
     .insert(task)
@@ -27,7 +27,7 @@ export async function createTask(task: Omit<Task, "id">): Promise<Task> {
 }
 
 export async function updateTask(id: number, patch: Partial<Task>): Promise<Task> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("tasks")
     .update(patch)
@@ -39,7 +39,7 @@ export async function updateTask(id: number, patch: Partial<Task>): Promise<Task
 }
 
 export async function deleteTask(id: number): Promise<void> {
-  const db = getServerClient();
+  const db = getDb();
   const { error } = await db.from("tasks").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

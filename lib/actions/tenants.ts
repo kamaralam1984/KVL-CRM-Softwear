@@ -2,11 +2,11 @@
 // Phase 31 — SaaS Mode. Server-action CRUD for `tenants`/`tenant_users`,
 // called by lib/whitelabel/store.ts as a fire-and-forget dual-write (same
 // pattern as Phase 19's lib/actions/workflows.ts) so every existing caller
-// of the whitelabel store keeps working unchanged even when Supabase is
+// of the whitelabel store keeps working unchanged even when the database is
 // unavailable — localStorage stays the fast client cache, this becomes the
 // cross-device source of truth.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { createRazorpayPlan, createRazorpaySubscription } from "@/lib/payments/razorpay";
 import type { Tenant } from "@/lib/whitelabel/types";
@@ -29,7 +29,7 @@ function toTenant(row: DbTenant): Tenant {
 export async function getDbTenants(accessToken?: string): Promise<Tenant[]> {
   if (!(await assertCan(accessToken, "whitelabel", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("tenants").select("*").order("created_at", { ascending: false });
     if (error) return [];
     return (data as DbTenant[]).map(toTenant);
@@ -43,7 +43,7 @@ export async function getDbTenants(accessToken?: string): Promise<Tenant[]> {
 // slug. Never throws.
 export async function upsertDbTenant(tenant: Tenant): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("tenants").upsert({
       slug: tenant.slug, brand_name: tenant.brandName, tagline: tenant.tagline ?? "",
       logo_url: tenant.logoUrl ?? "", primary_color: tenant.primaryColor ?? "", domain: tenant.domain ?? "",
@@ -58,7 +58,7 @@ export async function upsertDbTenant(tenant: Tenant): Promise<void> {
 
 export async function deleteDbTenant(slug: string): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("tenants").delete().eq("slug", slug);
     if (error) console.error("[tenants] deleteDbTenant failed:", error.message);
   } catch (err) {
@@ -74,7 +74,7 @@ export async function signupTenant(
   input: { userId: string; brandName: string; slug: string; email: string; plan: string },
 ): Promise<{ ok: boolean; checkoutUrl?: string; error?: string }> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const priceRupees = PLAN_PRICES_RUPEES[input.plan] ?? PLAN_PRICES_RUPEES.starter;
 
     const plan = await createRazorpayPlan(priceRupees * 100, `Maxness — ${input.plan}`, "monthly");

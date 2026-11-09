@@ -26,7 +26,7 @@ export default function Tasks() {
   const [form, setForm] = useState<TaskForm>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Load from Supabase on mount — real rows only; an empty account shows
+  // Load from the database on mount — real rows only; an empty account shows
   // an empty state, never the seed data.
   useEffect(() => {
     getTasks().then((rows) => setTaskList(rows ?? [])).catch(() => {});
@@ -41,7 +41,7 @@ export default function Tasks() {
     setTaskList((prev) =>
       prev.map((t) => t.id === id ? { ...t, status: t.status === "completed" ? "pending" : "completed" } : t)
     );
-    // Persist to Supabase when configured; demo mode throws → ignored
+    // Persist to the database when configured; demo mode throws → ignored
     updateTask(id, { status: newStatus }).catch(() => {});
   };
 
@@ -57,7 +57,7 @@ export default function Tasks() {
         company: form.company || "Internal",
       };
       setTaskList((prev) => prev.map((t) => (t.id === editingId ? { ...t, ...patch } : t)));
-      // Persist to Supabase when configured; demo mode throws → ignored (optimistic edit stays)
+      // Persist to the database when configured; demo mode throws → ignored (optimistic edit stays)
       updateTask(editingId, patch).catch(() => {});
       setShowModal(false);
       setForm(emptyForm);
@@ -76,7 +76,7 @@ export default function Tasks() {
       company: form.company || "Internal",
     };
     setTaskList((prev) => [...prev, newTask]);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...taskData } = newTask;
     createTask(taskData).catch(() => {});
     setShowModal(false);
@@ -91,7 +91,7 @@ export default function Tasks() {
 
   const removeTask = (id: number) => {
     setTaskList((prev) => prev.filter((t) => t.id !== id));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic remove stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic remove stays)
     deleteTask(id).catch(() => {});
   };
 

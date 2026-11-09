@@ -2,7 +2,7 @@
 // Follow-up Engine — server actions backing components/crm/sections/automation/FollowUpEngine.tsx.
 // Thin RBAC wrappers over lib/followup/engine.ts (resource: "automation").
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { enrollLead, endFollowUp, setPaused, runDueSteps, runAiNudges } from "@/lib/followup/engine";
 import { DEFAULT_SEQUENCE, type EnrollmentStatus } from "@/lib/followup/sequence";
@@ -35,7 +35,7 @@ export async function getFollowUps(accessToken?: string): Promise<FollowUpSnapsh
   const empty: FollowUpSnapshot = { rows: [], events: [], sequence: { name: DEFAULT_SEQUENCE.name, steps: DEFAULT_SEQUENCE.steps } };
   if (!(await assertCan(accessToken, "automation", "read"))) return empty;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const [{ data }, { data: ev }] = await Promise.all([
       db.from("followup_enrollments").select("*, leads(name,company)").order("updated_at", { ascending: false }).limit(200),
       db.from("followup_events").select("*").order("created_at", { ascending: false }).limit(60),

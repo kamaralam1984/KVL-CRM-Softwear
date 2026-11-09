@@ -48,7 +48,7 @@ const journeyStages = [
 
 // ─── date helpers (renewals) ────────────────────────────────────────────────────
 // Real `nextRenewal` values are freeform labels like "Dec 2025" (see lib/data.ts /
-// lib/supabase/schema.sql `next_renewal`), not ISO dates. Parse that one known
+// lib/db/schema.sql `next_renewal`), not ISO dates. Parse that one known
 // format deterministically to end-of-month; anything else is left unparsed rather
 // than guessing.
 const MONTH_ABBRS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
@@ -733,7 +733,7 @@ export default function Customers() {
   const [editingId,setEditingId]= useState<number | null>(null);
   const [activeTab,setActiveTab]= useState<TabId>("overview");
 
-  // Load from Supabase on mount — real rows only; an empty account shows
+  // Load from the database on mount — real rows only; an empty account shows
   // an empty state, never the seed data.
   useEffect(() => {
     getCustomers().then((rows) => setCustList(rows ?? [])).catch(() => {}).finally(() => setCustLoading(false));
@@ -762,7 +762,7 @@ export default function Customers() {
         avatar,
       };
       setCustList((prev) => prev.map((c) => (c.id === editingId ? { ...c, ...patch } : c)));
-      // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+      // Persist to the database when configured; demo mode throws → ignored (optimistic update stays)
       updateCustomer(editingId, patch).catch(() => {});
       setShowModal(false);
       setEditingId(null);
@@ -785,7 +785,7 @@ export default function Customers() {
       nextRenewal: "Dec 2026",
     };
     setCustList((prev) => [...prev, newCustomer]);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...customerData } = newCustomer;
     createCustomer(customerData).catch(() => {});
     setShowModal(false);
@@ -809,7 +809,7 @@ export default function Customers() {
   const removeCustomer = (id: number) => {
     if (!confirm("Delete this customer? This cannot be undone.")) return;
     setCustList((prev) => prev.filter((c) => c.id !== id));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic removal stays)
     deleteCustomer(id).catch(() => {});
   };
 

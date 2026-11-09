@@ -1,6 +1,6 @@
 // Automation engine (client-side orchestrator).
 // Executes a workflow's steps, calling REAL server actions (createTask,
-// createActivity) so it genuinely creates CRM records when Supabase is live,
+// createActivity) so it genuinely creates CRM records when the database is live,
 // and always logs the run to the local store so it's visible in demo mode too.
 
 import { createTask } from "@/lib/actions/tasks";

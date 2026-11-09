@@ -72,7 +72,7 @@ const initialMeetings: MeetingItem[] = [
 ];
 
 export default function WhatsApp() {
-  // Load conversations from Supabase on mount — real rows only; an empty
+  // Load conversations from the database on mount — real rows only; an empty
   // account shows an empty state, never the seed data.
   const [convos, setConvos] = useState<typeof whatsappConversations>([]);
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function WhatsApp() {
     const target = convos.find((c) => c.id === id);
     if (target && target.unread > 0) {
       setConvos((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
-      // Persist to Supabase when configured; demo mode throws → ignored (optimistic edit stays)
+      // Persist to the database when configured; demo mode throws → ignored (optimistic edit stays)
       updateWhatsappConversation(id, { unread: 0 }).catch(() => {});
     }
   };
@@ -120,7 +120,7 @@ export default function WhatsApp() {
   const removeConv = (id: number) => {
     setConvos((prev) => prev.filter((c) => c.id !== id));
     setActiveConv((prev) => (prev === id ? (convos.find((c) => c.id !== id)?.id ?? 0) : prev));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic remove stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic remove stays)
     deleteWhatsappConversation(id).catch(() => {});
   };
 

@@ -3,9 +3,9 @@
 // Gives lib/automation/store.ts's previously localStorage-only run-log and
 // active-toggle a real, cross-device source of truth. Called by store.ts as a
 // fire-and-forget dual-write (see its own comments) so every existing caller
-// keeps working unchanged even when Supabase is unavailable.
+// keeps working unchanged even when the database is unavailable.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { WORKFLOWS as SEED_WORKFLOWS } from "@/lib/automation/engine";
 import type { RunStep, WorkflowRun } from "@/lib/automation/store";
@@ -20,7 +20,7 @@ export type DbWorkflow = {
   steps: string[];
 };
 
-type ServerClient = ReturnType<typeof getServerClient>;
+type ServerClient = ReturnType<typeof getDb>;
 
 // Seeds `workflows` from the static WORKFLOWS array in engine.ts the first
 // time the table is empty. Workflows are configuration (not disposable seed
@@ -42,7 +42,7 @@ async function ensureSeeded(db: ServerClient): Promise<void> {
 export async function getWorkflows(accessToken?: string): Promise<DbWorkflow[]> {
   if (!(await assertCan(accessToken, "automation", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     await ensureSeeded(db);
     const { data, error } = await db.from("workflows").select("*").order("created_at", { ascending: true });
     if (error || !data) return [];
@@ -56,7 +56,7 @@ export async function getWorkflows(accessToken?: string): Promise<DbWorkflow[]> 
 export async function setWorkflowActive(key: string, active: boolean, accessToken?: string): Promise<void> {
   if (!(await assertCan(accessToken, "automation", "update"))) return;
   try {
-    const db = getServerClient();
+    const db = getDb();
     await ensureSeeded(db);
     const { error } = await db.from("workflows").update({ active }).eq("key", key);
     if (error) console.error("[automation] setWorkflowActive failed:", error.message);
@@ -68,7 +68,7 @@ export async function setWorkflowActive(key: string, active: boolean, accessToke
 export async function getWorkflowRuns(limit = 200, accessToken?: string): Promise<WorkflowRun[]> {
   if (!(await assertCan(accessToken, "automation", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("workflow_runs")
       .select("*")
@@ -92,10 +92,10 @@ export async function getWorkflowRuns(limit = 200, accessToken?: string): Promis
 }
 
 // Fire-and-forget target for store.ts's addRun — never throws, so a run is
-// never lost even in demo mode (no Supabase configured).
+// never lost even in demo mode (no database configured).
 export async function recordWorkflowRun(run: WorkflowRun): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: wf } = await db.from("workflows").select("id").eq("key", run.workflowId).maybeSingle();
     const { error } = await db.from("workflow_runs").insert({
       workflow_id: wf?.id ?? null,

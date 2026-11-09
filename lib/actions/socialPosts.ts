@@ -2,7 +2,7 @@
 // Phase 25 — Social Planner. CRUD for `social_posts` + the two actions the
 // Schedule Post tab's buttons call: schedule for later, or publish now.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import { publishSocialPost, type SocialPlatform } from "@/lib/social/publish";
@@ -26,7 +26,7 @@ export type SocialPost = {
 export async function getSocialPosts(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<SocialPost[]> {
   if (!(await assertCan(accessToken, "social", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("social_posts")
       .select("*")
@@ -45,7 +45,7 @@ async function insertPost(input: {
   platform: SocialPlatform; postType: string; content: string; mediaUrls: string[];
   scheduledAt: string | null; status: SocialPostStatus; siteId?: string;
 }) {
-  const db = getServerClient();
+  const db = getDb();
   return db.from("social_posts").insert({
     site_id: input.siteId ?? DEFAULT_SITE_ID,
     platform: input.platform,
@@ -91,7 +91,7 @@ export async function postSocialNow(
     });
     if (error) { console.error("[social] postSocialNow record failed:", error.message); }
     else if (result.ok && data) {
-      const db = getServerClient();
+      const db = getDb();
       await db.from("social_posts")
         .update({ external_post_id: result.externalPostId ?? null, published_at: new Date().toISOString() })
         .eq("id", data.id);
@@ -105,7 +105,7 @@ export async function postSocialNow(
 // Called by the cron route — publishes every due scheduled post.
 export async function publishDueSocialPosts(): Promise<{ processed: number; published: number }> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("social_posts")
       .select("*")

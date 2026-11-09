@@ -3,7 +3,7 @@
 // Real, persisted trigger→condition→action canvas (replaces the previous
 // fully-mock BuilderView, which rendered one hardcoded fixed workflow with no
 // save/test backing anything real). Nodes are draggable/connectable via
-// @xyflow/react; the graph saves to Supabase (lib/actions/workflowGraphs.ts)
+// @xyflow/react; the graph saves to the database (lib/actions/workflowGraphs.ts)
 // and "Test run" executes it for real through lib/automation/graph/interpreter.ts.
 
 import { useCallback, useEffect, useMemo, useState } from "react";

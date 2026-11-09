@@ -1,11 +1,11 @@
 "use server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { emailCampaigns as seedCampaigns } from "@/lib/data";
 
 export type EmailCampaign = (typeof seedCampaigns)[number];
 
 export async function getEmailCampaigns(): Promise<EmailCampaign[]> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("email_campaigns")
     .select("*")
@@ -16,7 +16,7 @@ export async function getEmailCampaigns(): Promise<EmailCampaign[]> {
 }
 
 export async function createEmailCampaign(campaign: Omit<EmailCampaign, "id">): Promise<EmailCampaign> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("email_campaigns")
     .insert(campaign)
@@ -27,7 +27,7 @@ export async function createEmailCampaign(campaign: Omit<EmailCampaign, "id">): 
 }
 
 export async function updateEmailCampaign(id: number, patch: Partial<EmailCampaign>): Promise<EmailCampaign> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("email_campaigns")
     .update(patch)
@@ -39,7 +39,7 @@ export async function updateEmailCampaign(id: number, patch: Partial<EmailCampai
 }
 
 export async function deleteEmailCampaign(id: number): Promise<void> {
-  const db = getServerClient();
+  const db = getDb();
   const { error } = await db.from("email_campaigns").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

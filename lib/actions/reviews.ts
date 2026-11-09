@@ -1,7 +1,7 @@
 "use server";
 // Phase 26 — Reputation Management. CRUD for `reviews`/`review_requests`.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import { draftReviewReply, templateReviewReply } from "@/lib/reputation/aiReply";
@@ -23,7 +23,7 @@ export type Review = {
 export async function getReviews(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<Review[]> {
   if (!(await assertCan(accessToken, "helpdesk", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("reviews")
       .select("*")
@@ -42,7 +42,7 @@ export async function getReviews(siteId = DEFAULT_SITE_ID, accessToken?: string)
 export async function generateReviewReplyDraft(reviewId: string, accessToken?: string): Promise<{ ok: boolean; reply?: string }> {
   if (!(await assertCan(accessToken, "helpdesk", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: review, error: fetchErr } = await db.from("reviews").select("*").eq("id", reviewId).single();
     if (fetchErr || !review) return { ok: false };
 
@@ -67,7 +67,7 @@ export async function generateReviewReplyDraft(reviewId: string, accessToken?: s
 export async function approveReviewReply(reviewId: string, finalText: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "helpdesk", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("reviews").update({ reply_text: finalText, reply_status: "posted" }).eq("id", reviewId);
     if (error) { console.error("[reputation] approveReviewReply failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -96,7 +96,7 @@ export async function sendReviewRequest(
   const result = isWhatsAppConfigured() ? await sendWhatsApp(phone, message) : await sendSms(phone, message, "review_request");
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("review_requests").insert({
       customer_id: customerId,
       channel: isWhatsAppConfigured() ? "whatsapp" : "sms",

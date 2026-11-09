@@ -1,9 +1,9 @@
 "use server";
 // Phase 24 — Funnel / Landing-Page Drag-Drop Builder. CRUD for `landing_pages`
 // (Wave 2's traffic-only table, additively extended with authoring fields —
-// see lib/supabase/schema.sql) and `funnels`/`funnel_steps`.
+// see lib/db/schema.sql) and `funnels`/`funnel_steps`.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import type { PlacedBlock } from "@/lib/pages/blocks";
@@ -25,7 +25,7 @@ export type PageRow = {
 export async function getPages(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<PageRow[]> {
   if (!(await assertCan(accessToken, "funnels", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("landing_pages")
       .select("*")
@@ -43,7 +43,7 @@ export async function getPages(siteId = DEFAULT_SITE_ID, accessToken?: string): 
 // other public marketing page).
 export async function getPageBySlug(slug: string, siteId = DEFAULT_SITE_ID): Promise<PageRow | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("landing_pages")
       .select("*")
@@ -67,7 +67,7 @@ export async function savePage(
   const siteId = input.siteId ?? DEFAULT_SITE_ID;
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     if (input.id) {
       const { data, error } = await db
         .from("landing_pages")
@@ -97,7 +97,7 @@ export async function savePage(
 export async function publishPage(id: number, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "funnels", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("landing_pages").update({ status: "published" }).eq("id", id);
     if (error) { console.error("[pages] publishPage failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -110,7 +110,7 @@ export async function publishPage(id: number, accessToken?: string): Promise<{ o
 export async function duplicatePage(id: number, accessToken?: string): Promise<PageRow | null> {
   if (!(await assertCan(accessToken, "funnels", "create"))) return null;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: src, error: fetchErr } = await db.from("landing_pages").select("*").eq("id", id).single();
     if (fetchErr || !src) return null;
     const { data, error } = await db
@@ -136,7 +136,7 @@ export async function duplicatePage(id: number, accessToken?: string): Promise<P
 export async function deletePage(id: number, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "funnels", "delete"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("landing_pages").delete().eq("id", id);
     if (error) { console.error("[pages] deletePage failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -151,7 +151,7 @@ export async function deletePage(id: number, accessToken?: string): Promise<{ ok
 // codebase's other counters (docs/ACQUISITION_ENGINE_ROADMAP.md §4c).
 export async function recordPageHit(slug: string, siteId = DEFAULT_SITE_ID): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db.from("landing_pages").select("hits").eq("site_id", siteId).eq("url_path", slug).maybeSingle();
     if (data) {
       await db.from("landing_pages").update({ hits: (data.hits ?? 0) + 1 }).eq("site_id", siteId).eq("url_path", slug);

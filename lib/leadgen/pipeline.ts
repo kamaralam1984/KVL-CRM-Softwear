@@ -6,7 +6,7 @@
 // Designed to be called by a cron job once a day, or manually from the API
 // route / dashboard button. Returns a summary of what happened.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { fetchFromSources, type SourcePlan } from "./sources";
 import { scoreLeads } from "./score";
 import { runOutreach } from "./outreach";
@@ -89,7 +89,7 @@ export async function runLeadGenPipeline(
 }
 
 async function existingContactKeys(): Promise<Set<string>> {
-  const db = getServerClient();
+  const db = getDb();
   const { data } = await db.from("leads").select("email, phone, company");
   const set = new Set<string>();
   for (const r of data ?? []) {
@@ -102,7 +102,7 @@ async function existingContactKeys(): Promise<Set<string>> {
 
 async function saveLeads(leads: ScoredLead[]): Promise<number> {
   if (leads.length === 0) return 0;
-  const db = getServerClient();
+  const db = getDb();
   // Strip pipeline-only fields the table doesn't have.
   const rows = leads.map(({ source, reason, ...row }) => row);
   const { data, error } = await db.from("leads").insert(rows).select("id");

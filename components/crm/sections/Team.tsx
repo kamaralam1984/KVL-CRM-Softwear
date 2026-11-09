@@ -28,7 +28,7 @@ export default function Team() {
   const [form, setForm] = useState<MemberForm>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Load from Supabase on mount — real rows only; an empty account shows
+  // Load from the database on mount — real rows only; an empty account shows
   // an empty state, never the seed data.
   useEffect(() => {
     getTeamMembers(getAccessToken()).then((rows) => setMembers(rows ?? [])).catch(() => {});
@@ -55,7 +55,7 @@ export default function Team() {
 
   const removeMember = (id: number) => {
     setMembers((prev) => prev.filter((m) => m.id !== id));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic removal stays)
     deleteTeamMember(id, getAccessToken()).catch(() => {});
   };
 
@@ -64,7 +64,7 @@ export default function Team() {
     if (editingId != null) {
       const patch = { name: form.name, role: form.role, email: form.email, status: form.status as "online" | "away" | "offline" };
       setMembers((prev) => prev.map((m) => (m.id === editingId ? { ...m, ...patch } : m)));
-      // Persist to Supabase when configured; demo mode throws → ignored (optimistic edit stays)
+      // Persist to the database when configured; demo mode throws → ignored (optimistic edit stays)
       updateTeamMember(editingId, patch, getAccessToken()).catch(() => {});
       closeModal();
       return;
@@ -84,7 +84,7 @@ export default function Team() {
       joined: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
     };
     setMembers((prev) => [...prev, newMember]);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...memberData } = newMember;
     createTeamMember(memberData, getAccessToken()).catch(() => {});
     closeModal();

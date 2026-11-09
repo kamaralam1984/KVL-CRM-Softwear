@@ -1,5 +1,5 @@
 // Key/value comms settings (comms_settings table). Server-only helper, never throws.
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb, dbConfigured } from "@/lib/db";
 import { DEFAULT_HOURS, type BusinessHours } from "./hours";
 
 export interface CommsSettings {
@@ -22,9 +22,9 @@ export const DEFAULT_SETTINGS: CommsSettings = {
 
 export async function getCommsSettings(): Promise<CommsSettings> {
   const out: CommsSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return out;
+  if (!dbConfigured()) return out;
   try {
-    const { data } = await getServerClient().from("comms_settings").select("key,value");
+    const { data } = await getDb().from("comms_settings").select("key,value");
     for (const r of data ?? []) {
       if (r.key in out) (out as unknown as Record<string, unknown>)[r.key] = { ...(out as unknown as Record<string, object>)[r.key], ...(r.value as object) };
     }
@@ -34,7 +34,7 @@ export async function getCommsSettings(): Promise<CommsSettings> {
 
 export async function saveCommsSetting<K extends keyof CommsSettings>(key: K, value: CommsSettings[K]): Promise<boolean> {
   try {
-    const { error } = await getServerClient().from("comms_settings").upsert({ key, value, updated_at: new Date().toISOString() });
+    const { error } = await getDb().from("comms_settings").upsert({ key, value, updated_at: new Date().toISOString() });
     return !error;
   } catch (err) { console.error("[comms] saveCommsSetting failed:", err); return false; }
 }

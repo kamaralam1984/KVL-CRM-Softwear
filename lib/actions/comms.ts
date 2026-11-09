@@ -3,7 +3,7 @@
 // Thin, RBAC-gated wrappers (resource "automation") over the engines in lib/{compliance,comms,followup,reminders,telephony,notify}.
 // Soft-mode token handling matches the rest of the codebase (see lib/security/requireAction.ts).
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { addSuppression, removeSuppression } from "@/lib/compliance/dnc";
 import { getCommsSettings, saveCommsSetting, type CommsSettings } from "@/lib/comms/settings";
@@ -25,20 +25,20 @@ const fail = (...args: unknown[]) => console.error("[comms]", ...args);
 export async function getNotifications(token?: string): Promise<{ items: Row[]; unread: number }> {
   if (!(await ok(token, "read"))) return { items: [], unread: 0 };
   try {
-    const { data } = await getServerClient().from("notifications").select("*").order("created_at", { ascending: false }).limit(40);
+    const { data } = await getDb().from("notifications").select("*").order("created_at", { ascending: false }).limit(40);
     const items = (data ?? []) as Row[];
     return { items, unread: items.filter((i) => !i.read).length };
   } catch (e) { fail(e); return { items: [], unread: 0 }; }
 }
 export async function markNotificationsRead(token?: string): Promise<void> {
   if (!(await ok(token, "update"))) return;
-  try { await getServerClient().from("notifications").update({ read: true }).eq("read", false); } catch (e) { fail(e); }
+  try { await getDb().from("notifications").update({ read: true }).eq("read", false); } catch (e) { fail(e); }
 }
 
 // ── Do-Not-Contact ───────────────────────────────────────────────────────────
 export async function listSuppressions(token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
-  try { const { data } = await getServerClient().from("suppressions").select("*").order("created_at", { ascending: false }).limit(300); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
+  try { const { data } = await getDb().from("suppressions").select("*").order("created_at", { ascending: false }).limit(300); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
 }
 export async function addDnc(contact: { phone?: string; email?: string }, reason: string, token?: string): Promise<boolean> {
   if (!(await ok(token, "create"))) return false;
@@ -53,20 +53,20 @@ export async function removeDnc(contact: { phone?: string; email?: string }, tok
 export type TemplateInput = { id?: string; kind: "whatsapp" | "email" | "quick_reply"; name: string; subject?: string; body: string; meta_name?: string; language?: string; approved?: boolean };
 export async function listTemplates(kind?: string, token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
-  try { let q = getServerClient().from("message_templates").select("*").order("name"); if (kind) q = q.eq("kind", kind); const { data } = await q; return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
+  try { let q = getDb().from("message_templates").select("*").order("name"); if (kind) q = q.eq("kind", kind); const { data } = await q; return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
 }
 export async function saveTemplate(t: TemplateInput, token?: string): Promise<boolean> {
   if (!(await ok(token, t.id ? "update" : "create"))) return false;
   try {
     const row = { kind: t.kind, name: t.name.trim(), subject: t.subject ?? "", body: t.body, meta_name: t.meta_name ?? "", language: t.language ?? "en", approved: Boolean(t.approved), updated_at: new Date().toISOString() };
-    const db = getServerClient();
+    const db = getDb();
     const { error } = t.id ? await db.from("message_templates").update(row).eq("id", t.id) : await db.from("message_templates").insert(row);
     return !error;
   } catch (e) { fail(e); return false; }
 }
 export async function deleteTemplate(id: string, token?: string): Promise<boolean> {
   if (!(await ok(token, "delete"))) return false;
-  try { await getServerClient().from("message_templates").delete().eq("id", id); return true; } catch (e) { fail(e); return false; }
+  try { await getDb().from("message_templates").delete().eq("id", id); return true; } catch (e) { fail(e); return false; }
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────
@@ -81,23 +81,23 @@ export async function saveCommsSettings(patch: Partial<CommsSettings>, token?: s
 // ── Unified inbox (WhatsApp/SMS/webchat) ─────────────────────────────────────
 export async function getInbox(token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
-  try { const { data } = await getServerClient().from("conversations").select("*").order("last_message_at", { ascending: false }).limit(100); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
+  try { const { data } = await getDb().from("conversations").select("*").order("last_message_at", { ascending: false }).limit(100); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
 }
 export async function getThread(conversationId: string, token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("conversations").update({ unread_count: 0 }).eq("id", conversationId);
     const { data } = await db.from("messages").select("*").eq("conversation_id", conversationId).order("created_at"); return (data ?? []) as Row[];
   } catch (e) { fail(e); return []; }
 }
 export async function assignConversationTo(conversationId: string, assignee: string, token?: string): Promise<boolean> {
   if (!(await ok(token, "update"))) return false;
-  try { await getServerClient().from("conversations").update({ assigned_to: assignee }).eq("id", conversationId); return true; } catch (e) { fail(e); return false; }
+  try { await getDb().from("conversations").update({ assigned_to: assignee }).eq("id", conversationId); return true; } catch (e) { fail(e); return false; }
 }
 export async function listTeamNames(token?: string): Promise<string[]> {
   if (!(await ok(token, "read"))) return [];
-  try { const { data } = await getServerClient().from("team_members").select("name").order("name"); return (data ?? []).map((t) => t.name as string); } catch { return []; }
+  try { const { data } = await getDb().from("team_members").select("name").order("name"); return (data ?? []).map((t) => t.name as string); } catch { return []; }
 }
 
 /** A HUMAN reply from the hub: text, media (image/PDF URL) or an approved WhatsApp template. Clears the 24h clock. */
@@ -120,7 +120,7 @@ export async function sendHumanMessage(p: {
 export async function getEmailThreads(token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
   try {
-    const { data } = await getServerClient().from("email_log").select("id,thread_key,direction,subject,body,status,opens,clicks,lead_id,created_at").order("created_at", { ascending: false }).limit(400);
+    const { data } = await getDb().from("email_log").select("id,thread_key,direction,subject,body,status,opens,clicks,lead_id,created_at").order("created_at", { ascending: false }).limit(400);
     const seen = new Map<string, Row & { count: number }>();
     for (const r of (data ?? []) as Row[]) { const k = String(r.thread_key); const cur = seen.get(k); if (cur) cur.count++; else seen.set(k, { ...r, count: 1 }); }
     return [...seen.values()];
@@ -128,7 +128,7 @@ export async function getEmailThreads(token?: string): Promise<Row[]> {
 }
 export async function getEmailThread(threadKey: string, token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
-  try { const { data } = await getServerClient().from("email_log").select("*").eq("thread_key", threadKey).order("created_at"); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
+  try { const { data } = await getDb().from("email_log").select("*").eq("thread_key", threadKey).order("created_at"); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
 }
 export async function sendEmailReply(to: string, subject: string, body: string, token?: string): Promise<{ ok: boolean; detail?: string }> {
   if (!(await ok(token, "create"))) return { ok: false, detail: "Forbidden" };
@@ -140,11 +140,11 @@ export async function sendEmailReply(to: string, subject: string, body: string, 
 // ── Calls ────────────────────────────────────────────────────────────────────
 export async function getRecentCalls(token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
-  try { const { data } = await getServerClient().from("call_logs").select("*, leads(name,company)").order("created_at", { ascending: false }).limit(60); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
+  try { const { data } = await getDb().from("call_logs").select("*, leads(name,company)").order("created_at", { ascending: false }).limit(60); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
 }
 export async function searchLeadsForCall(q: string, token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
-  try { const { data } = await getServerClient().from("leads").select("id,name,company,phone,owner").or(`name.ilike.%${q.replace(/[%,]/g, "")}%,company.ilike.%${q.replace(/[%,]/g, "")}%`).limit(8); return (data ?? []) as Row[]; } catch { return []; }
+  try { const { data } = await getDb().from("leads").select("id,name,company,phone,owner").or(`name.ilike.%${q.replace(/[%,]/g, "")}%,company.ilike.%${q.replace(/[%,]/g, "")}%`).limit(8); return (data ?? []) as Row[]; } catch { return []; }
 }
 export async function placeCall(leadId: number, agentPhone: string, agent: string, token?: string): Promise<StartCallResult> {
   if (!(await ok(token, "create"))) return { ok: false, mode: "manual", detail: "Forbidden" };
@@ -158,7 +158,7 @@ export async function submitCallOutcome(p: { leadId: number; outcome: CallOutcom
 export async function getCallRecording(callLogId: string, token?: string): Promise<{ ok: boolean; dataUrl?: string; detail?: string }> {
   if (!(await ok(token, "read"))) return { ok: false, detail: "Forbidden" };
   try {
-    const { data } = await getServerClient().from("call_logs").select("recording_url").eq("id", callLogId).maybeSingle();
+    const { data } = await getDb().from("call_logs").select("recording_url").eq("id", callLogId).maybeSingle();
     const url = String(data?.recording_url ?? "");
     if (!url) return { ok: false, detail: "No recording for this call" };
     const sid = process.env.TWILIO_ACCOUNT_SID, auth = process.env.TWILIO_AUTH_TOKEN;
@@ -173,7 +173,7 @@ export async function getCallRecording(callLogId: string, token?: string): Promi
 // ── Reminders ────────────────────────────────────────────────────────────────
 export async function listReminders(token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
-  try { const { data } = await getServerClient().from("reminders").select("*").order("remind_at", { ascending: false }).limit(120); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
+  try { const { data } = await getDb().from("reminders").select("*").order("remind_at", { ascending: false }).limit(120); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
 }
 export async function addReminder(p: { title: string; body?: string; atIso: string; audience: "team" | "client"; assignee?: string; phone?: string; email?: string }, token?: string): Promise<boolean> {
   if (!(await ok(token, "create"))) return false;
@@ -181,14 +181,14 @@ export async function addReminder(p: { title: string; body?: string; atIso: stri
 }
 export async function cancelReminder(id: string, token?: string): Promise<boolean> {
   if (!(await ok(token, "update"))) return false;
-  try { await getServerClient().from("reminders").update({ status: "cancelled" }).eq("id", id).eq("status", "pending"); return true; } catch (e) { fail(e); return false; }
+  try { await getDb().from("reminders").update({ status: "cancelled" }).eq("id", id).eq("status", "pending"); return true; } catch (e) { fail(e); return false; }
 }
 
 // ── Follow-up sequence editor ────────────────────────────────────────────────
 export async function loadSequence(token?: string): Promise<{ name: string; steps: SequenceStep[]; durationDays: number; custom: boolean } | null> {
   if (!(await ok(token, "read"))) return null;
   try {
-    const { data } = await getServerClient().from("followup_sequences").select("*").eq("is_default", true).maybeSingle();
+    const { data } = await getDb().from("followup_sequences").select("*").eq("is_default", true).maybeSingle();
     if (data?.steps?.length) return { name: data.name as string, steps: data.steps as SequenceStep[], durationDays: data.duration_days as number, custom: true };
   } catch (e) { fail(e); }
   return { name: DEFAULT_SEQUENCE.name, steps: DEFAULT_SEQUENCE.steps, durationDays: DEFAULT_SEQUENCE.durationDays, custom: false };
@@ -200,13 +200,13 @@ export async function saveSequence(steps: SequenceStep[], token?: string): Promi
   if (!clean.length) return { ok: false, detail: "Add at least one step" };
   try {
     const durationDays = Math.max(1, Math.ceil(clean[clean.length - 1].atHours / 24));
-    const { error } = await getServerClient().from("followup_sequences").upsert({ key: "custom-default", name: "Custom sequence", steps: clean, duration_days: durationDays, is_default: true, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    const { error } = await getDb().from("followup_sequences").upsert({ key: "custom-default", name: "Custom sequence", steps: clean, duration_days: durationDays, is_default: true, updated_at: new Date().toISOString() }, { onConflict: "key" });
     return { ok: !error, detail: error?.message };
   } catch (e) { fail(e); return { ok: false, detail: String(e) }; }
 }
 export async function resetSequence(token?: string): Promise<boolean> {
   if (!(await ok(token, "update"))) return false;
-  try { await getServerClient().from("followup_sequences").delete().eq("key", "custom-default"); return true; } catch { return false; }
+  try { await getDb().from("followup_sequences").delete().eq("key", "custom-default"); return true; } catch { return false; }
 }
 
 // ── Reports ──────────────────────────────────────────────────────────────────
@@ -221,7 +221,7 @@ export interface CommsReport {
 export async function getCommsReport(token?: string): Promise<CommsReport | null> {
   if (!(await ok(token, "read"))) return null;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const since = new Date(Date.now() - 90 * 86_400_000).toISOString();
     const [{ data: enr }, { data: ev }, { data: msgs }, { data: mails }, { data: calls }, { count: dnc }] = await Promise.all([
       db.from("followup_enrollments").select("id,status").limit(5000),

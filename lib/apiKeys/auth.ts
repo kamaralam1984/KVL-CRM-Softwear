@@ -7,7 +7,7 @@
 
 import { createHash } from "crypto";
 import { NextRequest } from "next/server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 export type ApiKeyAuth = { ok: true; siteId: string; keyId: string } | { ok: false };
 
@@ -18,7 +18,7 @@ export async function authenticateApiKey(req: NextRequest): Promise<ApiKeyAuth> 
 
   try {
     const hash = createHash("sha256").update(key).digest("hex");
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("api_keys").select("id, site_id").eq("key_hash", hash).eq("active", true).maybeSingle();
     if (error || !data) return { ok: false };
 

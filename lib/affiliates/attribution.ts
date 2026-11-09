@@ -6,14 +6,14 @@
 // `leads.source`; this module checks that column against affiliates'
 // referral_code when an order completes.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 // Called after an order is created (lib/actions/orders.ts::createOrder) —
 // never blocks/throws the order flow if attribution can't be resolved.
 export async function attributeOrderToAffiliate(orderId: string, customerEmail: string, amountRupees: number): Promise<void> {
   if (!customerEmail) return;
   try {
-    const db = getServerClient();
+    const db = getDb();
 
     const { data: lead } = await db.from("leads").select("source").ilike("email", customerEmail).maybeSingle();
     const source = lead?.source?.trim();

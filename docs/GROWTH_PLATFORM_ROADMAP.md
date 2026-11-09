@@ -18,7 +18,7 @@
 | AI chat | `app/api/ai/chat/route.ts` (Claude streaming) | Phase 6 base |
 | White-label + plans | `lib/superAdmin.ts`, `lib/appConfig.ts` | Phase 13 base |
 | Auth + RBAC seed | `components/crm/Auth.tsx`, `appConfig` roles/permissions | Phase 15 base |
-| Supabase clients | `lib/supabase/{client,server}.ts` | all |
+| the database clients | `lib/db/{client,server}.ts` | all |
 
 ### Reusable UI
 - `components/ui/modal.tsx` (only shared primitive today)
@@ -26,7 +26,7 @@
 - **Gap / tech-debt:** card, badge, stat-tile, KPI, table-row markup is duplicated inline across sections → extract into `components/ui/*` as we go (no behavior change).
 
 ### Naming / structure conventions to keep
-- Server actions: `lib/actions/<domain>.ts` → `getX/createX/updateX`, Supabase + seed fallback.
+- Server actions: `lib/actions/<domain>.ts` → `getX/createX/updateX`, the database + seed fallback.
 - Integrations: `lib/<feature>/...`, each adapter `fetchX(query, limit) => Promise<T[]>`, real-or-mock.
 - New section: add component in `components/crm/sections/`, register in `app/page.tsx` `sectionMap`, add sidebar entry + `SECTION_FEATURE_MAP` key. Never rename existing keys.
 
@@ -82,7 +82,7 @@ Legend: 🟢 exists (enhance) · 🟡 partial · 🔴 new · 🔑 needs external
 | 12 | Meeting Intelligence | 🔴 | `lib/meetings/*`, `api/meetings/*` | 🔑 Whisper/transcribe |
 | 13 | White Label | 🟡 | `lib/whitelabel/*` (multi-tenant, SMTP, domain) | 🔑 per-tenant |
 | 14 | Marketplace | 🔴 | `lib/marketplace/*` module registry | — |
-| 15 | Enterprise Security | 🟡 | `lib/security/*` (RBAC, 2FA, audit, rate-limit) | 🔑 Supabase Auth |
+| 15 | Enterprise Security | 🟡 | `lib/security/*` (RBAC, 2FA, audit, rate-limit) | 🔑 the database Auth |
 | 16 | Enterprise Architecture | ongoing | `components/ui/*` extraction, no-dup, TS strictness | — |
 
 ### Delivery model — 5 agents per wave

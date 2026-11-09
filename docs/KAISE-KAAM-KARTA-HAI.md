@@ -6,7 +6,7 @@ Yeh ek **AI-powered CRM (Customer Relationship Management)** software hai jo:
 - Automatic **outreach** karta hai (Email / WhatsApp / SMS / Call task)
 - Sab kuch ek **dashboard** me manage karta hai (deals, tasks, invoices, team, etc.)
 
-Tech: **Next.js 16 + React 19 + TypeScript + Tailwind + Supabase (database) + Claude AI**
+Tech: X
 
 ---
 
@@ -25,10 +25,10 @@ npm install
 ### Step 3: Environment file set karo (`.env.local`)
 `crm-app/.env.local` file me yeh keys honi chahiye:
 ```bash
-# Database (Supabase) — leads/deals/tasks save karne ke liye
-NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
+# Database (Neon Postgres) — leads/deals/tasks save karne ke liye
+DATABASE_URL=postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require
+AUTH_JWT_SECRET=...            # openssl rand -base64 32
+NEXT_PUBLIC_AUTH_ENABLED=true
 
 # AI (Claude) — scoring + message writing ke liye
 AI_PROVIDER=anthropic
@@ -71,7 +71,7 @@ Website khulte hi **login page** aata hai (KVL CRM logo ke saath).
 | 🛠️ Admin | animesh@freedomwithai.com | demo123 |
 | 👤 Viewer | demo@crm.com | demo |
 
-- **Supabase configured hai** → real login (email confirm ke saath)
+- **database + auth configured hai** → real login
 - **Configured nahi hai** → demo login (upar wale accounts se)
 
 Login ke baad **Dashboard** khulta hai, aur left side me poora menu (Sidebar) dikhta hai.
@@ -105,7 +105,7 @@ Jo lead pehle se CRM me hai ya batch me repeat hai, wo hata diya jata hai (email
 Har lead ko AI **0–100 score** deta hai (kitna fit hai aapke "ideal customer" ke liye), deal value estimate karta hai, aur tags lagata hai. Top 10 chun liye jaate hain.
 
 ### Step 4 — SAVE (CRM me daalo)
-Chune hue leads **Supabase database** ke `leads` table me save ho jaate hain → **Leads page** pe dikhne lagte hain.
+Chune hue leads **database** ke `leads` table me save ho jaate hain → **Leads page** pe dikhne lagte hain.
 
 ### Step 5 — OUTREACH (khud contact karo)
 Har naye lead ke liye AI **personalized message** likhta hai aur bhejta hai:
@@ -179,15 +179,15 @@ NEW LEAD  →  CONTACTED  →  REPLIED  →  QUALIFIED  →  DEAL  →  CUSTOMER
 
 ## PART 6 — Data Kahan Store Hota Hai
 
-- **Supabase** (PostgreSQL database) — leads, customers, deals, tasks, invoices, team, email campaigns, whatsapp, activity feed
+- **Neon Postgres** (PostgreSQL database) — leads, customers, deals, tasks, invoices, team, email campaigns, whatsapp, activity feed
 - Backend logic: `lib/actions/*.ts` (har cheez ka get/create/update)
-- **Rule:** Supabase connected hai → real data; nahi hai → seed/demo data (taaki UI kabhi khali na dikhe)
+- **Rule:** Database connected hai → real data; nahi hai → seed/demo data (taaki UI kabhi khali na dikhe)
 
 ---
 
 ## PART 7 — Live/Production Pe Kaise Le Jaaye
 
-1. **Supabase** project banao → `lib/supabase/schema.sql` ka SQL chalao (tables ban jayengi)
+1. **the database** project banao → `lib/db/schema.sql` ka SQL chalao (tables ban jayengi)
 2. `.env.local` me **real keys** daalo (upar Part 1 me di gayi)
 3. **Deploy** karo:
    - Vercel pe push karo (recommended — cron bhi chal jayega)

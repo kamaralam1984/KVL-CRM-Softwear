@@ -1,6 +1,6 @@
 // Phase 17 — Lead Intelligence & Acquisition Engine, Wave 2 (Attribution Engine + Campaigns)
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 function normalizePath(urlOrPath: string): string {
   try {
@@ -23,7 +23,7 @@ function normalizePath(urlOrPath: string): string {
 export async function recordLandingPageHit(urlOrPath: string, siteId: string): Promise<void> {
   try {
     const path = normalizePath(urlOrPath);
-    const db = getServerClient();
+    const db = getDb();
     const now = new Date().toISOString();
 
     // url_path alone is no longer globally unique (Wave 10) — the DB

@@ -2,7 +2,7 @@
 // logs (mock) so the flow runs today. Each records the touch into the matching
 // CRM table so it shows up in the dashboard.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import type { ScoredLead } from "../types";
 import type { OutreachMessage, OutreachResult, SenderProfile } from "./types";
 
@@ -143,7 +143,7 @@ export async function queueCall(lead: ScoredLead, msg: OutreachMessage): Promise
 // Best-effort insert; never throw (demo mode has no DB).
 async function record(table: string, row: Record<string, unknown>): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from(table).insert(row);
     if (error) console.error(`[outreach] record ${table} failed:`, error.message);
   } catch (e) {

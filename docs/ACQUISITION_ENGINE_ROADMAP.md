@@ -17,8 +17,8 @@ legitimate first-party action). No invasive device fingerprinting. No selling vi
 
 | Area | Files | Reused for |
 |------|-------|------------|
-| Server action CRUD pattern (`getX/createX/updateX`, Supabase + graceful fallback) | `lib/actions/*.ts` | `lib/actions/visitors.ts` |
-| Service-role Supabase client | `lib/supabase/server.ts` | all `lib/tracking/store.ts` writes |
+| Server action CRUD pattern (`getX/createX/updateX`, the database + graceful fallback) | `lib/actions/*.ts` | `lib/actions/visitors.ts` |
+| Service-role the database client | `lib/db/server.ts` | all `lib/tracking/store.ts` writes |
 | Rate limiter (in-memory fixed window) | `lib/security/rateLimit.ts` | `/api/analytics/*` |
 | Route handler conventions (`{ok, ...}` responses, try/catch, `dynamic="force-dynamic"`) | `app/api/scoring/score/route.ts` and others | `/api/analytics/*` |
 | Section shell + `sectionMap` + Sidebar wiring | `app/page.tsx`, `components/crm/Sidebar.tsx` | `AcquisitionOverview` |
@@ -39,7 +39,7 @@ lib/tracking/
   types.ts          # Visitor, VisitorSession, VisitorEvent, AttributionParams
   ids.ts            # generateVisitorId() / generateSessionId()  (KV-V-xxxx / KV-S-xxxx)
   attribution.ts     # parseAttribution() — UTM + click-id + referrer inference
-  store.ts           # server-only Supabase read/write helpers (used by API routes)
+  store.ts           # server-only the database read/write helpers (used by API routes)
   sdk/
     client.ts         # kvlAnalytics — init/page/track/identify/setConsent
     AnalyticsTracker.tsx  # client component mounted on public pages
@@ -97,7 +97,7 @@ Action. Revisit once a scheduling primitive exists.
 **Known scope cut (Wave 5):** `lib/automation/engine.ts`'s run history + per-workflow
 on/off toggle (`lib/automation/store.ts`) are `localStorage`-only (browser-scoped).
 Acquisition Engine triggers fire from server-side API routes hit by anonymous visitors —
-they create real Tasks/Activities (genuine Supabase writes) but never appear in the
+they create real Tasks/Activities (genuine the database writes) but never appear in the
 Automation page's run feed and always run regardless of a toggle set in some salesperson's
 browser. A DB-backed run log would fix this properly; deferred until it's worth the schema
 + UI work.
@@ -105,11 +105,11 @@ browser. A DB-backed run log would fix this properly; deferred until it's worth 
 ## 4b. Pre-existing issue found in Wave 3, fixed in the post-Wave-8 gap check
 
 `lib/data.ts`'s seed leads used `lastContact` (camelCase) while the real `leads` table
-column is `last_contact` (snake_case, `lib/supabase/schema.sql`) — predates Phase 17.
+column is `last_contact` (snake_case, `lib/db/schema.sql`) — predates Phase 17.
 Originally flagged as "out of scope, touches unrelated code" in Wave 3. A follow-up gap
 audit found this was more serious than first scoped: it silently broke **Wave 3's own
 flagship feature** — `resolveIdentity()`'s new-lead-creation path called the same buggy
-`createLead()`, so against a real Supabase instance the "Anonymous → Identified Lead"
+`createLead()`, so against a real the database instance the "Anonymous → Identified Lead"
 flow (spec's explicit critical test case) would create the `visitor_identity_links` row
 but the `leads` insert itself would throw and get swallowed by the outer fail-soft
 try/catch — net effect, no lead ever actually appeared. The same bug also affected the

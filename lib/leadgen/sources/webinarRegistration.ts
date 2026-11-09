@@ -1,12 +1,12 @@
 // Phase 45 — Webinar Funnels. Lead source for `webinar_registrations` —
 // mirrors formSubmission.ts's poll-and-mark-processed shape exactly.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import type { RawLead } from "../types";
 
 export async function fetchWebinarRegistrationLeads(_query: string, limit = 20): Promise<RawLead[]> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("webinar_registrations")
       .select("*, webinars(title)")

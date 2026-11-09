@@ -1,5 +1,5 @@
 "use server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { leads as seedLeads } from "@/lib/data";
 import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
 import { enrollLead, endFollowUp } from "@/lib/followup/engine";
@@ -7,7 +7,7 @@ import { enrollLead, endFollowUp } from "@/lib/followup/engine";
 export type Lead = (typeof seedLeads)[number];
 
 export async function getLeads(): Promise<Lead[]> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("leads")
     .select("*")
@@ -23,7 +23,7 @@ export async function getLeads(): Promise<Lead[]> {
 // leads without widening every other Lead consumer. Omitted = DB default
 // ('kvl-default'), so manually-created leads from the core CRM UI need no changes.
 export async function createLead(lead: Omit<Lead, "id"> & { site_id?: string }): Promise<Lead> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("leads")
     .insert(lead)
@@ -37,7 +37,7 @@ export async function createLead(lead: Omit<Lead, "id"> & { site_id?: string }):
 }
 
 export async function updateLead(id: number, patch: Partial<Lead>): Promise<Lead> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("leads")
     .update(patch)
@@ -51,7 +51,7 @@ export async function updateLead(id: number, patch: Partial<Lead>): Promise<Lead
 }
 
 export async function deleteLead(id: number): Promise<void> {
-  const db = getServerClient();
+  const db = getDb();
   const { error } = await db.from("leads").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

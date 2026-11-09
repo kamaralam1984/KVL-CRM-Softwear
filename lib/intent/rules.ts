@@ -3,7 +3,7 @@
 // DEFAULT_RULES is only the in-code fallback so scoring still works correctly
 // before the SQL migration runs, matching this codebase's "real-or-mock" convention.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import type { IntentBand } from "./types";
 
 export const DEFAULT_RULES: Record<string, number> = {
@@ -30,7 +30,7 @@ export const DEFAULT_RULES: Record<string, number> = {
 
 export async function getRules(siteId: string): Promise<Record<string, number>> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db.from("intent_scoring_rules").select("rule_key, points").eq("site_id", siteId);
     if (!data || !data.length) return DEFAULT_RULES;
     const merged = { ...DEFAULT_RULES };

@@ -1,7 +1,7 @@
 "use server";
 // Phase 28 — Commerce Suite II. Gift card issuance + redemption.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 
 export type GiftCard = {
@@ -28,7 +28,7 @@ function generateCode(): string {
 export async function getGiftCards(accessToken?: string): Promise<GiftCard[]> {
   if (!(await assertCan(accessToken, "commerce", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("gift_cards").select("*").order("created_at", { ascending: false });
     if (error) { console.error("[commerce] getGiftCards failed:", error.message); return []; }
     return (data ?? []) as GiftCard[];
@@ -45,7 +45,7 @@ export async function issueGiftCard(
 ): Promise<GiftCard | null> {
   if (!(await assertCan(accessToken, "commerce", "create"))) return null;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("gift_cards").insert({
       code: generateCode(), initial_value: valueRupees, balance: valueRupees, customer_id: customerId,
     }).select().single();
@@ -62,7 +62,7 @@ export async function issueGiftCard(
 export async function redeemGiftCard(code: string, amountRupees: number, accessToken?: string): Promise<{ ok: boolean; applied: number }> {
   if (!(await assertCan(accessToken, "commerce", "update"))) return { ok: false, applied: 0 };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: card, error: fetchErr } = await db.from("gift_cards").select("*").eq("code", code).eq("status", "active").maybeSingle();
     if (fetchErr || !card) return { ok: false, applied: 0 };
 

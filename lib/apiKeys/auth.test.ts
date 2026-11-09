@@ -19,7 +19,7 @@ describe("authenticateApiKey (Phase 40)", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("rejects a Bearer key that doesn't match any row (no Supabase configured in this test env)", async () => {
+  it("rejects a Bearer key that doesn't match any row (no database configured in this test env)", async () => {
     const result = await authenticateApiKey(reqWith("Bearer kvl_live_nonexistent"));
     expect(result.ok).toBe(false);
   });

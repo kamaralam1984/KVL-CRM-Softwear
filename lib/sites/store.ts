@@ -4,10 +4,11 @@
 // handlers and lib/actions/sites.ts). Read helpers used on the hot analytics
 // path fail soft (never throw); admin-triggered writes surface real errors.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import type { Site } from "./types";
 
-export const DEFAULT_SITE_ID = "kvl-default";
+import { DEFAULT_SITE_ID } from "./constants";
+export { DEFAULT_SITE_ID };
 
 function shortHex(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
@@ -20,7 +21,7 @@ export function generateSiteId(): string {
 /** Used on every public analytics/telephony request — must fail soft. */
 export async function getSiteBySiteId(siteId: string): Promise<Site | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db.from("sites").select("*").eq("site_id", siteId).maybeSingle();
     return (data as Site | null) ?? null;
   } catch (err) {
@@ -31,14 +32,14 @@ export async function getSiteBySiteId(siteId: string): Promise<Site | null> {
 
 /** Admin-facing — lets a real error surface to the Sites management UI. */
 export async function listSites(): Promise<Site[]> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db.from("sites").select("*").order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return (data as Site[]) ?? [];
 }
 
 export async function createSite(input: { name: string; ownerEmail: string; domains: string[] }): Promise<Site> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("sites")
     .insert({
@@ -58,7 +59,7 @@ export async function createSite(input: { name: string; ownerEmail: string; doma
 }
 
 export async function setSiteActive(siteId: string, active: boolean): Promise<void> {
-  const db = getServerClient();
+  const db = getDb();
   const { error } = await db.from("sites").update({ active }).eq("site_id", siteId);
   if (error) throw new Error(error.message);
 }
@@ -67,7 +68,7 @@ export async function updateSite(
   siteId: string,
   input: { name?: string; ownerEmail?: string; domains?: string[] }
 ): Promise<Site> {
-  const db = getServerClient();
+  const db = getDb();
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name.trim();
   if (input.ownerEmail !== undefined) patch.owner_email = input.ownerEmail.trim();
@@ -83,7 +84,7 @@ export async function updateSite(
 
 export async function deleteSite(siteId: string): Promise<void> {
   if (siteId === DEFAULT_SITE_ID) throw new Error("Cannot delete the default Maxness site.");
-  const db = getServerClient();
+  const db = getDb();
   const { error } = await db.from("sites").delete().eq("site_id", siteId);
   if (error) throw new Error(error.message);
 }

@@ -34,7 +34,7 @@ export default function Calendar() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<EventForm>(emptyForm);
 
-  // Load from Supabase on mount — real rows only; an empty account shows
+  // Load from the database on mount — real rows only; an empty account shows
   // an empty state, never the seed data.
   useEffect(() => {
     getEvents().then((rows) => setEvents(rows ?? [])).catch(() => {}).finally(() => setLoading(false));
@@ -78,7 +78,7 @@ export default function Calendar() {
       meeting_url: form.meeting_url.trim(),
     };
     setEvents((prev) => [...prev, newEvent]);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...eventData } = newEvent;
     createEvent(eventData).catch(() => {});
     setShowModal(false);

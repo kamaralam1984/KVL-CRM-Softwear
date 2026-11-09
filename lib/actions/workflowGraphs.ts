@@ -2,7 +2,7 @@
 // Phase 20 — Visual Drag-Drop Workflow Builder. Persists one WorkflowGraph
 // per workflow key (see lib/automation/graph/types.ts).
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { emptyGraph, type WorkflowGraph } from "@/lib/automation/graph/types";
 import { runGraph, type GraphContext } from "@/lib/automation/graph/interpreter";
@@ -12,7 +12,7 @@ import type { WorkflowRun } from "@/lib/automation/store";
 export async function getWorkflowGraph(workflowKey: string, accessToken?: string): Promise<WorkflowGraph> {
   if (!(await assertCan(accessToken, "automation", "read"))) return emptyGraph(workflowKey);
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("workflow_graphs")
       .select("*")
@@ -34,7 +34,7 @@ export async function getWorkflowGraph(workflowKey: string, accessToken?: string
 export async function saveWorkflowGraph(graph: WorkflowGraph, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "automation", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("workflow_graphs").upsert(
       {
         workflow_key: graph.workflowKey,

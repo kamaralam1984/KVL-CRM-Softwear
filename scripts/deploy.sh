@@ -2,7 +2,7 @@
 # KVL CRM — deploy verification pipeline.
 # Runs every check the project's established workflow requires before a
 # commit/push is safe to ship. Does NOT touch git itself and does NOT talk to
-# Vercel/Supabase — it only proves the working tree is in a shippable state.
+# Vercel/the database — it only proves the working tree is in a shippable state.
 # See .claude/skills/deploy/SKILL.md for what happens before/after this runs.
 set -euo pipefail
 cd "$(dirname "$0")/.."

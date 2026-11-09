@@ -1,15 +1,15 @@
 // Records an automated/AI outbound message in the unified inbox (conversations + messages).
 // `sentBy` 'automation' | 'ai' keeps these distinct from HUMAN replies, so the 24h
 // human-reply clock in the Follow-up Engine is never reset by a bot.
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb, dbConfigured } from "@/lib/db";
 
 export async function logOutboundMessage(p: {
   channel: "whatsapp" | "sms"; phone: string; name?: string; body: string; sentBy: string;
   providerId?: string; mock?: boolean; markAutoReply?: boolean;
 }): Promise<void> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+  if (!dbConfigured()) return;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: existing } = await db.from("conversations").select("id").eq("channel", p.channel).eq("contact_phone", p.phone).maybeSingle();
     let id = existing?.id as string | undefined;
     if (!id) {

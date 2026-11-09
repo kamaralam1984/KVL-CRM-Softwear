@@ -2,7 +2,7 @@
 // Phase 29 — Membership & Courses. CRUD for tiers/memberships/content, plus
 // the subscribe flow that ties a customer to a tier via Razorpay Subscriptions.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import { createRazorpayPlan, createRazorpaySubscription } from "@/lib/payments/razorpay";
@@ -29,7 +29,7 @@ export type CourseContentItem = {
 export async function getMembershipTiers(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<MembershipTier[]> {
   if (!(await assertCan(accessToken, "membership", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("membership_tiers").select("*").eq("site_id", siteId).order("price", { ascending: true });
     if (error) return [];
     return (data ?? []) as MembershipTier[];
@@ -50,7 +50,7 @@ export async function createMembershipTier(
       const plan = await createRazorpayPlan(Math.round(input.priceRupees * 100), input.name, input.interval);
       planId = plan.planId ?? null;
     }
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("membership_tiers").insert({
       site_id: input.siteId ?? DEFAULT_SITE_ID, name: input.name, price: input.priceRupees,
       billing_interval: input.interval, razorpay_plan_id: planId,
@@ -68,7 +68,7 @@ export async function createMembershipTier(
 export async function subscribeCustomerToTier(customerId: number, tierId: string, accessToken?: string): Promise<{ ok: boolean; checkoutUrl?: string }> {
   if (!(await assertCan(accessToken, "membership", "create"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: tier } = await db.from("membership_tiers").select("*").eq("id", tierId).maybeSingle();
     if (!tier) return { ok: false };
 
@@ -102,7 +102,7 @@ export async function subscribeToMembership(
 ): Promise<{ ok: boolean; checkoutUrl?: string; customerId?: number }> {
   if (!contact.email.includes("@")) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: existing } = await db.from("customers").select("id").ilike("email", contact.email).maybeSingle();
 
     let customerId: number;
@@ -126,7 +126,7 @@ export async function subscribeToMembership(
 
 export async function getActiveMembershipForCustomer(customerId: number): Promise<{ tierId: string } | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db.from("memberships").select("tier_id").eq("customer_id", customerId).eq("status", "active").maybeSingle();
     return data ? { tierId: data.tier_id } : null;
   } catch (err) {
@@ -138,7 +138,7 @@ export async function getActiveMembershipForCustomer(customerId: number): Promis
 // Public — checked by app/member/[tierSlug]/page.tsx before rendering gated content.
 export async function getCourseContentForTier(tierId: string | null): Promise<CourseContentItem[]> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     let q = db.from("course_content").select("*").order("sort_order", { ascending: true });
     q = tierId ? q.eq("tier_id", tierId) : q.is("tier_id", null);
     const { data, error } = await q;
@@ -156,7 +156,7 @@ export async function addCourseContent(
 ): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "membership", "create"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("course_content").insert({
       tier_id: input.tierId, title: input.title, content_type: input.contentType, content_url: input.contentUrl, drip_day: input.dripDay,
     });
@@ -172,7 +172,7 @@ export async function addCourseContent(
 // extended Razorpay webhook route, mirroring markOrderPaidByProviderRef.
 export async function markMembershipCharged(subscriptionId: string): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("memberships").update({ status: "active" }).eq("razorpay_subscription_id", subscriptionId);
   } catch (err) {
     console.error("[membership] markMembershipCharged failed:", err);
@@ -181,7 +181,7 @@ export async function markMembershipCharged(subscriptionId: string): Promise<voi
 
 export async function markMembershipCancelled(subscriptionId: string): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     await db.from("memberships").update({ status: "cancelled" }).eq("razorpay_subscription_id", subscriptionId);
   } catch (err) {
     console.error("[membership] markMembershipCancelled failed:", err);

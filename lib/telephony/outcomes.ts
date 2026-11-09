@@ -6,7 +6,7 @@
 //   wrong_number    → follow-up stopped
 //   not_interested  → follow-up stopped
 //   do_not_call     → added to the global DNC list + follow-up stopped
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { endFollowUp, scheduleNextTouch, sendText } from "@/lib/followup/engine";
 import { createReminder } from "@/lib/reminders/engine";
 import { addSuppression } from "@/lib/compliance/dnc";
@@ -18,7 +18,7 @@ const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME ?? process.env.BRAND_NAME ?? "K
 
 export async function logCallOutcome(p: { leadId: number; outcome: CallOutcome; notes?: string; callbackAt?: Date | null; callLogId?: string; agent?: string }): Promise<{ ok: boolean; action: string }> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: lead } = await db.from("leads").select("id,name,company,email,phone,owner").eq("id", p.leadId).maybeSingle();
     if (!lead) return { ok: false, action: "Lead not found" };
     const patch = { lead_id: p.leadId, outcome: p.outcome, notes: (p.notes ?? "").slice(0, 1000), callback_at: p.callbackAt?.toISOString() ?? null, agent: p.agent ?? "" };

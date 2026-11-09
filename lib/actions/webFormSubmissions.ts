@@ -1,8 +1,8 @@
 "use server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 // Persists inbound contact-form submissions into `web_form_submissions`
-// (see lib/supabase/schema.sql), which lib/leadgen/sources/webForm.ts polls
+// (see lib/db/schema.sql), which lib/leadgen/sources/webForm.ts polls
 // to turn into leads. Fail-soft: a persistence error must not block the
 // user-facing "message sent" confirmation.
 export async function submitWebFormLead(input: {
@@ -13,7 +13,7 @@ export async function submitWebFormLead(input: {
   message?: string;
 }): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("web_form_submissions").insert({
       name: input.name,
       email: input.email,

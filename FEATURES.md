@@ -16,7 +16,7 @@
 8. [AI Assistant](#8-ai-assistant)
 9. [Command Palette](#9-command-palette)
 10. [Data Layer](#10-data-layer)
-11. [Backend (Supabase)](#11-backend-supabase)
+11. [Backend (Neon Postgres)](#11-backend-neon-postgres)
 12. [CSV Export](#12-csv-export)
 13. [Dark / Light Mode](#13-dark--light-mode)
 14. [How to Set Up](#14-how-to-set-up)
@@ -51,7 +51,7 @@
 | **Recharts** | 3.x | Charts (area, bar, pie, line) |
 | **Radix UI** | Various | Modal, dialog, tabs, tooltips |
 | **Lucide React** | 1.x | Icons |
-| **Supabase** | Latest | Database + Auth (PostgreSQL) |
+| **Neon Postgres** (`pg`) | Latest | Database (PostgreSQL); own auth (scrypt + signed sessions) |
 | **Anthropic SDK** | Latest | Claude AI for AI Assistant |
 | **Playwright** | 1.60 | Browser testing |
 
@@ -159,9 +159,9 @@ App Views (Single Page):
 
 ### Login Logic:
 ```
-If Supabase configured:
-  → Real Supabase signInWithPassword()
-  → Real user session
+If auth enabled (NEXT_PUBLIC_AUTH_ENABLED=true + DATABASE_URL + AUTH_JWT_SECRET):
+  → POST /api/auth/login (scrypt password check)
+  → Real signed session token
 Else (demo mode):
   → Any email + password (min 4 chars) works
   → Known accounts get their role (Admin/Senior AE/Viewer)
@@ -414,13 +414,14 @@ All CRM data is stored here as TypeScript arrays. Currently **in-memory** (reset
 
 ---
 
-## 11. Backend (Supabase)
+## 11. Backend (Neon Postgres)
 
-**Files:** `lib/supabase/` + `lib/actions/`
+**Files:** `lib/db/` + `lib/auth/` + `lib/actions/`
 
 ### Database Tables (schema.sql):
 ```sql
-profiles      — Users (extends auth.users)
+auth_users    — Accounts (email + password hash)
+profiles      — Role + display name per user
 leads         — Lead records
 customers     — Customer records
 deals         — Deal records
@@ -434,15 +435,16 @@ invoices      — Invoice records
 - `lib/actions/deals.ts` — CRUD for deals
 - `lib/actions/tasks.ts` — CRUD for tasks
 
-### Auth Callback:
-- `app/api/auth/callback/route.ts` — Handles email confirmation redirect
+### Auth API:
+- `app/api/auth/{login,signup,forgot,reset,me}` — email + password, password-reset email, session refresh
+- `app/api/auth/oauth/[provider]` — Google / GitHub sign-in (optional)
 
 ### Setup:
-1. Create project at supabase.com
-2. Run `lib/supabase/schema.sql` in SQL Editor
-3. Add keys to `.env.local`
+1. Create a project at neon.tech and copy the connection string
+2. Run `lib/db/schema.sql` in the Neon SQL Editor
+3. Set `DATABASE_URL`, `AUTH_JWT_SECRET`, `NEXT_PUBLIC_AUTH_ENABLED=true` in `.env.local`
 
-**Without Supabase:** App works in demo mode with seed data from `lib/data.ts`
+**Without a database:** App works in demo mode with seed data from `lib/data.ts`
 
 ---
 
@@ -497,13 +499,13 @@ npm run dev
 cp .env.local.example .env.local
 
 # 2. Fill in keys:
-# NEXT_PUBLIC_SUPABASE_URL = https://xxx.supabase.co
-# NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJ...
-# SUPABASE_SERVICE_ROLE_KEY = eyJ...
+# DATABASE_URL = postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require
+# AUTH_JWT_SECRET = (random, 32+ chars:  openssl rand -base64 32)
+# NEXT_PUBLIC_AUTH_ENABLED = true
 # ANTHROPIC_API_KEY = sk-ant-...
 
-# 3. Run Supabase schema
-# Go to supabase.com → SQL Editor → paste lib/supabase/schema.sql
+# 3. Create the tables
+# Neon console → SQL Editor → paste lib/db/schema.sql   (or: psql "$DATABASE_URL" -f lib/db/schema.sql)
 
 # 4. Start server
 npm run dev
@@ -517,7 +519,7 @@ crm-app/
 │   ├── globals.css           ← Design system CSS
 │   └── api/
 │       ├── ai/chat/          ← Claude AI streaming endpoint
-│       └── auth/callback/    ← Supabase auth callback
+│       └── auth/             ← login / signup / reset / OAuth
 ├── components/crm/
 │   ├── LandingPage.tsx       ← Marketing website
 │   ├── Auth.tsx              ← Login/Signup
@@ -531,7 +533,7 @@ crm-app/
 │   ├── export.ts             ← CSV download utility
 │   ├── utils.ts              ← Helpers (cn, formatCurrency)
 │   ├── appConfig.ts          ← App mode config
-│   ├── supabase/             ← DB clients + schema
+│   ├── db/                   ← Neon Postgres client + schema
 │   └── actions/              ← Server actions (CRUD)
 └── .env.local.example        ← Required env vars template
 ```
@@ -549,7 +551,7 @@ crm-app/
 | AI Assistant commands | ∞ (real Claude AI) |
 | Command Palette commands | 30+ + all CRM data |
 | Theme modes | 2 (dark/light) |
-| Auth modes | Demo + Real (Supabase) |
+| Auth modes | Demo + Real (own auth on Neon) |
 | Database tables | 6 |
 | Server actions | 16 (CRUD × 4 entities) |
 | API routes | 2 |

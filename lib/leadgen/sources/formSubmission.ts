@@ -7,12 +7,12 @@
 // become leads; a submission with no identifiable contact is skipped, not
 // faked into a lead with blank fields.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import type { RawLead } from "../types";
 
 export async function fetchFormSubmissionLeads(_query: string, limit = 20): Promise<RawLead[]> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("form_submissions")
       .select("*, forms(name)")

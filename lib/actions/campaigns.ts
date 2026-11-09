@@ -1,11 +1,11 @@
 "use server";
 // Phase 17 — Lead Intelligence & Acquisition Engine, Wave 2 (Attribution Engine + Campaigns)
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import type { Campaign } from "@/lib/attribution/types";
 
 // Wave 10 — siteId is optional: omitted means "every site" (today's exact behavior).
 export async function getCampaigns(siteId?: string): Promise<Campaign[]> {
-  const db = getServerClient();
+  const db = getDb();
   let query = db.from("campaigns").select("*").order("last_seen_at", { ascending: false });
   if (siteId) query = query.eq("site_id", siteId);
   const { data, error } = await query;
@@ -20,14 +20,14 @@ export async function getCampaigns(siteId?: string): Promise<Campaign[]> {
 export async function createCampaign(
   campaign: Omit<Campaign, "id" | "created_at" | "updated_at" | "site_id"> & { site_id?: string }
 ): Promise<Campaign> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db.from("campaigns").insert(campaign).select().single();
   if (error) throw new Error(error.message);
   return data as Campaign;
 }
 
 export async function updateCampaign(id: number, patch: Partial<Campaign>): Promise<Campaign> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db.from("campaigns").update(patch).eq("id", id).select().single();
   if (error) throw new Error(error.message);
   return data as Campaign;

@@ -49,7 +49,7 @@ Lead Intelligence (find businesses, 19 sources)
 
 ## To go fully "real"
 Add the keys listed above to `.env.local`. Highest impact first:
-1. **Supabase** (live DB) — persists everything.
+1. **the database** (live DB) — persists everything.
 2. **`ANTHROPIC_API_KEY` with credits** — turns all AI from heuristic → real (scoring, outreach, opportunity narrative, advisor, meeting/voice analysis).
 3. Source keys (Apollo/Hunter/SERPER/PageSpeed), then outreach (Resend/Twilio), then Ads/Voice as needed.
 

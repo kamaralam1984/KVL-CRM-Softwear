@@ -18,7 +18,7 @@ import { findApprovedSmsTemplate } from "@/lib/actions/smsTemplates";
 import { whatsappProvider, sendWhatsAppCloud, sendWhatsAppQr, sendWhatsAppCloudMedia, sendWhatsAppQrMedia, sendWhatsAppCloudTemplate, isCloudConfigured, isQrConfigured } from "./whatsappProviders";
 import { isSuppressed } from "@/lib/compliance/dnc";
 import { unsubscribeUrl } from "@/lib/compliance/token";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb, dbConfigured } from "@/lib/db";
 
 /** Marketing/follow-up sends honour the central DNC list. `bypassSuppression` is for
  *  internal/team alerts and genuinely transactional messages only. */
@@ -199,9 +199,9 @@ export interface EmailOpts extends SendOpts {
 }
 
 async function logEmail(row: Record<string, unknown>): Promise<void> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+  if (!dbConfigured()) return;
   try {
-    const db = getServerClient();
+    const db = getDb();
     let leadId = row.lead_id as number | undefined;
     if (!leadId && row.to_email) {
       const { data } = await db.from("leads").select("id").ilike("email", String(row.to_email)).limit(1).maybeSingle();

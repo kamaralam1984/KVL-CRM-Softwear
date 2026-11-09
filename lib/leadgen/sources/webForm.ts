@@ -1,18 +1,18 @@
 // Web-form lead source — inbound leads people submitted on your landing page.
-// Reads un-processed rows from the `web_form_submissions` Supabase table and
+// Reads un-processed rows from the `web_form_submissions` table and
 // marks them processed so they aren't pulled again. Highest-quality leads.
 //
 // Expected table columns: id, name, company, email, phone, message, processed (bool).
-// Create it with lib/supabase/schema.sql (see docs) — or the mock runs instead.
+// Create it with lib/db/schema.sql (see docs) — or the mock runs instead.
 //
 // The `query` arg is ignored (inbound leads aren't searched, they arrive).
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import type { RawLead } from "../types";
 
 export async function fetchWebFormLeads(_query: string, limit = 20): Promise<RawLead[]> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("web_form_submissions")
       .select("*")

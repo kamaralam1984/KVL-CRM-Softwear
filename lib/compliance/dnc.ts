@@ -3,7 +3,7 @@
 // (follow-up drip, campaigns, birthday, webinar, reminders, workflow builder).
 // Fails OPEN (sends) if the DB is unreachable/unconfigured, so demo mode keeps working.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb, dbConfigured } from "@/lib/db";
 
 export type DncChannel = "whatsapp" | "sms" | "email" | "call";
 
@@ -14,14 +14,14 @@ export function phoneKey(phone: string | undefined | null): string {
 }
 export const emailKey = (email: string | undefined | null) => String(email ?? "").trim().toLowerCase();
 
-const dbReady = () => Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+const dbReady = dbConfigured;
 
 export async function isSuppressed(contact: { phone?: string | null; email?: string | null }, channel: DncChannel | "all"): Promise<boolean> {
   if (!dbReady()) return false;
   const phone = phoneKey(contact.phone), email = emailKey(contact.email);
   if (!phone && !email) return false;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const ors = [phone && `phone.eq.${phone}`, email && `email.eq.${email}`].filter(Boolean).join(",");
     const { data, error } = await db.from("suppressions").select("channel").or(ors).in("channel", channel === "all" ? ["all"] : ["all", channel]).limit(1);
     if (error) { console.error("[dnc] lookup failed (sending anyway):", error.message); return false; }
@@ -34,7 +34,7 @@ export async function addSuppression(contact: { phone?: string | null; email?: s
   const phone = phoneKey(contact.phone), email = emailKey(contact.email);
   const channel = opts.channel ?? "all";
   try {
-    const db = getServerClient();
+    const db = getDb();
     for (const row of [phone && { phone, email: "" }, email && { phone: "", email }].filter(Boolean) as { phone: string; email: string }[]) {
       // Plain insert: the unique indexes are partial, which PostgREST upsert can't target. 23505 = already listed.
       const { error } = await db.from("suppressions").insert({ ...row, channel, reason: opts.reason ?? "", source: opts.source ?? "" });
@@ -47,7 +47,7 @@ export async function removeSuppression(contact: { phone?: string | null; email?
   if (!dbReady()) return;
   const phone = phoneKey(contact.phone), email = emailKey(contact.email);
   try {
-    const db = getServerClient();
+    const db = getDb();
     if (phone) await db.from("suppressions").delete().eq("phone", phone);
     if (email) await db.from("suppressions").delete().eq("email", email);
   } catch (err) { console.error("[dnc] remove error:", err); }

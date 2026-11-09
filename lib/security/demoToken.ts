@@ -1,11 +1,11 @@
 // Phase 18 — Server-Side Auth & RBAC Enforcement.
 // Pure, isomorphic (no server-only imports) token helpers for demo-mode logins
-// — the non-Supabase fallback path in components/crm/Auth.tsx where any
+// — the demo (no-database) fallback path in components/crm/Auth.tsx where any
 // email + 4-char password signs a user in locally. A demo token carries the
 // role the client already decided (same trust level demo mode already has),
 // just made explicit so lib/security/session.ts can recognize and log it
 // instead of silently treating every caller as unauthenticated.
-// Safe to import from "use client" files — never touches Supabase or secrets.
+// Safe to import from "use client" files — never touches the database or secrets.
 
 export const DEMO_TOKEN_PREFIX = "demo:";
 

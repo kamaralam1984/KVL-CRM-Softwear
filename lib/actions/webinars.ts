@@ -3,7 +3,7 @@
 // registration/attendance/chat actions for the registration and room routes.
 
 import { headers } from "next/headers";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
@@ -75,7 +75,7 @@ export type WebinarChatMessage = {
 export async function getWebinars(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<WebinarRow[]> {
   if (!(await assertCan(accessToken, "funnels", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("webinars").select("*").eq("site_id", siteId).order("created_at", { ascending: false });
     if (error) { console.error("[webinars] getWebinars failed:", error.message); return []; }
     return (data ?? []) as WebinarRow[];
@@ -109,7 +109,7 @@ export async function saveWebinar(
   };
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     if (input.id) {
       const { data, error } = await db.from("webinars").update(patch).eq("id", input.id).select().single();
       if (error) { console.error("[webinars] saveWebinar update failed:", error.message); return null; }
@@ -131,7 +131,7 @@ export async function saveWebinar(
 export async function publishWebinar(id: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "funnels", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("webinars").update({ published: true }).eq("id", id);
     if (error) { console.error("[webinars] publishWebinar failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -144,7 +144,7 @@ export async function publishWebinar(id: string, accessToken?: string): Promise<
 export async function deleteWebinar(id: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "funnels", "delete"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("webinars").delete().eq("id", id);
     if (error) { console.error("[webinars] deleteWebinar failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -157,7 +157,7 @@ export async function deleteWebinar(id: string, accessToken?: string): Promise<{
 export async function getRegistrations(webinarId: string, accessToken?: string): Promise<WebinarRegistration[]> {
   if (!(await assertCan(accessToken, "funnels", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("webinar_registrations").select("*").eq("webinar_id", webinarId).order("created_at", { ascending: false });
     if (error) return [];
     return (data ?? []) as WebinarRegistration[];
@@ -172,7 +172,7 @@ export async function getRegistrations(webinarId: string, accessToken?: string):
 
 export async function getWebinarBySlug(slug: string, siteId = DEFAULT_SITE_ID): Promise<WebinarRow | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("webinars").select("*").eq("site_id", siteId).eq("slug", slug).eq("published", true).maybeSingle();
     if (error || !data) return null;
     return data as WebinarRow;
@@ -199,7 +199,7 @@ export async function registerForWebinar(
     const phone = input.phone.trim().slice(0, 40);
     if (!name || !email) return { ok: false };
 
-    const db = getServerClient();
+    const db = getDb();
     const { data: webinar, error: webErr } = await db.from("webinars").select("id").eq("id", webinarId).eq("published", true).maybeSingle();
     if (webErr || !webinar) return { ok: false };
 
@@ -229,7 +229,7 @@ export async function recordWebinarJoin(registrationId: string): Promise<void> {
     const limit = rateLimit(`webinars:join:${ip}`, 30, 60_000);
     if (!limit.allowed) return;
 
-    const db = getServerClient();
+    const db = getDb();
     await db.from("webinar_registrations").update({ attended: true, joined_at: new Date().toISOString() }).eq("id", registrationId);
   } catch (err) {
     console.error("[webinars] recordWebinarJoin failed:", err);
@@ -250,7 +250,7 @@ export async function recordWatchTime(registrationId: string, additionalSeconds:
     if (!limit.allowed) return;
 
     const clamped = Math.min(Math.max(0, additionalSeconds), MAX_WATCH_INCREMENT_SECONDS);
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db.from("webinar_registrations").select("watch_duration_seconds").eq("id", registrationId).maybeSingle();
     if (data) {
       await db.from("webinar_registrations").update({ watch_duration_seconds: (data.watch_duration_seconds ?? 0) + clamped }).eq("id", registrationId);
@@ -273,7 +273,7 @@ export async function postWebinarChatMessage(webinarId: string, name: string, bo
     const cleanBody = body.trim().slice(0, MAX_CHAT_MESSAGE_LENGTH);
     if (!cleanBody) return { ok: false };
 
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("webinar_chat_messages").insert({ webinar_id: webinarId, name: cleanName, body: cleanBody });
     if (error) { console.error("[webinars] postWebinarChatMessage failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -285,7 +285,7 @@ export async function postWebinarChatMessage(webinarId: string, name: string, bo
 
 export async function getWebinarChatMessages(webinarId: string, sinceIso?: string): Promise<WebinarChatMessage[]> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     let q = db.from("webinar_chat_messages").select("*").eq("webinar_id", webinarId).order("created_at", { ascending: true }).limit(200);
     if (sinceIso) q = q.gt("created_at", sinceIso);
     const { data, error } = await q;

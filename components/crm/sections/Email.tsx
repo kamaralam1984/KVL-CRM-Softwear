@@ -29,7 +29,7 @@ export default function Email() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
-  // Load from Supabase on mount — real rows only; an empty account shows
+  // Load from the database on mount — real rows only; an empty account shows
   // an empty state, never the seed data.
   useEffect(() => {
     getEmailCampaigns().then((rows) => setCampaigns(rows ?? [])).catch(() => {});
@@ -48,7 +48,7 @@ export default function Email() {
         date: form.date || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       };
       setCampaigns((prev) => prev.map((c) => (c.id === editingId ? { ...c, ...patch } : c)));
-      // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+      // Persist to the database when configured; demo mode throws → ignored (optimistic update stays)
       updateEmailCampaign(editingId, patch).catch(() => {});
       setShowModal(false);
       setForm(emptyForm);
@@ -69,7 +69,7 @@ export default function Email() {
       date: form.date || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     };
     setCampaigns((prev) => [...prev, newCampaign]);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...campaignData } = newCampaign;
     createEmailCampaign(campaignData).catch(() => {});
     setShowModal(false);
@@ -86,7 +86,7 @@ export default function Email() {
   const removeCampaign = (id: number) => {
     setCampaigns((prev) => prev.filter((c) => c.id !== id));
     setOpenMenuId(null);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic removal stays)
     deleteEmailCampaign(id).catch(() => {});
   };
 

@@ -1,10 +1,10 @@
 // Client-side store for automation runs + workflow active-state.
 // Persists to localStorage so executions survive reloads and are visible in
-// demo mode (no Supabase). Emits a browser event so open pages live-update.
+// demo mode (no the database). Emits a browser event so open pages live-update.
 //
 // Phase 19: dual-write added. localStorage stays the fast, always-available
 // client cache every existing reader (isActive, getRuns) still uses exactly
-// as before; addRun/setActive now ALSO fire-and-forget a real Supabase write
+// as before; addRun/setActive now ALSO fire-and-forget a real database write
 // via lib/actions/workflows.ts, so runs and the active-toggle survive a
 // restart and are visible cross-device (see docs/GHL_PARITY_STATUS.md).
 // This also closes a documented gap (ACQUISITION_ENGINE_ROADMAP.md Wave 5):

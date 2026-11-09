@@ -19,7 +19,7 @@
 // (rebinding), so the loopback/private-IP guard needs to run at both points.
 
 import { createHmac } from "crypto";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { isSafeWebhookUrl } from "@/lib/security/ssrfGuard";
 
 export type WebhookEvent = "lead.created" | "deal.won" | "order.paid";
@@ -35,7 +35,7 @@ function delay(ms: number): Promise<void> {
 type WebhookRow = { id: string; endpoint_url: string; signing_secret: string };
 
 async function deliverOne(
-  db: ReturnType<typeof getServerClient>,
+  db: ReturnType<typeof getDb>,
   wh: WebhookRow,
   event: WebhookEvent,
   body: string,
@@ -79,7 +79,7 @@ async function deliverOne(
 
 export async function dispatchWebhookEvent(event: WebhookEvent, payload: Record<string, unknown>): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: subs, error } = await db.from("webhooks").select("id, endpoint_url, signing_secret").eq("active", true).contains("events", [event]);
     if (error || !subs?.length) return;
 

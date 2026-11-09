@@ -1,12 +1,12 @@
 "use server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { deals as seedDeals } from "@/lib/data";
 import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
 
 export type Deal = (typeof seedDeals)[number];
 
 export async function getDeals(): Promise<Deal[]> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("deals")
     .select("*")
@@ -17,7 +17,7 @@ export async function getDeals(): Promise<Deal[]> {
 }
 
 export async function createDeal(deal: Omit<Deal, "id">): Promise<Deal> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("deals")
     .insert(deal)
@@ -28,7 +28,7 @@ export async function createDeal(deal: Omit<Deal, "id">): Promise<Deal> {
 }
 
 export async function updateDeal(id: number, patch: Partial<Deal>): Promise<Deal> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("deals")
     .update(patch)
@@ -41,7 +41,7 @@ export async function updateDeal(id: number, patch: Partial<Deal>): Promise<Deal
 }
 
 export async function deleteDeal(id: number): Promise<void> {
-  const db = getServerClient();
+  const db = getDb();
   const { error } = await db.from("deals").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

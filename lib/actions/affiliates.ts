@@ -2,7 +2,7 @@
 // Phase 30 — Affiliate Manager. CRUD for affiliates/commissions.
 // Phase 36 — extends with real Razorpay Route (RazorpayX) payout automation.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { isRazorpayXConfigured, createFundAccount, createPayout } from "@/lib/payments/razorpayRoute";
 
@@ -37,7 +37,7 @@ function generateReferralCode(name: string): string {
 export async function getAffiliates(accessToken?: string): Promise<Affiliate[]> {
   if (!(await assertCan(accessToken, "affiliates", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("affiliates").select("*").order("created_at", { ascending: false });
     if (error) return [];
     return (data ?? []) as Affiliate[];
@@ -50,7 +50,7 @@ export async function getAffiliates(accessToken?: string): Promise<Affiliate[]> 
 export async function createAffiliate(name: string, email: string, commissionRate = 0.1, accessToken?: string): Promise<Affiliate | null> {
   if (!(await assertCan(accessToken, "affiliates", "create"))) return null;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("affiliates").insert({
       name, email, referral_code: generateReferralCode(name), commission_rate: commissionRate,
     }).select().single();
@@ -65,7 +65,7 @@ export async function createAffiliate(name: string, email: string, commissionRat
 export async function getCommissionsForAffiliate(affiliateId: string, accessToken?: string): Promise<AffiliateCommission[]> {
   if (!(await assertCan(accessToken, "affiliates", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("affiliate_commissions").select("*").eq("affiliate_id", affiliateId).order("created_at", { ascending: false });
     if (error) return [];
     return (data ?? []) as AffiliateCommission[];
@@ -83,7 +83,7 @@ export async function getCommissionsForAffiliate(affiliateId: string, accessToke
 export async function markCommissionPaidManually(commissionId: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "affiliates", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("affiliate_commissions").update({ status: "paid_out", paid_at: new Date().toISOString() }).eq("id", commissionId);
     if (error) return { ok: false };
     return { ok: true };
@@ -103,7 +103,7 @@ export async function saveAffiliatePayoutDetails(
 ): Promise<{ ok: boolean; mock: boolean }> {
   if (!(await assertCan(accessToken, "affiliates", "update"))) return { ok: false, mock: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: affiliate, error: fetchErr } = await db.from("affiliates").select("*").eq("id", affiliateId).single();
     if (fetchErr || !affiliate) return { ok: false, mock: false };
 
@@ -136,7 +136,7 @@ export async function payCommissionViaRazorpayX(
   if (!isRazorpayXConfigured()) return { ok: false, mock: false, reason: "not_configured" };
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: commission, error: cErr } = await db.from("affiliate_commissions").select("*").eq("id", commissionId).single();
     if (cErr || !commission) return { ok: false, mock: false, reason: "not_found" };
 

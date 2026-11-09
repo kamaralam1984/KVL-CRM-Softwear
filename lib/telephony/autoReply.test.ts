@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { getMissedCallReplyTemplate, sendMissedCallAutoReply } from "./autoReply";
 
 describe("Missed-Call Auto Text-Back (Phase 22)", () => {
-  it("falls back to the default template when Supabase isn't configured in this env", async () => {
+  it("falls back to the default template when the database isn't configured in this env", async () => {
     const template = await getMissedCallReplyTemplate();
     expect(typeof template).toBe("string");
     expect(template.length).toBeGreaterThan(0);

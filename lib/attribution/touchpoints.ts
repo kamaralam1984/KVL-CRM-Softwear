@@ -1,6 +1,6 @@
 // Phase 17 — Lead Intelligence & Acquisition Engine, Wave 2 (Attribution Engine + Campaigns)
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { resolveCampaign } from "./campaigns";
 
 /** recordTouchpoint — one entry in the durable per-visitor attribution ledger. */
@@ -16,7 +16,7 @@ export async function recordTouchpoint(
 ): Promise<void> {
   try {
     const campaignId = await resolveCampaign(input, siteId);
-    const db = getServerClient();
+    const db = getDb();
     await db.from("campaign_touchpoints").insert({
       site_id: siteId,
       visitor_id: input.visitorId,

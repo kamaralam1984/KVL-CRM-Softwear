@@ -109,12 +109,12 @@ export default function GenerateLeadsButton() {
                 </div>
                 {result.usedMockData && (
                   <p className="mt-3 text-[10px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1.5 leading-relaxed">
-                    Demo data — add GOOGLE_MAPS_API_KEY & live Supabase for real leads.
+                    Demo data — add GOOGLE_MAPS_API_KEY and DATABASE_URL for real leads.
                   </p>
                 )}
                 {!result.usedMockData && result.saved === 0 && (
                   <p className="mt-3 text-[10px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1.5 leading-relaxed">
-                    Saved 0 — connect live Supabase env to persist leads.
+                    Saved 0 — set DATABASE_URL to persist leads.
                   </p>
                 )}
               </>

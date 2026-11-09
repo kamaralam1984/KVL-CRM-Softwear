@@ -2,7 +2,7 @@
 // Phase 27 — Commerce Suite I. CRUD for `products`, following
 // lib/actions/tasks.ts's exact shape.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 
@@ -21,7 +21,7 @@ export type ProductRow = {
 export async function getProducts(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<ProductRow[]> {
   if (!(await assertCan(accessToken, "commerce", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("products").select("*").eq("site_id", siteId).order("created_at", { ascending: false });
     if (error) { console.error("[commerce] getProducts failed:", error.message); return []; }
     return (data ?? []) as ProductRow[];
@@ -37,7 +37,7 @@ export async function createProduct(
 ): Promise<ProductRow | null> {
   if (!(await assertCan(accessToken, "commerce", "create"))) return null;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("products").insert({
       site_id: input.siteId ?? DEFAULT_SITE_ID,
       name: input.name, sku: input.sku, price: input.price, stock: input.stock,
@@ -54,7 +54,7 @@ export async function createProduct(
 export async function updateProduct(id: string, patch: Partial<ProductRow>, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "commerce", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("products").update(patch).eq("id", id);
     if (error) { console.error("[commerce] updateProduct failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -67,7 +67,7 @@ export async function updateProduct(id: string, patch: Partial<ProductRow>, acce
 export async function deleteProduct(id: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "commerce", "delete"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("products").delete().eq("id", id);
     if (error) { console.error("[commerce] deleteProduct failed:", error.message); return { ok: false }; }
     return { ok: true };

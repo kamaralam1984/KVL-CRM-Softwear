@@ -5,7 +5,7 @@
 // A 6-hour cooldown per conversation prevents bot loops. These replies are tagged sent_by
 // 'ai'/'auto' so they never count as a HUMAN reply (the 24h SLA keeps running).
 import Anthropic from "@anthropic-ai/sdk";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { sendWhatsApp, sendSms } from "@/lib/messaging/send";
 import { logOutboundMessage } from "@/lib/messaging/outbound";
 import { getCommsSettings } from "./settings";
@@ -17,7 +17,7 @@ const brand = () => process.env.NEXT_PUBLIC_BRAND_NAME ?? process.env.BRAND_NAME
 
 export async function assignConversation(conversationId: string, leadOwner?: string | null): Promise<string> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: conv } = await db.from("conversations").select("assigned_to").eq("id", conversationId).maybeSingle();
     if (conv?.assigned_to) return conv.assigned_to as string;
     let owner = (leadOwner ?? "").trim();
@@ -52,7 +52,7 @@ export async function aiAnswer(question: string, kb: string): Promise<string | n
 
 export async function maybeAutoRespond(p: { conversationId: string; phone: string; text: string; channel: "whatsapp" | "sms"; name?: string }): Promise<"ai" | "auto" | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: conv } = await db.from("conversations").select("last_auto_reply_at").eq("id", p.conversationId).maybeSingle();
     if (conv?.last_auto_reply_at && Date.now() - new Date(conv.last_auto_reply_at as string).getTime() < COOLDOWN_MS) return null;
 

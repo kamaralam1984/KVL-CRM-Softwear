@@ -5,7 +5,7 @@
 // same person. Fails soft throughout: an identity-resolution failure must
 // never break the /api/analytics/identify request.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { getVisitorAttribution } from "@/lib/tracking/store";
 import { createLead } from "@/lib/actions/leads";
 import { triggerLeadCreated } from "@/lib/automation/engine";
@@ -57,7 +57,7 @@ export async function resolveIdentity(
   if (!email && !phone) return null; // name alone isn't enough to create/merge a lead
 
   try {
-    const db = getServerClient();
+    const db = getDb();
 
     // Idempotent: a visitor already resolved to a lead stays resolved to it.
     // Scoped by site_id too (gap-check hardening) — a visitor_id presented by

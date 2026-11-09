@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { resetPassword } from "@/lib/auth/client";
 
 export default function ResetPasswordPage() {
-  const [ready, setReady] = useState(false);
-  const [expired, setExpired] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [msg, setMsg] = useState("");
@@ -12,14 +12,12 @@ export default function ResetPasswordPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    const supabase = getSupabaseClient();
-    if (/error=|error_code=/.test(window.location.hash)) { setExpired(true); return; }
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) setReady(true);
-    });
-    supabase.auth.getSession().then(({ data }) => { if (data.session) setReady(true); });
-    return () => { sub.subscription.unsubscribe(); };
+    // The emailed link is /reset-password?token=… — read it on the client after mount.
+    const t = setTimeout(() => { setToken(new URLSearchParams(window.location.search).get("token")); setChecked(true); }, 0);
+    return () => clearTimeout(t);
   }, []);
+  const expired = checked && !token;
+  const ready = Boolean(token);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,10 +25,9 @@ export default function ResetPasswordPage() {
     if (pw.length < 6) { setMsg("Password must be at least 6 characters."); return; }
     if (pw !== pw2) { setMsg("Passwords do not match."); return; }
     setBusy(true);
-    const { error } = await getSupabaseClient().auth.updateUser({ password: pw });
+    const r = await resetPassword(token!, pw);
     setBusy(false);
-    if (error) { setMsg(error.message); return; }
-    await getSupabaseClient().auth.signOut();
+    if (r.error) { setMsg(r.error); return; }
     setDone(true);
   };
 
@@ -53,7 +50,7 @@ export default function ResetPasswordPage() {
             <a href="/"><button style={btn}>Back to Sign In</button></a>
           </>
         ) : !ready ? (
-          <p>Verifying your reset link…</p>
+          <p>Checking your reset link…</p>
         ) : (
           <form onSubmit={submit}>
             <label>New password<input style={input} type="password" value={pw} onChange={e => setPw(e.target.value)} autoComplete="new-password" /></label>

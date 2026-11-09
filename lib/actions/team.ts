@@ -1,5 +1,5 @@
 "use server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { teamMembers as seedTeam } from "@/lib/data";
 import { assertCan } from "@/lib/security/requireAction";
 
@@ -8,7 +8,7 @@ export type TeamMember = (typeof seedTeam)[number];
 export async function getTeamMembers(accessToken?: string): Promise<TeamMember[]> {
   if (!(await assertCan(accessToken, "team", "read"))) return [];
 
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("team_members")
     .select("*")
@@ -21,7 +21,7 @@ export async function getTeamMembers(accessToken?: string): Promise<TeamMember[]
 export async function createTeamMember(member: Omit<TeamMember, "id">, accessToken?: string): Promise<TeamMember> {
   if (!(await assertCan(accessToken, "team", "create"))) throw new Error("Forbidden");
 
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("team_members")
     .insert(member)
@@ -34,7 +34,7 @@ export async function createTeamMember(member: Omit<TeamMember, "id">, accessTok
 export async function updateTeamMember(id: number, patch: Partial<TeamMember>, accessToken?: string): Promise<TeamMember> {
   if (!(await assertCan(accessToken, "team", "update"))) throw new Error("Forbidden");
 
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("team_members")
     .update(patch)
@@ -48,7 +48,7 @@ export async function updateTeamMember(id: number, patch: Partial<TeamMember>, a
 export async function deleteTeamMember(id: number, accessToken?: string): Promise<void> {
   if (!(await assertCan(accessToken, "team", "delete"))) throw new Error("Forbidden");
 
-  const db = getServerClient();
+  const db = getDb();
   const { error } = await db.from("team_members").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

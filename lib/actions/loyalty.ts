@@ -3,7 +3,7 @@
 // is sum(points) per customer, computed on read, not a mutable column. Gives
 // free audit history (every award/redemption is its own row) for no extra work.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 
 export type LoyaltyEntry = {
@@ -24,7 +24,7 @@ export async function awardPoints(
 ): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "commerce", "create"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("loyalty_points").insert({ customer_id: customerId, points, reason, order_id: orderId ?? null });
     if (error) { console.error("[commerce] awardPoints failed:", error.message); return { ok: false }; }
     return { ok: true };
@@ -37,7 +37,7 @@ export async function awardPoints(
 export async function getLoyaltyBalance(customerId: number, accessToken?: string): Promise<number> {
   if (!(await assertCan(accessToken, "commerce", "read"))) return 0;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("loyalty_points").select("points").eq("customer_id", customerId);
     if (error || !data) return 0;
     return data.reduce((sum, row) => sum + Number(row.points), 0);
@@ -50,7 +50,7 @@ export async function getLoyaltyBalance(customerId: number, accessToken?: string
 export async function getLoyaltyLedger(customerId: number, accessToken?: string): Promise<LoyaltyEntry[]> {
   if (!(await assertCan(accessToken, "commerce", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("loyalty_points").select("*").eq("customer_id", customerId).order("created_at", { ascending: false });
     if (error) return [];
     return (data ?? []) as LoyaltyEntry[];

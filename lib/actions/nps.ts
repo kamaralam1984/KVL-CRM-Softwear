@@ -1,14 +1,14 @@
 "use server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 export type NpsResponse = { name: string; score: number; comment: string; date: string };
 
-// Manually-logged NPS responses (see lib/supabase/schema.sql: customer_nps_responses).
+// Manually-logged NPS responses (see lib/db/schema.sql: customer_nps_responses).
 // There is no seed/demo data for this — an empty array is the honest, truthful
 // state until someone actually logs a response via submitNpsResponse below.
 export async function getNpsResponses(): Promise<NpsResponse[]> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("customer_nps_responses")
       .select("*")
@@ -37,7 +37,7 @@ export async function submitNpsResponse(input: {
   comment?: string;
 }): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("customer_nps_responses").insert({
       customer_name: input.customerName,
       score: input.score,

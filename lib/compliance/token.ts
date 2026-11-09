@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
 function secret(): string {
-  return process.env.UNSUBSCRIBE_SECRET ?? process.env.CRON_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  return process.env.UNSUBSCRIBE_SECRET ?? process.env.CRON_SECRET ?? process.env.AUTH_JWT_SECRET ?? "";
 }
 
 export function signUnsubscribe(email: string): string {

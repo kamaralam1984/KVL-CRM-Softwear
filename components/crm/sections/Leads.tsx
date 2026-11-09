@@ -38,7 +38,7 @@ export default function Leads() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
-  // Load from Supabase on mount — real rows only; an empty account shows
+  // Load from the database on mount — real rows only; an empty account shows
   // an empty state, never the seed data (seed only ever backs a genuine
   // fetch error, inside getLeads() itself).
   useEffect(() => {
@@ -95,7 +95,7 @@ export default function Leads() {
         status: form.status as "hot" | "warm" | "cold",
       };
       setLeadList((prev) => prev.map((l) => (l.id === editingId ? { ...l, ...patch } : l)));
-      // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+      // Persist to the database when configured; demo mode throws → ignored (optimistic update stays)
       updateLead(editingId, patch).catch(() => {});
       setShowModal(false);
       setForm(emptyForm);
@@ -123,7 +123,7 @@ export default function Leads() {
       visitor_id: null as string | null,
     };
     setLeadList((prev) => [...prev, newLead]);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...leadData } = newLead;
     createLead(leadData).catch(() => {});
     // Fire the Lead Nurture automation — creates a follow-up task + activity,
@@ -151,7 +151,7 @@ export default function Leads() {
   const removeLead = (id: number) => {
     setLeadList((prev) => prev.filter((l) => l.id !== id));
     setOpenMenuId(null);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic removal stays)
     deleteLead(id).catch(() => {});
   };
 

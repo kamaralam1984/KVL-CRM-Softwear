@@ -8,7 +8,7 @@
 // pipeline — a different input and purpose). Fails soft throughout — a
 // scoring failure must never break event collection or session tracking.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { getRules, bandFromScore } from "./rules";
 import { triggerHighIntentVisitor, triggerLeadScoreSpike } from "@/lib/automation/engine";
 import type { IntentBand } from "./types";
@@ -23,7 +23,7 @@ function log(where: string, err: unknown) {
 /** Mirrors a visitor's intent score onto the Lead it resolved to (Wave 3), if any. */
 async function syncLeadScore(leadId: number, score: number, band: IntentBand): Promise<void> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: lead } = await db.from("leads").select("score, name, company").eq("id", leadId).maybeSingle();
     const previousScore = (lead?.score as number | undefined) ?? 0;
 
@@ -49,7 +49,7 @@ async function syncLeadScore(leadId: number, score: number, band: IntentBand): P
 async function addIntentPoints(visitorId: string, points: number, siteId: string): Promise<void> {
   if (!points) return;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data } = await db
       .from("visitors")
       .select("intent_score, first_touch_source, last_touch_source")

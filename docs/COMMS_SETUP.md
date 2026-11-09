@@ -4,7 +4,7 @@ Everything below is built; it needs configuration to go live. Without keys each 
 "mock" send (visible as `mock` in the inbox / reports) — nothing is silently faked as delivered.
 
 ## 1. Database
-Run `lib/supabase/schema.sql` in the Supabase SQL editor (idempotent).
+Run `lib/db/schema.sql` in the Neon SQL Editor (idempotent), and set `DATABASE_URL`, `AUTH_JWT_SECRET`, `NEXT_PUBLIC_AUTH_ENABLED=true`.
 
 ## 2. Cron
 GitHub secrets `FOLLOWUP_CRON_URL` (`https://<app>/api/followup/cron`) + `FOLLOWUP_CRON_SECRET`

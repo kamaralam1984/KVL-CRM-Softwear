@@ -1,5 +1,5 @@
 // Real delivery status for outbound messages (Twilio status callback / Meta statuses).
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { notifyTeam } from "@/lib/notify/team";
 
 export type DeliveryStatus = "queued" | "sent" | "delivered" | "read" | "failed";
@@ -27,7 +27,7 @@ export function mapTwilioStatus(s: string): DeliveryStatus | null {
 export async function applyDeliveryStatus(providerMessageId: string, incoming: DeliveryStatus, error = ""): Promise<void> {
   if (!providerMessageId) return;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: row } = await db.from("messages").select("id,status,conversation_id,body").eq("provider_message_id", providerMessageId).maybeSingle();
     if (!row) return;
     const status = nextStatus(row.status as string, incoming);

@@ -19,7 +19,7 @@ import { getIntentRules, updateIntentRule, type IntentRuleRow } from "@/lib/acti
 import { logAudit, getAuditLog, type AuditEntry } from "@/lib/security/audit";
 import { getPushSubscriberCount, sendPushBroadcast } from "@/lib/actions/pushNotifications";
 import { listSites, createSite, setSiteActive } from "@/lib/actions/sites";
-import { DEFAULT_SITE_ID } from "@/lib/sites/store";
+import { DEFAULT_SITE_ID } from "@/lib/sites/constants";
 import type { Site } from "@/lib/sites/types";
 
 const ACQUISITION_AUDIT_RESOURCES = new Set(["acquisition_settings", "intent_scoring_rules", "sites"]);
@@ -377,7 +377,7 @@ function AcquisitionSettingsCard() {
         {loading ? (
           <p className="text-xs text-slate-500">Loading…</p>
         ) : rules.length === 0 ? (
-          <p className="text-xs text-slate-500">No rules found — run the Supabase migration to seed the default point values.</p>
+          <p className="text-xs text-slate-500">No rules found — run the database migration (lib/db/schema.sql) to seed the default point values.</p>
         ) : (
           <div className="space-y-1">
             {rules.map((rule) => (

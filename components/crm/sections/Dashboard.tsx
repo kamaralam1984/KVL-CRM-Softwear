@@ -197,7 +197,7 @@ function computeRevenueInsights(deals: DealForInsights[]): {
 export default function Dashboard() {
   const [period, setPeriod] = useState("1Y");
   const [userName, setUserName] = useState<string | null>(null);
-  // Load real data from Supabase on mount — never falls back to seed/demo
+  // Load real data from the database on mount — never falls back to seed/demo
   // data once loaded; an empty account renders honest empty states.
   const [activity, setActivity] = useState<typeof activityFeed>([]);
   const [leads, setLeads] = useState<typeof seedLeads>([]);
@@ -215,7 +215,7 @@ export default function Dashboard() {
 
   const removeActivity = (id: number) => {
     setActivity((prev) => prev.filter((item) => item.id !== id));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic removal stays)
     deleteActivity(id).catch(() => {});
   };
 

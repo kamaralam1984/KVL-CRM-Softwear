@@ -3,7 +3,7 @@
 // `tel:` link and a manual call-log row — the outcome form works either way.
 //   env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, NEXT_PUBLIC_APP_URL
 //   optional: CALL_RECORDING=true → records both legs + plays a consent notice to the lead.
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { isSuppressed } from "@/lib/compliance/dnc";
 import { normalizePhone } from "@/lib/identity/resolve";
 
@@ -11,7 +11,7 @@ export interface StartCallResult { ok: boolean; mode: "twilio" | "manual"; callL
 
 export async function startClickToCall(p: { leadId: number; agentPhone: string; agent?: string }): Promise<StartCallResult> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: lead } = await db.from("leads").select("id,name,phone").eq("id", p.leadId).maybeSingle();
     if (!lead?.phone) return { ok: false, mode: "manual", detail: "This lead has no phone number" };
     const to = normalizePhone(lead.phone as string);

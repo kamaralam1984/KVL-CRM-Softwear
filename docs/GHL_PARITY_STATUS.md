@@ -36,7 +36,7 @@ trusting this doc's own 🟢 claims, per the same convention as
   Products tab, and a "Send Review Request" card into Reputation.
 - **Not fixed, left as documented scope**: `redeemGiftCard` (no public checkout
   flow exists yet to call it from) and `getDbTenants` (Admin Panel's tenant list
-  still reads localStorage; the Phase 31 dual-write already keeps Supabase in
+  still reads localStorage; the Phase 31 dual-write already keeps the database in
   sync for when that UI is built) — both are real, callable, tested functions
   sitting ready, not broken code.
 - Everything else the 3 agents checked — table creation order vs FK references,
@@ -49,15 +49,15 @@ trusting this doc's own 🟢 claims, per the same convention as
   came back clean.
 
 Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 98/98,
-`npm run lint` 185 (unchanged), and `lib/supabase/schema.sql` applied successfully
+`npm run lint` 185 (unchanged), and `lib/db/schema.sql` applied successfully
 **3 times in a row** against a real (throwaway, local) Postgres instance.
 
 ## Phase status
 
 | # | Capability | Module | Status | Notes |
 |---|-----------|--------|--------|-------|
-| 18 | Server-Side Auth & RBAC Enforcement | `lib/security/{session,requireAction,demoToken}` | 🟢 core done, rollout ongoing | `requireAuth()`/`assertCan()` built; wired into `lib/actions/{invoices,team,integrations}.ts` as proof-of-pattern + `components/crm/Auth.tsx` now issues a real Supabase JWT or a demo-mode token as `AuthUser.accessToken`. Soft-mode (no token ⇒ allow + warn) keeps every other untouched action working. Remaining `lib/actions/*.ts`/`app/api/**/route.ts` files adopt the same optional-`accessToken` pattern as later phases touch them. |
-| 19 | Automation Core: DB-Backed Runs | `lib/actions/workflows.ts`, `lib/automation/store.ts` | 🟢 done | `workflows`/`workflow_runs` tables added; `addRun`/`setActive` dual-write (localStorage cache + Supabase source of truth) without changing either function's signature. `addRun` now fires unconditionally (client or server), closing the documented Wave-5 gap where server-triggered runs never appeared in the feed. `Automation.tsx`'s run/active views merge in the DB view on mount. |
+| 18 | Server-Side Auth & RBAC Enforcement | `lib/security/{session,requireAction,demoToken}` | 🟢 core done, rollout ongoing | `requireAuth()`/`assertCan()` built; wired into `lib/actions/{invoices,team,integrations}.ts` as proof-of-pattern + `components/crm/Auth.tsx` now issues a real the database JWT or a demo-mode token as `AuthUser.accessToken`. Soft-mode (no token ⇒ allow + warn) keeps every other untouched action working. Remaining `lib/actions/*.ts`/`app/api/**/route.ts` files adopt the same optional-`accessToken` pattern as later phases touch them. |
+| 19 | Automation Core: DB-Backed Runs | `lib/actions/workflows.ts`, `lib/automation/store.ts` | 🟢 done | `workflows`/`workflow_runs` tables added; `addRun`/`setActive` dual-write (localStorage cache + the database source of truth) without changing either function's signature. `addRun` now fires unconditionally (client or server), closing the documented Wave-5 gap where server-triggered runs never appeared in the feed. `Automation.tsx`'s run/active views merge in the DB view on mount. |
 | 20 | Visual Drag-Drop Workflow Builder | `lib/automation/graph/*`, `components/crm/sections/automation/GraphBuilder.tsx` | 🟢 done | Real canvas (`@xyflow/react`) replaces the previous fully-mock `BuilderView` (one hardcoded fixed workflow, fake "Test" animation, no persistence — audited and rebuilt in place, nothing outside the file referenced it). Graph persists to new `workflow_graphs` table; interpreter executes trigger→condition→action graphs by calling the same `createTask`/`createActivity` actions the hardcoded triggers use. `send_whatsapp`/`send_email`/`send_sms` action nodes honestly report "not wired yet" (ships Phase 21) rather than faking success. |
 | 21 | Unified Conversations + real WhatsApp/SMS | `lib/messaging`, `lib/actions/conversations.ts`, `app/api/{whatsapp,sms}/inbound` | 🟢 done | New channel-agnostic `conversations`/`messages` tables + real Twilio inbound (signature-verified, 501 until `TWILIO_AUTH_TOKEN` set) and outbound send. `whatsapp_conversations` (existing WhatsApp CRM section) dual-writes so real inbound messages actually appear there today; composer really sends when a contact has a known phone. |
 | 22 | Missed-Call Auto Text-Back | `lib/telephony/autoReply.ts` | 🟢 done | The literal GHL "Missed Call Text Back" feature. `/api/telephony/missed-call` (existing, Wave 9) now sends a WhatsApp/SMS auto-reply + creates a callback task on every missed call, template editable via the existing `acquisition_settings` key-value store. Still needs a real telephony provider account to receive actual calls (route stays 501 until `MISSED_CALL_WEBHOOK_SECRET` is set — unchanged from before this phase). |
@@ -69,7 +69,7 @@ Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 98/98,
 | 28 | Commerce II: Gift Cards, Loyalty, Upsell | `lib/actions/{giftCards,loyalty}.ts`, `lib/commerce/upsellFlow.ts` | 🟢 done | Gift card issue/redeem; append-only loyalty ledger (balance computed on read, full audit history for free). New Gift Cards/Loyalty tabs in `KVlCommerce.tsx`. `getNextFunnelStepUrl` wires Phase 24's `funnel_steps` upsell/downsell types to a real redirect, ready for a future checkout flow to call. |
 | 29 | Membership & Courses | `lib/actions/membership.ts`, `components/crm/sections/Membership.tsx`, `app/member/[tierId]` | 🟢 done | New section: tiers (Razorpay Subscriptions-backed), drip course content, gated public viewer. Gives `KVlCommerce.tsx`'s existing course-shaped placeholder products (CRS-AI-1/2) a real backing model. Webhook route (Phase 27) extended for `subscription.charged`/`cancelled`. Honest gap: gated viewer uses a `?customer=` query param, not a real customer-login session — this codebase has no customer-facing auth system, only staff auth. |
 | 30 | Affiliate Manager | `lib/affiliates/*`, `components/crm/sections/Affiliates.tsx` | 🟢 done | New section: referral links are plain `?utm_source=<code>` links (zero tracking-SDK changes needed), commissions auto-created on order completion by matching `leads.source` to an affiliate's referral code. Payout is explicitly manual (Razorpay Route needed for real transfers) — "Mark Paid" records a human paid, doesn't fake automation. |
-| 31 | SaaS Mode: Tenant Billing & Self-Signup | `lib/whitelabel/*`, `lib/actions/tenants.ts`, `app/signup/[plan]` | 🟢 done | `tenants`/`tenant_users` tables (mirrors `Tenant` type + new billing columns). `lib/whitelabel/store.ts` — the one domain that was localStorage-only — now dual-writes, same pattern as Phase 19. Self-serve signup: real Supabase Auth signup + auto tenant creation + Razorpay Subscription (14-day trial). |
+| 31 | SaaS Mode: Tenant Billing & Self-Signup | `lib/whitelabel/*`, `lib/actions/tenants.ts`, `app/signup/[plan]` | 🟢 done | `tenants`/`tenant_users` tables (mirrors `Tenant` type + new billing columns). `lib/whitelabel/store.ts` — the one domain that was localStorage-only — now dual-writes, same pattern as Phase 19. Self-serve signup: real the database Auth signup + auto tenant creation + Razorpay Subscription (14-day trial). |
 | 32 | Utility Batch (voicemail, card scanner, QR) | `lib/telephony/ringlessVoicemail.ts`, `lib/ai/businessCardScan.ts`, `lib/utils/qr.ts` | 🟢 done | Ringless voicemail (provider-agnostic REST, same caveat class as Truecaller — re-verify against the actual chosen provider). AI business-card scanner wired into Leads' Add Lead modal (real Claude vision when `ANTHROPIC_API_KEY` set). QR generator (`qrcode` package) powers Phase 27's new Tap-2-Pay (`lib/commerce/qr.ts`). |
 | 33 | Birthday/Seasonal Auto-Campaigns | `lib/outreach/templates/seasonal.ts`, `/api/outreach/recurring-cron` | 🟢 done | Daily cron sends a real birthday WhatsApp/SMS (Phase 21) to any customer whose birthday is today. Seasonal `campaigns.recurrence_rule` due-detection is honestly logged/counted, not sent — the acquisition-engine `campaigns` table has no channel/message field yet (documented naming collision with `lib/marketing/types.ts`'s different Campaign concept). |
 | 34 | Mobile: PWA Hardening | `public/manifest.json`, `components/crm/InstallPrompt.tsx` | 🟢 done | Manifest + theme-color wiring, install prompt, and a deliberately conservative offline fallback (navigation-only, no caching of API/data — this is a live-CRM-data app, never risk showing stale leads offline). Native app store distribution stays explicitly out of code-scope. |
@@ -80,13 +80,13 @@ Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 98/98,
 - `npm test` — 65/65 passing (50 pre-existing + 15 new: `lib/security/{demoToken,rbac,requireAction}.test.ts`).
 - Soft-mode confirmed by test: `assertCan(undefined, ...)` → allowed + warns, so every server action not yet updated with an `accessToken` param keeps working exactly as before.
 - Demo-token and RBAC-matrix grant/deny paths confirmed by test for the new Phase-18-introduced resources (`marketing`, `social`, `commerce`, `funnels`, `membership`, `affiliates`, `whitelabel`, `helpdesk`).
-- Real-Supabase-JWT branch of `requireAuth()` is implemented per Supabase's documented `auth.getUser(token)` + `profiles` lookup, but not exercised by an automated test in this environment (no live `SUPABASE_SERVICE_ROLE_KEY` configured here) — falls back to `null`/denied on any failure, never throws, so it degrades safely either way.
+- Real-session branch of `requireAuth()` (originally built against the previous auth provider; now verifies the app's own signed token — see `lib/auth/`) with a `profiles` lookup, but not exercised by an automated test in this environment (no live `DATABASE_URL` configured here) — falls back to `null`/denied on any failure, never throws, so it degrades safely either way.
 
 ## Verified (Phase 19)
 - `npx tsc --noEmit` — clean.
 - `npm run lint` — problem count unchanged (196; no new errors/warnings in touched files).
 - `npm test` — 65/65 passing (unchanged — `lib/actions/workflows.ts` follows the same untested-CRUD convention as `lib/actions/invoices.ts`/`team.ts`, which also have no dedicated test file in this codebase).
-- Schema additions (`workflows`, `workflow_runs`) verified by review only — idempotent `create table if not exists` + `create trigger`, matching every existing migration in `schema.sql`; not applied against a live database in this environment (no `SUPABASE_SERVICE_ROLE_KEY` configured here). Apply via Supabase SQL Editor before this phase's persistence is exercised for real.
+- Schema additions (`workflows`, `workflow_runs`) verified by review only — idempotent `create table if not exists` + `create trigger`, matching every existing migration in `schema.sql`; not applied against a live database in this environment (no `DATABASE_URL` configured here). Apply via the database SQL Editor before this phase's persistence is exercised for real.
 
 ## Verified (Phase 20)
 - `npx tsc --noEmit` — clean.
@@ -111,7 +111,7 @@ Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 98/98,
 ## Verified (Phase 23)
 - `npx tsc --noEmit` — clean.
 - `npm run lint` — 191 problems, unchanged (public/kvl-chat.js is plain unbundled JS in `public/`, same as `kvl-embed.js`, not part of the TS lint globs).
-- `npm test` — 77/77 passing, unchanged (this phase's additions are thin Supabase CRUD + a DOM widget, matching the codebase's own convention of not force-adding tests for that shape of code — same as Phase 21's `lib/actions/conversations.ts` itself has no dedicated test file).
+- `npm test` — 77/77 passing, unchanged (this phase's additions are thin the database CRUD + a DOM widget, matching the codebase's own convention of not force-adding tests for that shape of code — same as Phase 21's `lib/actions/conversations.ts` itself has no dedicated test file).
 - `conversations.site_id` column + webchat helper functions verified by review only, not applied to / exercised against a live database in this environment.
 - Fixed a real bug caught while wiring `LiveChatTab`: the message-bubble JSX unconditionally rendered every message as sent by the agent (hardcoded `flex-row-reverse` + green bubble) — harmless while `chatMessages` only ever held agent-sent messages, but would have mis-rendered real inbound visitor messages as if the agent sent them. Now branches on `m.sender`.
 
@@ -146,13 +146,13 @@ Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 98/98,
 ## Verified (Phase 28)
 - `npx tsc --noEmit` — clean.
 - `npm run lint` — 185 problems, unchanged.
-- `npm test` — 93/93 passing, unchanged (this phase's additions are thin Supabase CRUD, matching the established convention of not force-adding tests for that shape of code — same as Phase 27's `lib/actions/{products,orders}.ts`).
+- `npm test` — 93/93 passing, unchanged (this phase's additions are thin the database CRUD, matching the established convention of not force-adding tests for that shape of code — same as Phase 27's `lib/actions/{products,orders}.ts`).
 - `gift_cards`/`loyalty_points` schema verified by review only, not applied to a live database in this environment.
 
 ## Verified (Phase 29)
 - `npx tsc --noEmit` — clean.
 - `npm run lint` — 185 problems, unchanged (fixed one new setState-in-effect error introduced while building this, before finalizing).
-- `npm test` — 93/93 passing, unchanged (Supabase CRUD, matching the established no-forced-test convention for that shape of code).
+- `npm test` — 93/93 passing, unchanged (the database CRUD, matching the established no-forced-test convention for that shape of code).
 - New section registered via the standard 3-registry pattern.
 - `membership_tiers`/`memberships`/`course_content` schema + Subscriptions API + gated viewer verified by review only, not exercised against a live database or real Razorpay credentials in this environment.
 
@@ -168,7 +168,7 @@ Re-verified after every fix above: `npx tsc --noEmit` clean, `npm test` 98/98,
 - `npm run lint` — 185 problems, unchanged.
 - `npm test` — 93/93 passing, unchanged.
 - `saveTenant`/`deleteTenant` dual-write confirmed to keep their exact prior synchronous signatures — no existing caller (Admin Panel's tenant management UI, `resolveTenant`) needed to change.
-- `tenants`/`tenant_users` schema + self-signup flow verified by review only — not exercised against a live database, real Supabase Auth signup, or real Razorpay credentials in this environment.
+- `tenants`/`tenant_users` schema + self-signup flow verified by review only — not exercised against a live database, real the database Auth signup, or real Razorpay credentials in this environment.
 
 ## Verified (Phase 32)
 - `npx tsc --noEmit` — clean.
@@ -212,7 +212,7 @@ Continues the same table/rules. Full context and per-phase design:
 ## Verified (Phase 37)
 - `npx tsc --noEmit` — clean.
 - `npm run lint` — 185 problems, unchanged (the two findings inside the touched `Settings.tsx` — an unused `Lock` import, a setState-in-effect at the pre-existing Razorpay-callback handler — are both pre-existing, not introduced by this phase).
-- `npm test` — 104/104 passing (102 prior + 2 new in `lib/messaging/send.test.ts`, confirming `sendSms` never throws with or without a `templateKey`, both configured-nothing paths). `smsTemplates.ts` itself has no dedicated test file, matching the established "thin Supabase CRUD" no-forced-test convention (same as every `lib/actions/*.ts` file in this codebase).
+- `npm test` — 104/104 passing (102 prior + 2 new in `lib/messaging/send.test.ts`, confirming `sendSms` never throws with or without a `templateKey`, both configured-nothing paths). `smsTemplates.ts` itself has no dedicated test file, matching the established "thin the database CRUD" no-forced-test convention (same as every `lib/actions/*.ts` file in this codebase).
 - `sms_templates` table verified by review only (idempotent `create table if not exists` + inline composite unique), not applied to a live database in this environment.
 - **Not achievable by code alone**: actual DLT entity/template registration (PAN, GST, Letter of Authorization, a specific telecom's DLT portal) is a pure external administrative process — this phase only gives the user somewhere to record the result once they've done it.
 
@@ -221,7 +221,7 @@ Continues the same table/rules. Full context and per-phase design:
 - `npm run lint` — 185 problems, unchanged.
 - `npm test` — 104/104 passing, unchanged (instrumentation/global-error/health are thin infra wiring, matching the established no-forced-test convention for that shape of code — same as every webhook route in this codebase, which are "curl a synthetic request" verified rather than unit-tested).
 - `npm run build` — full production build succeeded, `/api/health` present in the route manifest, no Sentry/instrumentation build errors (Next 16 needs no `experimental.instrumentationHook` flag — enabled by default since Next 15).
-- **Real smoke test against the live Supabase project**: started the built app locally (`npm start`), curled `/api/health` — `HTTP 200`, `{"ok":true,"dbOk":true,...}`, confirming a genuine round-trip against the real `tbkfldydmgkjylwtowpr` Supabase project already configured in `.env.local`. Server was stopped immediately after.
+- **Real smoke test against the live the database project**: started the built app locally (`npm start`), curled `/api/health` — `HTTP 200`, `{"ok":true,"dbOk":true,...}`, confirming a genuine round-trip against the real `tbkfldydmgkjylwtowpr` the database project already configured in `.env.local`. Server was stopped immediately after.
 - `@sentry/nextjs@10.20.0` (approx.) installed; `npm audit` checked — contributes zero new findings (same 6 pre-existing unrelated toolchain advisories: `next`/`postcss`/`sharp`/`@babel/core`/`js-yaml`/`brace-expansion`, all present before this phase).
 - **Scoping note**: this phase intentionally does NOT wire the full Sentry build-time source-map-upload pipeline (`withSentryConfig` in `next.config.ts`, `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN`) — that needs extra CI secrets and would risk breaking the build if misconfigured. Error capture works fully with just `NEXT_PUBLIC_SENTRY_DSN`; stack traces just won't be source-mapped back to original TypeScript until the user optionally sets that up later.
 - **Honesty note carried from the plan**: this phase improves engineering readiness (error visibility, abuse protection on the money-movement webhook, a real health signal) — it does not and cannot manufacture years of real production traffic across many agencies, which is what "maturity/scale" actually means. Not claimed as closed here.
@@ -238,9 +238,9 @@ Continues the same table/rules. Full context and per-phase design:
 ## Verified (Phase 40)
 - `npx tsc --noEmit` — clean.
 - `npm run lint` — 185 problems, unchanged (caught and fixed one new ternary-as-statement warning in `Developers.tsx`'s `toggleEvent` before finalizing — same lint rule class as the pre-existing ones elsewhere in this codebase).
-- `npm test` — 113/113 passing (108 prior + 5 new: `lib/webhooks/dispatch.test.ts` confirms `dispatchWebhookEvent` never throws for any event type with no Supabase configured; `lib/apiKeys/auth.test.ts` confirms `authenticateApiKey` rejects a missing header, a non-Bearer header, and a well-formed-but-unknown key — using a real `NextRequest` instance, not a mock).
+- `npm test` — 113/113 passing (108 prior + 5 new: `lib/webhooks/dispatch.test.ts` confirms `dispatchWebhookEvent` never throws for any event type with no the database configured; `lib/apiKeys/auth.test.ts` confirms `authenticateApiKey` rejects a missing header, a non-Bearer header, and a well-formed-but-unknown key — using a real `NextRequest` instance, not a mock).
 - `npm run build` — full production build succeeded, `/api/v1/{leads,contacts,deals}` all present in the route manifest.
-- **Real smoke test against the live Supabase project**: started the built app (`npm start`), curled `/api/v1/leads` with no `Authorization` header → `HTTP 401 {"error":"unauthorized"}`; with a well-formed-but-fake bearer key → `HTTP 401 {"error":"unauthorized"}` (a genuine round-trip that queried the real `api_keys` table and correctly found no match, not a crash); `/api/health` → `HTTP 200 {"ok":true,"dbOk":true,...}`. Server stopped immediately after.
+- **Real smoke test against the live the database project**: started the built app (`npm start`), curled `/api/v1/leads` with no `Authorization` header → `HTTP 401 {"error":"unauthorized"}`; with a well-formed-but-fake bearer key → `HTTP 401 {"error":"unauthorized"}` (a genuine round-trip that queried the real `api_keys` table and correctly found no match, not a crash); `/api/health` → `HTTP 200 {"ok":true,"dbOk":true,...}`. Server stopped immediately after.
 - `api_keys`/`webhooks`/`webhook_deliveries` tables verified by review only (idempotent `create table if not exists`), not applied to a live database in this environment.
 - New `"developers"` RBAC resource added to `lib/security/rbac.ts`'s `RESOURCES` — deliberately given no explicit grant in Manager/Marketing/Finance/Support/Viewer (missing entry = denied by default); Admin gets it via its existing wildcard CRUD grant, Super Admin via its omnipotent-role bypass. Confirmed by code review, matching the existing test coverage pattern for `rbac.test.ts` (no new test added since the mechanism itself — missing-entry-denies — is already covered there for other resources).
 - **Not achievable by code alone**: the actual marketplace/ecosystem advantage GoHighLevel has — hundreds of 3rd-party apps built by external developers and discovered by agencies — requires years of adoption this phase's infrastructure makes possible but cannot itself create.
@@ -415,7 +415,7 @@ Found and fixed:
   missing/invalid token now closes the socket (code 1008) before the code path that would
   ever touch OpenAI; (2) the OpenAI Realtime session is no longer opened at connection
   time at all — it's now deferred until Twilio's `start` event arrives with a `callSid`
-  that's confirmed, via a live Supabase lookup, to match a real `call_logs` row this
+  that's confirmed, via a live the database lookup, to match a real `call_logs` row this
   process itself created via `lib/voice/providers.ts::placeTwilioStreamCall` for an actual
   outbound call. `initiateCall()`'s `twilio` provider path now also requires
   `VOICE_RELAY_SHARED_SECRET` to be set (not just the WSS URL) before attempting a real
@@ -478,7 +478,7 @@ auth-rejection behavior against a running instance of the updated server.
 - `npm test` — 166/166 passing (152 prior + 14 new: 12 in `lib/webinars/youtube.test.ts` covering every real YouTube URL format — watch, youtu.be, embed, live, bare id, with extra query params — plus malformed/non-YouTube/empty-input cases; 2 in `lib/messaging/send.test.ts` for `sendEmail`'s mock fallback).
 - `npm run build` — full production build succeeded; `/webinar/[slug]`, `/webinar/[slug]/room`, and `/api/webinars/reminder-cron` all present in the route manifest.
 - **Real smoke test against the live server**: started the built app, confirmed `/api/health` → 200, `/webinar/does-not-exist` → 404 (unpublished/missing slug correctly rejected), and `/api/webinars/reminder-cron` → 501 with a clear `NEXT_PUBLIC_APP_URL not set` message (correct gating — a cron with nowhere to build a room link into would be worse than an honest no-op).
-- **Real schema verification**: the live Supabase project doesn't have this round's tables yet (user hasn't re-run `schema.sql`), so instead spun up a real throwaway Postgres 16 Docker container, applied the ENTIRE `lib/supabase/schema.sql` (not just the new part) **three times in a row** with zero errors, then inspected all 3 new tables' live structure (columns, FKs, RLS policies) via `\d` — everything matches exactly what the TypeScript action file expects.
+- **Real schema verification**: the live the database project doesn't have this round's tables yet (user hasn't re-run `schema.sql`), so instead spun up a real throwaway Postgres 16 Docker container, applied the ENTIRE `lib/db/schema.sql` (not just the new part) **three times in a row** with zero errors, then inspected all 3 new tables' live structure (columns, FKs, RLS policies) via `\d` — everything matches exactly what the TypeScript action file expects.
 - **Not achievable by code alone**: none beyond what's already true for SMS/WhatsApp — a free Resend account is needed for reminder emails to go out for real, and `NEXT_PUBLIC_APP_URL` needs to be set on the VPS.
 
 ## Post-Phase-45 gap check
@@ -531,4 +531,4 @@ established convention of not force-adding tests for that shape of code), `npm r
 
 ---
 
-## Full roadmap (Phase 18–45) is now complete. Every gap identified across this entire session — the original 16-gap GHL-parity audit, the follow-up 6-gap and 4-gap rounds, and this final Webinar Funnels phase — has been closed, verified, and independently gap-checked. See each phase's own "Not achievable by code alone" notes for what still needs the user's action outside this repo (API keys, paid tiers, external approvals, VPS/Supabase deployment steps) before a given feature is genuinely live in production.
+## Full roadmap (Phase 18–45) is now complete. Every gap identified across this entire session — the original 16-gap GHL-parity audit, the follow-up 6-gap and 4-gap rounds, and this final Webinar Funnels phase — has been closed, verified, and independently gap-checked. See each phase's own "Not achievable by code alone" notes for what still needs the user's action outside this repo (API keys, paid tiers, external approvals, VPS/the database deployment steps) before a given feature is genuinely live in production.

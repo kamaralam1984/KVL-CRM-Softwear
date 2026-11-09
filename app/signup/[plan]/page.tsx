@@ -1,17 +1,13 @@
 "use client";
 // Phase 31 — SaaS Mode self-serve signup. Reuses Auth.tsx's exact real
-// supabase.auth.signUp() call, then creates a tenant + Razorpay subscription
+// signUp() call (lib/auth/client.ts), then creates a tenant + Razorpay subscription
 // via lib/actions/tenants.ts::signupTenant. This is the "agencies can sell
 // subscriptions with automated sub-account creation" GHL SaaS-mode feature.
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { isAuthEnabled, signUp } from "@/lib/auth/client";
 import { signupTenant } from "@/lib/actions/tenants";
-
-function isSupabaseConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) && !process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("your-project");
-}
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `workspace-${Date.now().toString(36)}`;
 
@@ -32,16 +28,15 @@ export default function SignupPlanPage({ params }: { params: Promise<{ plan: str
       setError("Fill in a workspace name, valid email, and a 6+ character password.");
       return;
     }
-    if (!isSupabaseConfigured()) {
-      setError("Self-serve signup needs Supabase configured on this deployment.");
+    if (!isAuthEnabled()) {
+      setError("Self-serve signup needs the database and auth configured on this deployment.");
       return;
     }
     setLoading(true);
-    const supabase = getSupabaseClient();
-    const { data, error: signUpErr } = await supabase.auth.signUp({ email, password, options: { data: { name: brandName, role: "Admin" } } });
-    if (signUpErr || !data.user) { setLoading(false); setError(signUpErr?.message ?? "Signup failed."); return; }
+    const created = await signUp(email, password, { name: brandName, role: "Admin" });
+    if (created.error || !created.user) { setLoading(false); setError(created.error ?? "Signup failed."); return; }
 
-    const result = await signupTenant({ userId: data.user.id, brandName, slug: slugify(brandName), email, plan });
+    const result = await signupTenant({ userId: created.user.id, brandName, slug: slugify(brandName), email, plan });
     setLoading(false);
     if (!result.ok) { setError(result.error ?? "Could not create workspace."); return; }
 

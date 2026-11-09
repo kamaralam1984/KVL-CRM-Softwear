@@ -28,7 +28,7 @@ export default function Deals() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<DealForm>(emptyForm);
 
-  // Load from Supabase on mount — real rows only; an empty account shows
+  // Load from the database on mount — real rows only; an empty account shows
   // an empty state, never the seed data.
   useEffect(() => {
     getDeals().then((rows) => setDealList(rows ?? [])).catch(() => {}).finally(() => setLoading(false));
@@ -56,7 +56,7 @@ export default function Deals() {
       avatar,
     };
     setDealList((prev) => [...prev, newDeal]);
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic add stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic add stays)
     const { id: _id, ...dealData } = newDeal;
     createDeal(dealData).catch(() => {});
     setShowModal(false);
@@ -65,13 +65,13 @@ export default function Deals() {
 
   const changeStage = (id: number, stage: string) => {
     setDealList((prev) => prev.map((d) => (d.id === id ? { ...d, stage } : d)));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic update stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic update stays)
     updateDeal(id, { stage }).catch(() => {});
   };
 
   const removeDeal = (id: number) => {
     setDealList((prev) => prev.filter((d) => d.id !== id));
-    // Persist to Supabase when configured; demo mode throws → ignored (optimistic removal stays)
+    // Persist to the database when configured; demo mode throws → ignored (optimistic removal stays)
     deleteDeal(id).catch(() => {});
   };
 

@@ -7,7 +7,7 @@
 import { getAcquisitionSettings } from "@/lib/actions/acquisitionSettings";
 import { sendWhatsApp, sendSms, isWhatsAppConfigured, isSmsConfigured } from "@/lib/messaging/send";
 import { ensureConversation } from "@/lib/actions/conversations";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { createTask } from "@/lib/actions/tasks";
 
 export async function getMissedCallReplyTemplate(): Promise<string> {
@@ -31,7 +31,7 @@ export async function sendMissedCallAutoReply(phone: string): Promise<void> {
       const result = await sendWhatsApp(phone, template);
       const conversationId = await ensureConversation("whatsapp", phone, phone);
       if (conversationId) {
-        const db = getServerClient();
+        const db = getDb();
         await db.from("messages").insert({ conversation_id: conversationId, direction: "outbound", body: template, provider_message_id: result.providerMessageId ?? null });
       }
     } else if (isSmsConfigured()) {

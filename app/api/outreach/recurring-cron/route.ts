@@ -4,7 +4,7 @@
 // shared-secret + GitHub Action cron pattern as /api/leadgen/run.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { sendWhatsApp, sendSms, isWhatsAppConfigured } from "@/lib/messaging/send";
 import { birthdayMessage } from "@/lib/outreach/templates/seasonal";
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     const today = new Date();
     const mmdd = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 

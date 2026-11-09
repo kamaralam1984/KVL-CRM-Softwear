@@ -1,6 +1,6 @@
 "use client";
 // Phase 17 — Lead Intelligence & Acquisition Engine, Wave 6a (Acquisition Dashboard Core)
-// Polling-based "live" view — this codebase has no websocket/Supabase-Realtime
+// Polling-based "live" view — this codebase has no websocket/database-realtime
 // wiring anywhere, so a 15s poll is the honest real-or-mock equivalent of
 // spec's "use real-time updates where infrastructure supports it."
 

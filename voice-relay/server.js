@@ -6,7 +6,7 @@
 //
 // Deploy as its own isolated PM2 process (see docs/GHL_PARITY_STATUS.md's
 // Phase 44 notes for the exact VPS commands) — runs from the SAME installed
-// node_modules as the main app (only requires `ws` + `@supabase/supabase-js`,
+// node_modules as the main app (only requires `ws` + `pg`,
 // both already dependencies), just a different entry point/port, proxied by
 // a NEW Nginx wss:// location block. Never touches any other site on the VPS.
 //
@@ -35,7 +35,7 @@
 const { WebSocketServer, WebSocket } = require("ws");
 const http = require("http");
 const crypto = require("crypto");
-const { createClient } = require("@supabase/supabase-js");
+const { Pool } = require("pg");
 
 const PORT = process.env.VOICE_RELAY_PORT || 4001;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -44,11 +44,23 @@ const VOICE_AI_INSTRUCTIONS =
   process.env.VOICE_AI_INSTRUCTIONS || "You are a helpful, concise phone assistant for a business. Keep responses short and natural.";
 const SHARED_SECRET = process.env.VOICE_RELAY_SHARED_SECRET;
 
-function supabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+// Two tiny queries against the CRM database (Neon Postgres, via DATABASE_URL) — no query builder needed here.
+let pool = null;
+function database() {
+  if (!process.env.DATABASE_URL) return null;
+  if (!pool) {
+    pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
+    pool.on("error", (err) => console.error("[voice-relay] db idle client error:", err.message));
+  }
+  return {
+    async findAiCall(sid) {
+      const r = await pool.query("select id from call_logs where provider_call_sid = $1 and is_ai_call = true limit 1", [sid]);
+      return r.rows[0] || null;
+    },
+    async saveTranscript(sid, transcript) {
+      await pool.query("update call_logs set ai_transcript = $1, status = 'completed' where provider_call_sid = $2 and is_ai_call = true", [transcript, sid]);
+    },
+  };
 }
 
 function timingSafeStringEqual(a, b) {
@@ -88,7 +100,7 @@ wss.on("connection", (twilioWs, req) => {
     return;
   }
 
-  const db = supabase();
+  const db = database();
   let streamSid = null;
   let callSid = null;
   let transcript = "";
@@ -102,17 +114,13 @@ wss.on("connection", (twilioWs, req) => {
   // point cannot reach OpenAI no matter what a connected client sends.
   async function openOpenAiSession() {
     if (!db) {
-      console.error("[voice-relay] Supabase not configured — cannot validate callSid, refusing to bridge");
+      console.error("[voice-relay] DATABASE_URL not configured — cannot validate callSid, refusing to bridge");
       twilioWs.close(1008, "not_configured");
       return;
     }
-    const { data, error } = await db
-      .from("call_logs")
-      .select("id")
-      .eq("provider_call_sid", callSid)
-      .eq("is_ai_call", true)
-      .maybeSingle();
-    if (error || !data) {
+    let data = null;
+    try { data = await db.findAiCall(callSid); } catch (err) { console.error("[voice-relay] call lookup failed:", err.message); }
+    if (!data) {
       console.error(`[voice-relay] unrecognized callSid "${callSid}" — refusing to open an OpenAI session`);
       twilioWs.close(1008, "unrecognized_call");
       return;
@@ -206,7 +214,7 @@ wss.on("connection", (twilioWs, req) => {
     if (finalized || !callSid || !db) return;
     finalized = true;
     try {
-      await db.from("call_logs").update({ ai_transcript: transcript, status: "completed" }).eq("provider_call_sid", callSid).eq("is_ai_call", true);
+      await db.saveTranscript(callSid, transcript);
     } catch (err) {
       console.error("[voice-relay] finalize db update failed:", err.message);
     }

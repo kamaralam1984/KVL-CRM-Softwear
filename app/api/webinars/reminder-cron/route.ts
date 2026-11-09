@@ -9,7 +9,7 @@
 // in this codebase that get the base URL passed in from the caller.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { sendWhatsApp, sendSms, sendEmail, isWhatsAppConfigured, isSmsConfigured } from "@/lib/messaging/send";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     const now = Date.now();
 
     const { data: webinars, error: webErr } = await db.from("webinars").select("*").eq("published", true).not("scheduled_at", "is", null);

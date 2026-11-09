@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { dispatchWebhookEvent } from "./dispatch";
 
 describe("dispatchWebhookEvent (Phase 40) — never throws", () => {
-  it("resolves cleanly with no Supabase configured in this test env", async () => {
+  it("resolves cleanly with no database configured in this test env", async () => {
     await expect(dispatchWebhookEvent("lead.created", { id: 1, name: "Test Lead" })).resolves.toBeUndefined();
   });
 

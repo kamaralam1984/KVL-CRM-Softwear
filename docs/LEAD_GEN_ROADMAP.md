@@ -18,7 +18,7 @@ Test: `POST http://localhost:3008/api/leadgen/run`
 Body: `{"queries":["dentists in Delhi"],"dailyTarget":10}`
 
 Abhi **mock data** se chal raha hai (asli API key nahi hai). Sab kaam karta hai
-sirf save Supabase live hone par hoga.
+sirf save database live hone par hoga.
 
 ---
 
@@ -26,8 +26,7 @@ sirf save Supabase live hone par hoga.
 
 ```bash
 # Zaroori — save ke liye (abhi missing → save fail ho raha hai)
-NEXT_PUBLIC_SUPABASE_URL=...        # asli Supabase project URL
-SUPABASE_SERVICE_ROLE_KEY=...
+DATABASE_URL=...        # Neon Postgres connection string
 
 # AI scoring (already set hai)
 ANTHROPIC_API_KEY=...
@@ -39,8 +38,8 @@ GOOGLE_MAPS_API_KEY=...
 LEADGEN_CRON_SECRET=<koi-lamba-random-string>
 ```
 
-> **Sabse pehla step:** Supabase project asli connect karo taaki `saved: 0`
-> `saved: 10` ban jaye. (Memory: "needs env vars, Supabase + AI setup")
+> **Sabse pehla step:** Neon database asli connect karo taaki `saved: 0`
+> `saved: 10` ban jaye. (Memory: "needs env vars, database + AI setup")
 
 ---
 
@@ -56,7 +55,7 @@ Roz subah ~9:00 IST (3:30 UTC) apne-aap chalta hai. **3 options** (jo bhi use ka
 
 - Route ab `LEADGEN_CRON_SECRET` **ya** Vercel ka `CRON_SECRET` dono accept karta hai.
 - `maxDuration = 60s` set hai (AI scoring ke liye time).
-- **Tested:** `node scripts/run-leadgen.mjs` → OK, sourced 60 → dedupe 30 → saved 0 (Supabase live hote hi saved chalu).
+- **Tested:** `node scripts/run-leadgen.mjs` → OK, sourced 60 → dedupe 30 → saved 0 (database live hote hi saved chalu).
 - Schedule badalni ho: cron string `30 3 * * *` change karo (UTC me hota hai; 3:30 UTC = 9:00 IST).
 
 ## ✅ Phase 3 — Auto Outreach — DONE
@@ -91,7 +90,7 @@ Ab **5 sources** hain, sab ek saath chal sakte hain (registry: `sources/index.ts
 | Google Maps | `sources/googleMaps.ts` | `GOOGLE_MAPS_API_KEY` | mock |
 | Apollo (B2B) | `sources/apollo.ts` | `APOLLO_API_KEY` | mock |
 | Hunter (email finder) | `sources/hunter.ts` | `HUNTER_API_KEY` | mock |
-| Web-form (inbound) | `sources/webForm.ts` | Supabase `web_form_submissions` table | mock |
+| Web-form (inbound) | `sources/webForm.ts` | database `web_form_submissions` table | mock |
 | Scrape (directories) | `sources/scrape.ts` | `SERPER_API_KEY` (compliant) | mock |
 
 **Pipeline config ab do tarah se:**

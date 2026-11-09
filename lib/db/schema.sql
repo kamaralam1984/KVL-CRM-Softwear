@@ -1,44 +1,41 @@
--- Run this in your Supabase SQL editor to set up the CRM schema
+-- KVL CRM database schema — Neon Postgres (any PostgreSQL 14+).
+-- Run once in the Neon SQL Editor (or: psql "$DATABASE_URL" -f lib/db/schema.sql).
+-- Fully idempotent: safe to run again after updates.
 --
--- Gap-check fix: this file used to start with
---   alter database postgres set "app.jwt_secret" to 'your-jwt-secret';
--- Real Supabase Postgres denies "permission denied to set parameter
--- app.jwt_secret" for the standard `postgres` role (confirmed by actually
--- running this file against a live project) — Supabase manages the JWT
--- secret itself via its own infra; this manual override was never needed
--- for auth.uid()/auth.role()/RLS to work. Removed rather than worked around.
+-- Access control lives in the application (server actions + RBAC); the database is only
+-- reachable from the server through DATABASE_URL, so no row-level-security policies are needed.
 
--- ── Profiles (extends auth.users) ──────────────────────────────────────────
+-- ── Authentication (own implementation; replaces the old hosted auth provider) ─────────
+create table if not exists auth_users (
+  id                  uuid primary key default gen_random_uuid(),
+  email               text not null,
+  password_hash       text,                       -- scrypt:… (or $2… bcrypt when imported)
+  email_confirmed_at  timestamptz default now(),
+  user_metadata       jsonb not null default '{}',
+  provider            text not null default 'password',   -- password | google | github
+  last_sign_in_at     timestamptz,
+  created_at          timestamptz default now()
+);
+create unique index if not exists auth_users_email_uidx on auth_users (lower(email));
+
+create table if not exists password_resets (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth_users(id) on delete cascade,
+  token_hash  text not null unique,
+  expires_at  timestamptz not null,
+  used_at     timestamptz,
+  created_at  timestamptz default now()
+);
+create index if not exists password_resets_user_idx on password_resets (user_id);
+
+-- ── Profiles (role + display name per user) ────────────────────────────────
 create table if not exists profiles (
-  id         uuid primary key references auth.users(id) on delete cascade,
+  id         uuid primary key references auth_users(id) on delete cascade,
   name       text not null default '',
   role       text not null default 'Member',
   avatar     text,
   created_at timestamptz default now()
 );
-alter table profiles enable row level security;
-drop policy if exists "Users can read own profile" on profiles;
-create policy "Users can read own profile"   on profiles for select using (auth.uid() = id);
-drop policy if exists "Users can update own profile" on profiles;
-create policy "Users can update own profile" on profiles for update using (auth.uid() = id);
-
--- Auto-create profile on signup
-create or replace function handle_new_user()
-returns trigger language plpgsql security definer as $$
-begin
-  insert into profiles (id, name, role)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'role', 'Member')
-  );
-  return new;
-end;
-$$;
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure handle_new_user();
 
 -- ── Leads ──────────────────────────────────────────────────────────────────
 create table if not exists leads (
@@ -58,9 +55,6 @@ create table if not exists leads (
   created_at   timestamptz default now(),
   updated_at   timestamptz default now()
 );
-alter table leads enable row level security;
-drop policy if exists "Authenticated users can CRUD leads" on leads;
-create policy "Authenticated users can CRUD leads" on leads for all using (auth.role() = 'authenticated');
 
 -- ── Web-form submissions ─────────────────────────────────────────────────────
 -- Inbound leads captured by your public landing-page form. Polled by
@@ -77,9 +71,6 @@ create table if not exists web_form_submissions (
   created_at   timestamptz not null default now()
 );
 create index if not exists web_form_submissions_processed_idx on web_form_submissions (processed, created_at);
-alter table web_form_submissions enable row level security;
-drop policy if exists "Authenticated users can CRUD web_form_submissions" on web_form_submissions;
-create policy "Authenticated users can CRUD web_form_submissions" on web_form_submissions for all using (auth.role() = 'authenticated');
 
 -- ── Customers ──────────────────────────────────────────────────────────────
 create table if not exists customers (
@@ -98,9 +89,6 @@ create table if not exists customers (
   created_at    timestamptz default now(),
   updated_at    timestamptz default now()
 );
-alter table customers enable row level security;
-drop policy if exists "Authenticated users can CRUD customers" on customers;
-create policy "Authenticated users can CRUD customers" on customers for all using (auth.role() = 'authenticated');
 
 -- ── Customer NPS responses ───────────────────────────────────────────────────
 -- Manually-logged Net Promoter Score responses (see components/crm/sections/
@@ -114,9 +102,6 @@ create table if not exists customer_nps_responses (
   created_at    timestamptz not null default now()
 );
 create index if not exists customer_nps_responses_created_idx on customer_nps_responses (created_at);
-alter table customer_nps_responses enable row level security;
-drop policy if exists "Authenticated users can CRUD customer_nps_responses" on customer_nps_responses;
-create policy "Authenticated users can CRUD customer_nps_responses" on customer_nps_responses for all using (auth.role() = 'authenticated');
 
 -- ── Deals ──────────────────────────────────────────────────────────────────
 create table if not exists deals (
@@ -132,9 +117,6 @@ create table if not exists deals (
   created_at     timestamptz default now(),
   updated_at     timestamptz default now()
 );
-alter table deals enable row level security;
-drop policy if exists "Authenticated users can CRUD deals" on deals;
-create policy "Authenticated users can CRUD deals" on deals for all using (auth.role() = 'authenticated');
 
 -- ── Tasks ──────────────────────────────────────────────────────────────────
 create table if not exists tasks (
@@ -149,9 +131,6 @@ create table if not exists tasks (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-alter table tasks enable row level security;
-drop policy if exists "Authenticated users can CRUD tasks" on tasks;
-create policy "Authenticated users can CRUD tasks" on tasks for all using (auth.role() = 'authenticated');
 
 -- ── Calendar events ──────────────────────────────────────────────────────
 create table if not exists calendar_events (
@@ -166,9 +145,6 @@ create table if not exists calendar_events (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-alter table calendar_events enable row level security;
-drop policy if exists "Authenticated users can CRUD calendar_events" on calendar_events;
-create policy "Authenticated users can CRUD calendar_events" on calendar_events for all using (auth.role() = 'authenticated');
 
 -- ── Integration connections (OAuth-connected third-party apps) ──────────────
 -- One row per connected provider (e.g. Razorpay Connect). access_token is the
@@ -181,9 +157,6 @@ create table if not exists integration_connections (
   account_ref       text default '',
   connected_at      timestamptz not null default now()
 );
-alter table integration_connections enable row level security;
-drop policy if exists "Authenticated users can CRUD integration_connections" on integration_connections;
-create policy "Authenticated users can CRUD integration_connections" on integration_connections for all using (auth.role() = 'authenticated');
 
 -- ── Invoices ───────────────────────────────────────────────────────────────
 create table if not exists invoices (
@@ -196,9 +169,6 @@ create table if not exists invoices (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-alter table invoices enable row level security;
-drop policy if exists "Authenticated users can CRUD invoices" on invoices;
-create policy "Authenticated users can CRUD invoices" on invoices for all using (auth.role() = 'authenticated');
 
 -- ── Team members ───────────────────────────────────────────────────────────
 create table if not exists team_members (
@@ -216,9 +186,6 @@ create table if not exists team_members (
   created_at  timestamptz default now(),
   updated_at  timestamptz default now()
 );
-alter table team_members enable row level security;
-drop policy if exists "Authenticated users can CRUD team_members" on team_members;
-create policy "Authenticated users can CRUD team_members" on team_members for all using (auth.role() = 'authenticated');
 
 -- ── Email campaigns ────────────────────────────────────────────────────────
 create table if not exists email_campaigns (
@@ -235,9 +202,6 @@ create table if not exists email_campaigns (
   created_at  timestamptz default now(),
   updated_at  timestamptz default now()
 );
-alter table email_campaigns enable row level security;
-drop policy if exists "Authenticated users can CRUD email_campaigns" on email_campaigns;
-create policy "Authenticated users can CRUD email_campaigns" on email_campaigns for all using (auth.role() = 'authenticated');
 
 -- ── WhatsApp conversations ─────────────────────────────────────────────────
 create table if not exists whatsapp_conversations (
@@ -253,9 +217,6 @@ create table if not exists whatsapp_conversations (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-alter table whatsapp_conversations enable row level security;
-drop policy if exists "Authenticated users can CRUD whatsapp_conversations" on whatsapp_conversations;
-create policy "Authenticated users can CRUD whatsapp_conversations" on whatsapp_conversations for all using (auth.role() = 'authenticated');
 -- Phase 21: idempotent for a table created before this column existed.
 alter table whatsapp_conversations add column if not exists contact_phone text default '';
 
@@ -269,9 +230,6 @@ create table if not exists activity_feed (
   color      text default '',
   created_at timestamptz default now()
 );
-alter table activity_feed enable row level security;
-drop policy if exists "Authenticated users can CRUD activity_feed" on activity_feed;
-create policy "Authenticated users can CRUD activity_feed" on activity_feed for all using (auth.role() = 'authenticated');
 
 -- ── Visitors (Phase 17 — Lead Intelligence & Acquisition Engine, Wave 1) ────
 -- Anonymous, first-party visitor identity. Never store PII here — PII only
@@ -314,9 +272,6 @@ create table if not exists visitors (
 );
 create index if not exists visitors_visitor_id_idx   on visitors (visitor_id);
 create index if not exists visitors_last_seen_at_idx on visitors (last_seen_at desc);
-alter table visitors enable row level security;
-drop policy if exists "Authenticated users can CRUD visitors" on visitors;
-create policy "Authenticated users can CRUD visitors" on visitors for all using (auth.role() = 'authenticated');
 
 -- ── Visitor sessions ─────────────────────────────────────────────────────
 create table if not exists visitor_sessions (
@@ -343,9 +298,6 @@ create table if not exists visitor_sessions (
   created_at        timestamptz default now()
 );
 create index if not exists visitor_sessions_visitor_id_idx on visitor_sessions (visitor_id);
-alter table visitor_sessions enable row level security;
-drop policy if exists "Authenticated users can CRUD visitor_sessions" on visitor_sessions;
-create policy "Authenticated users can CRUD visitor_sessions" on visitor_sessions for all using (auth.role() = 'authenticated');
 
 -- ── Visitor events ───────────────────────────────────────────────────────
 -- High-volume append-only event log. Never store passwords/payment data
@@ -361,9 +313,6 @@ create table if not exists visitor_events (
 );
 create index if not exists visitor_events_visitor_created_idx on visitor_events (visitor_id, created_at desc);
 create index if not exists visitor_events_event_name_idx      on visitor_events (event_name);
-alter table visitor_events enable row level security;
-drop policy if exists "Authenticated users can CRUD visitor_events" on visitor_events;
-create policy "Authenticated users can CRUD visitor_events" on visitor_events for all using (auth.role() = 'authenticated');
 
 -- ── Tracking consent log ─────────────────────────────────────────────────
 create table if not exists tracking_consents (
@@ -374,9 +323,6 @@ create table if not exists tracking_consents (
   created_at      timestamptz not null default now()
 );
 create index if not exists tracking_consents_visitor_id_idx on tracking_consents (visitor_id);
-alter table tracking_consents enable row level security;
-drop policy if exists "Authenticated users can CRUD tracking_consents" on tracking_consents;
-create policy "Authenticated users can CRUD tracking_consents" on tracking_consents for all using (auth.role() = 'authenticated');
 
 -- ── Campaigns (Phase 17 — Lead Intelligence & Acquisition Engine, Wave 2) ───
 -- Auto-created the first time a named utm_campaign is seen; spend/budget/status
@@ -398,9 +344,6 @@ create table if not exists campaigns (
   updated_at      timestamptz default now()
 );
 create index if not exists campaigns_campaign_key_idx on campaigns (campaign_key);
-alter table campaigns enable row level security;
-drop policy if exists "Authenticated users can CRUD campaigns" on campaigns;
-create policy "Authenticated users can CRUD campaigns" on campaigns for all using (auth.role() = 'authenticated');
 
 -- ── Campaign touchpoints ─────────────────────────────────────────────────
 -- Durable, append-only attribution ledger — decoupled from visitor_sessions so
@@ -417,9 +360,6 @@ create table if not exists campaign_touchpoints (
 );
 create index if not exists campaign_touchpoints_visitor_id_idx   on campaign_touchpoints (visitor_id);
 create index if not exists campaign_touchpoints_campaign_id_idx  on campaign_touchpoints (campaign_id);
-alter table campaign_touchpoints enable row level security;
-drop policy if exists "Authenticated users can CRUD campaign_touchpoints" on campaign_touchpoints;
-create policy "Authenticated users can CRUD campaign_touchpoints" on campaign_touchpoints for all using (auth.role() = 'authenticated');
 
 -- ── Landing pages ────────────────────────────────────────────────────────
 -- Traffic-only rollup for now — bounce rate / form completion / revenue land
@@ -433,9 +373,6 @@ create table if not exists landing_pages (
   created_at     timestamptz default now()
 );
 create index if not exists landing_pages_url_path_idx on landing_pages (url_path);
-alter table landing_pages enable row level security;
-drop policy if exists "Authenticated users can CRUD landing_pages" on landing_pages;
-create policy "Authenticated users can CRUD landing_pages" on landing_pages for all using (auth.role() = 'authenticated');
 
 -- ── Leads: acquisition-engine attribution columns (Phase 17, Wave 3) ───────
 -- `leads` already exists from the original schema above — a fresh
@@ -457,9 +394,6 @@ create table if not exists visitor_identity_links (
   matched_at   timestamptz not null default now()
 );
 create index if not exists visitor_identity_links_lead_id_idx on visitor_identity_links (lead_id);
-alter table visitor_identity_links enable row level security;
-drop policy if exists "Authenticated users can CRUD visitor_identity_links" on visitor_identity_links;
-create policy "Authenticated users can CRUD visitor_identity_links" on visitor_identity_links for all using (auth.role() = 'authenticated');
 
 -- ── Visitors: intent scoring columns (Phase 17, Wave 4) ─────────────────────
 alter table visitors add column if not exists intent_score int not null default 0 check (intent_score between 0 and 100);
@@ -475,9 +409,6 @@ create table if not exists intent_scoring_rules (
   description  text default '',
   updated_at   timestamptz default now()
 );
-alter table intent_scoring_rules enable row level security;
-drop policy if exists "Authenticated users can CRUD intent_scoring_rules" on intent_scoring_rules;
-create policy "Authenticated users can CRUD intent_scoring_rules" on intent_scoring_rules for all using (auth.role() = 'authenticated');
 
 
 -- ── Acquisition settings (Phase 17, Wave 7 — Campaign ROI + Admin Controls) ─
@@ -491,9 +422,6 @@ create table if not exists acquisition_settings (
   value        text not null default '',
   updated_at   timestamptz default now()
 );
-alter table acquisition_settings enable row level security;
-drop policy if exists "Authenticated users can CRUD acquisition_settings" on acquisition_settings;
-create policy "Authenticated users can CRUD acquisition_settings" on acquisition_settings for all using (auth.role() = 'authenticated');
 
 
 -- ── Push subscriptions (Phase 17, Wave 9 — Growth & Re-engagement Channels) ─
@@ -510,9 +438,6 @@ create table if not exists push_subscriptions (
   revoked_at   timestamptz
 );
 create index if not exists push_subscriptions_visitor_id_idx on push_subscriptions (visitor_id);
-alter table push_subscriptions enable row level security;
-drop policy if exists "Authenticated users can CRUD push_subscriptions" on push_subscriptions;
-create policy "Authenticated users can CRUD push_subscriptions" on push_subscriptions for all using (auth.role() = 'authenticated');
 
 -- ── Sites (Phase 17, Wave 10 — Multi-Tenant Embed) ──────────────────────────
 -- Public embeddable identity for a website using the tracking SDK. KVL's own
@@ -530,16 +455,13 @@ create table if not exists sites (
   active       boolean not null default true,
   created_at   timestamptz default now()
 );
-alter table sites enable row level security;
-drop policy if exists "Authenticated users can CRUD sites" on sites;
-create policy "Authenticated users can CRUD sites" on sites for all using (auth.role() = 'authenticated');
 
 insert into sites (site_id, name, domains) values
   ('kvl-default', 'KVL CRM (default)', '{}')
 on conflict (site_id) do nothing;
 
 -- Permanently seeded (not created ad-hoc via the Admin Panel) so it survives
--- a fresh migration on any Supabase project this schema is run against —
+-- a fresh migration on any database this schema is run against —
 -- kvlbusinesssolutions.com belongs to this same owner and should always have
 -- an isolated, embeddable site ready, with zero manual setup required.
 insert into sites (site_id, name, domains) values
@@ -683,9 +605,6 @@ create table if not exists workflows (
   created_at  timestamptz default now(),
   updated_at  timestamptz default now()
 );
-alter table workflows enable row level security;
-drop policy if exists "Authenticated can access workflows" on workflows;
-create policy "Authenticated can access workflows" on workflows for all using (auth.role() = 'authenticated');
 drop trigger if exists workflows_updated_at on workflows;
 create trigger workflows_updated_at before update on workflows for each row execute procedure set_updated_at();
 
@@ -700,9 +619,6 @@ create table if not exists workflow_runs (
   ok            boolean not null default true,
   ran_at        timestamptz default now()
 );
-alter table workflow_runs enable row level security;
-drop policy if exists "Authenticated can access workflow_runs" on workflow_runs;
-create policy "Authenticated can access workflow_runs" on workflow_runs for all using (auth.role() = 'authenticated');
 create index if not exists workflow_runs_workflow_key_idx on workflow_runs (workflow_key);
 create index if not exists workflow_runs_ran_at_idx on workflow_runs (ran_at desc);
 
@@ -718,9 +634,6 @@ create table if not exists workflow_graphs (
   version      int not null default 1,
   updated_at   timestamptz default now()
 );
-alter table workflow_graphs enable row level security;
-drop policy if exists "Authenticated can access workflow_graphs" on workflow_graphs;
-create policy "Authenticated can access workflow_graphs" on workflow_graphs for all using (auth.role() = 'authenticated');
 drop trigger if exists workflow_graphs_updated_at on workflow_graphs;
 create trigger workflow_graphs_updated_at before update on workflow_graphs for each row execute procedure set_updated_at();
 
@@ -744,9 +657,6 @@ create table if not exists conversations (
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
 );
-alter table conversations enable row level security;
-drop policy if exists "Authenticated can access conversations" on conversations;
-create policy "Authenticated can access conversations" on conversations for all using (auth.role() = 'authenticated');
 create index if not exists conversations_channel_phone_idx on conversations (channel, contact_phone);
 create index if not exists conversations_last_message_idx on conversations (last_message_at desc);
 drop trigger if exists conversations_updated_at on conversations;
@@ -769,9 +679,6 @@ create table if not exists messages (
   sent_by              text default '',
   created_at           timestamptz default now()
 );
-alter table messages enable row level security;
-drop policy if exists "Authenticated can access messages" on messages;
-create policy "Authenticated can access messages" on messages for all using (auth.role() = 'authenticated');
 create index if not exists messages_conversation_idx on messages (conversation_id, created_at);
 
 -- ── Phase 24 — Funnel / Landing-Page Drag-Drop Builder ──────────────────────
@@ -795,9 +702,6 @@ create table if not exists funnels (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-alter table funnels enable row level security;
-drop policy if exists "Authenticated can access funnels" on funnels;
-create policy "Authenticated can access funnels" on funnels for all using (auth.role() = 'authenticated');
 drop trigger if exists funnels_updated_at on funnels;
 create trigger funnels_updated_at before update on funnels for each row execute procedure set_updated_at();
 
@@ -808,9 +712,6 @@ create table if not exists funnel_steps (
   page_id     bigint references landing_pages(id) on delete set null,
   step_type   text not null default 'landing' check (step_type in ('landing','upsell','downsell','thankyou'))
 );
-alter table funnel_steps enable row level security;
-drop policy if exists "Authenticated can access funnel_steps" on funnel_steps;
-create policy "Authenticated can access funnel_steps" on funnel_steps for all using (auth.role() = 'authenticated');
 create index if not exists funnel_steps_funnel_idx on funnel_steps (funnel_id, step_order);
 
 -- ── Phase 25 — Social Planner: real organic publish + scheduling ───────────
@@ -831,9 +732,6 @@ create table if not exists social_posts (
   published_at   timestamptz,
   created_at     timestamptz default now()
 );
-alter table social_posts enable row level security;
-drop policy if exists "Authenticated can access social_posts" on social_posts;
-create policy "Authenticated can access social_posts" on social_posts for all using (auth.role() = 'authenticated');
 create index if not exists social_posts_status_scheduled_idx on social_posts (status, scheduled_at);
 
 -- ── Phase 26 — Reputation Management ────────────────────────────────────────
@@ -850,9 +748,6 @@ create table if not exists reviews (
   reviewed_at      timestamptz,
   created_at       timestamptz default now()
 );
-alter table reviews enable row level security;
-drop policy if exists "Authenticated can access reviews" on reviews;
-create policy "Authenticated can access reviews" on reviews for all using (auth.role() = 'authenticated');
 create unique index if not exists reviews_source_external_idx on reviews (source, external_review_id) where external_review_id is not null;
 
 create table if not exists review_requests (
@@ -862,9 +757,6 @@ create table if not exists review_requests (
   sent_at     timestamptz default now(),
   status      text not null default 'sent'
 );
-alter table review_requests enable row level security;
-drop policy if exists "Authenticated can access review_requests" on review_requests;
-create policy "Authenticated can access review_requests" on review_requests for all using (auth.role() = 'authenticated');
 
 -- ── Phase 27 — Commerce Suite I: real orders + Razorpay Orders/Payment Links ─
 -- Rebuilds components/crm/sections/KVlCommerce.tsx (previously 972 lines,
@@ -884,9 +776,6 @@ create table if not exists products (
   created_at  timestamptz default now(),
   updated_at  timestamptz default now()
 );
-alter table products enable row level security;
-drop policy if exists "Authenticated can access products" on products;
-create policy "Authenticated can access products" on products for all using (auth.role() = 'authenticated');
 drop trigger if exists products_updated_at on products;
 create trigger products_updated_at before update on products for each row execute procedure set_updated_at();
 
@@ -906,9 +795,6 @@ create table if not exists orders (
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
 );
-alter table orders enable row level security;
-drop policy if exists "Authenticated can access orders" on orders;
-create policy "Authenticated can access orders" on orders for all using (auth.role() = 'authenticated');
 drop trigger if exists orders_updated_at on orders;
 create trigger orders_updated_at before update on orders for each row execute procedure set_updated_at();
 
@@ -920,9 +806,6 @@ create table if not exists order_items (
   qty           int not null default 1,
   price         numeric not null default 0
 );
-alter table order_items enable row level security;
-drop policy if exists "Authenticated can access order_items" on order_items;
-create policy "Authenticated can access order_items" on order_items for all using (auth.role() = 'authenticated');
 create index if not exists order_items_order_idx on order_items (order_id);
 
 -- ── Phase 28 — Commerce Suite II: Gift Cards, Loyalty, Upsell/Downsell ──────
@@ -936,9 +819,6 @@ create table if not exists gift_cards (
   expires_at    timestamptz,
   created_at    timestamptz default now()
 );
-alter table gift_cards enable row level security;
-drop policy if exists "Authenticated can access gift_cards" on gift_cards;
-create policy "Authenticated can access gift_cards" on gift_cards for all using (auth.role() = 'authenticated');
 
 -- Append-only ledger — balance is sum(points) per customer, computed on
 -- read, not a mutable column. Gives free audit history with no extra work.
@@ -950,9 +830,6 @@ create table if not exists loyalty_points (
   order_id    uuid references orders(id) on delete set null,
   created_at  timestamptz default now()
 );
-alter table loyalty_points enable row level security;
-drop policy if exists "Authenticated can access loyalty_points" on loyalty_points;
-create policy "Authenticated can access loyalty_points" on loyalty_points for all using (auth.role() = 'authenticated');
 create index if not exists loyalty_points_customer_idx on loyalty_points (customer_id);
 
 -- ── Phase 29 — Membership & Courses ──────────────────────────────────────────
@@ -967,9 +844,6 @@ create table if not exists membership_tiers (
   razorpay_plan_id text,
   created_at    timestamptz default now()
 );
-alter table membership_tiers enable row level security;
-drop policy if exists "Authenticated can access membership_tiers" on membership_tiers;
-create policy "Authenticated can access membership_tiers" on membership_tiers for all using (auth.role() = 'authenticated');
 
 create table if not exists memberships (
   id            uuid primary key default gen_random_uuid(),
@@ -980,9 +854,6 @@ create table if not exists memberships (
   current_period_end timestamptz,
   created_at    timestamptz default now()
 );
-alter table memberships enable row level security;
-drop policy if exists "Authenticated can access memberships" on memberships;
-create policy "Authenticated can access memberships" on memberships for all using (auth.role() = 'authenticated');
 create index if not exists memberships_tier_idx on memberships (tier_id);
 create unique index if not exists memberships_subscription_idx on memberships (razorpay_subscription_id) where razorpay_subscription_id is not null;
 
@@ -995,9 +866,6 @@ create table if not exists course_content (
   drip_day    int not null default 0, -- unlocks N days after membership start; 0 = immediately
   sort_order  int not null default 0
 );
-alter table course_content enable row level security;
-drop policy if exists "Authenticated can access course_content" on course_content;
-create policy "Authenticated can access course_content" on course_content for all using (auth.role() = 'authenticated');
 create index if not exists course_content_tier_idx on course_content (tier_id, sort_order);
 
 -- ── Phase 30 — Affiliate Manager ─────────────────────────────────────────────
@@ -1014,9 +882,6 @@ create table if not exists affiliates (
   status          text not null default 'active' check (status in ('active','paused')),
   created_at      timestamptz default now()
 );
-alter table affiliates enable row level security;
-drop policy if exists "Authenticated can access affiliates" on affiliates;
-create policy "Authenticated can access affiliates" on affiliates for all using (auth.role() = 'authenticated');
 
 create table if not exists affiliate_commissions (
   id           uuid primary key default gen_random_uuid(),
@@ -1027,9 +892,6 @@ create table if not exists affiliate_commissions (
   paid_at      timestamptz,
   created_at   timestamptz default now()
 );
-alter table affiliate_commissions enable row level security;
-drop policy if exists "Authenticated can access affiliate_commissions" on affiliate_commissions;
-create policy "Authenticated can access affiliate_commissions" on affiliate_commissions for all using (auth.role() = 'authenticated');
 create index if not exists affiliate_commissions_affiliate_idx on affiliate_commissions (affiliate_id);
 
 -- ── Phase 31 — SaaS Mode: Tenant Billing & Self-Signup ──────────────────────
@@ -1057,21 +919,15 @@ create table if not exists tenants (
   trial_ends_at  timestamptz,
   created_at    timestamptz default now()
 );
-alter table tenants enable row level security;
-drop policy if exists "Authenticated can access tenants" on tenants;
-create policy "Authenticated can access tenants" on tenants for all using (auth.role() = 'authenticated');
 
--- Links a Supabase Auth user (Phase 18's real auth path) to a tenant —
--- nothing currently connects auth.users to tenants at all.
+-- Links an auth user (Phase 18's real auth path) to a tenant —
+-- nothing currently connects auth_users to tenants at all.
 create table if not exists tenant_users (
   tenant_id uuid not null references tenants(id) on delete cascade,
-  user_id   uuid not null references auth.users(id) on delete cascade,
+  user_id   uuid not null references auth_users(id) on delete cascade,
   role      text not null default 'owner',
   primary key (tenant_id, user_id)
 );
-alter table tenant_users enable row level security;
-drop policy if exists "Authenticated can access tenant_users" on tenant_users;
-create policy "Authenticated can access tenant_users" on tenant_users for all using (auth.role() = 'authenticated');
 
 -- ── Phase 33 — Birthday / Seasonal Auto-Campaigns ───────────────────────────
 -- Additive only — extends existing lib/outreach/lib/marketing senders,
@@ -1101,9 +957,6 @@ create table if not exists sms_templates (
   created_at     timestamptz default now(),
   unique (site_id, template_key)
 );
-alter table sms_templates enable row level security;
-drop policy if exists "Authenticated can access sms_templates" on sms_templates;
-create policy "Authenticated can access sms_templates" on sms_templates for all using (auth.role() = 'authenticated');
 
 -- ── Phase 36 — Affiliate Payout Automation (Razorpay Route/RazorpayX) ───────
 -- Additive columns only. A payee needs a RazorpayX Contact + Fund Account
@@ -1132,9 +985,6 @@ create table if not exists api_keys (
   last_used_at  timestamptz,
   created_at    timestamptz default now()
 );
-alter table api_keys enable row level security;
-drop policy if exists "Authenticated can access api_keys" on api_keys;
-create policy "Authenticated can access api_keys" on api_keys for all using (auth.role() = 'authenticated');
 
 create table if not exists webhooks (
   id             uuid primary key default gen_random_uuid(),
@@ -1145,9 +995,6 @@ create table if not exists webhooks (
   active         boolean not null default true,
   created_at     timestamptz default now()
 );
-alter table webhooks enable row level security;
-drop policy if exists "Authenticated can access webhooks" on webhooks;
-create policy "Authenticated can access webhooks" on webhooks for all using (auth.role() = 'authenticated');
 
 create table if not exists webhook_deliveries (
   id          uuid primary key default gen_random_uuid(),
@@ -1157,9 +1004,6 @@ create table if not exists webhook_deliveries (
   ok          boolean not null default false,
   created_at  timestamptz default now()
 );
-alter table webhook_deliveries enable row level security;
-drop policy if exists "Authenticated can access webhook_deliveries" on webhook_deliveries;
-create policy "Authenticated can access webhook_deliveries" on webhook_deliveries for all using (auth.role() = 'authenticated');
 create index if not exists webhook_deliveries_webhook_idx on webhook_deliveries (webhook_id);
 
 -- Gap-check fix (Phase 35) — social_posts.platform's check constraint still
@@ -1189,9 +1033,6 @@ create table if not exists forms (
   created_at     timestamptz default now(),
   unique (site_id, slug)
 );
-alter table forms enable row level security;
-drop policy if exists "Authenticated can access forms" on forms;
-create policy "Authenticated can access forms" on forms for all using (auth.role() = 'authenticated');
 
 create table if not exists form_submissions (
   id             uuid primary key default gen_random_uuid(),
@@ -1204,9 +1045,6 @@ create table if not exists form_submissions (
   processed      boolean not null default false,
   created_at     timestamptz default now()
 );
-alter table form_submissions enable row level security;
-drop policy if exists "Authenticated can access form_submissions" on form_submissions;
-create policy "Authenticated can access form_submissions" on form_submissions for all using (auth.role() = 'authenticated');
 create index if not exists form_submissions_form_idx on form_submissions (form_id);
 
 -- ── Phase 41 — Call Tracking (Dynamic Number Insertion) ─────────────────────
@@ -1226,9 +1064,6 @@ create table if not exists tracking_numbers (
   forward_to_number  text not null default '',
   created_at         timestamptz default now()
 );
-alter table tracking_numbers enable row level security;
-drop policy if exists "Authenticated can access tracking_numbers" on tracking_numbers;
-create policy "Authenticated can access tracking_numbers" on tracking_numbers for all using (auth.role() = 'authenticated');
 
 create table if not exists call_logs (
   id                  uuid primary key default gen_random_uuid(),
@@ -1246,9 +1081,6 @@ create table if not exists call_logs (
   ai_transcript       text default '',
   created_at          timestamptz default now()
 );
-alter table call_logs enable row level security;
-drop policy if exists "Authenticated can access call_logs" on call_logs;
-create policy "Authenticated can access call_logs" on call_logs for all using (auth.role() = 'authenticated');
 create index if not exists call_logs_tracking_number_idx on call_logs (tracking_number_id);
 create index if not exists call_logs_provider_sid_idx on call_logs (provider_call_sid);
 
@@ -1276,9 +1108,6 @@ create table if not exists webinars (
   created_at        timestamptz default now(),
   unique (site_id, slug)
 );
-alter table webinars enable row level security;
-drop policy if exists "Authenticated can access webinars" on webinars;
-create policy "Authenticated can access webinars" on webinars for all using (auth.role() = 'authenticated');
 
 create table if not exists webinar_registrations (
   id                    uuid primary key default gen_random_uuid(),
@@ -1294,9 +1123,6 @@ create table if not exists webinar_registrations (
   processed             boolean not null default false,
   created_at            timestamptz default now()
 );
-alter table webinar_registrations enable row level security;
-drop policy if exists "Authenticated can access webinar_registrations" on webinar_registrations;
-create policy "Authenticated can access webinar_registrations" on webinar_registrations for all using (auth.role() = 'authenticated');
 create index if not exists webinar_registrations_webinar_idx on webinar_registrations (webinar_id);
 
 -- A dedicated table, not a reuse of Phase 21/23's conversations/messages —
@@ -1309,9 +1135,6 @@ create table if not exists webinar_chat_messages (
   body        text not null,
   created_at  timestamptz default now()
 );
-alter table webinar_chat_messages enable row level security;
-drop policy if exists "Authenticated can access webinar_chat_messages" on webinar_chat_messages;
-create policy "Authenticated can access webinar_chat_messages" on webinar_chat_messages for all using (auth.role() = 'authenticated');
 create index if not exists webinar_chat_messages_webinar_idx on webinar_chat_messages (webinar_id);
 
 -- ── Follow-up Engine — 90-day multi-channel drip + 24h AI soft nudge ─────────
@@ -1337,9 +1160,6 @@ create table if not exists followup_enrollments (
   updated_at           timestamptz default now(),
   unique (lead_id, sequence_key)
 );
-alter table followup_enrollments enable row level security;
-drop policy if exists "Authenticated can access followup_enrollments" on followup_enrollments;
-create policy "Authenticated can access followup_enrollments" on followup_enrollments for all using (auth.role() = 'authenticated');
 create index if not exists followup_enrollments_due_idx on followup_enrollments (status, next_run_at);
 create index if not exists followup_enrollments_lead_idx on followup_enrollments (lead_id);
 drop trigger if exists followup_enrollments_updated_at on followup_enrollments;
@@ -1354,9 +1174,6 @@ create table if not exists followup_events (
   detail         text default '',
   created_at     timestamptz default now()
 );
-alter table followup_events enable row level security;
-drop policy if exists "Authenticated can access followup_events" on followup_events;
-create policy "Authenticated can access followup_events" on followup_events for all using (auth.role() = 'authenticated');
 create index if not exists followup_events_enrollment_idx on followup_events (enrollment_id, created_at desc);
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -1376,9 +1193,6 @@ create table if not exists suppressions (
   source     text default '',   -- inbound_stop | unsubscribe_link | bounce | complaint | manual | call_outcome
   created_at timestamptz default now()
 );
-alter table suppressions enable row level security;
-drop policy if exists "Authenticated can access suppressions" on suppressions;
-create policy "Authenticated can access suppressions" on suppressions for all using (auth.role() = 'authenticated');
 create unique index if not exists suppressions_phone_uidx on suppressions (phone, channel) where phone <> '';
 create unique index if not exists suppressions_email_uidx on suppressions (email, channel) where email <> '';
 
@@ -1401,9 +1215,6 @@ create table if not exists notifications (
   read       boolean not null default false,
   created_at timestamptz default now()
 );
-alter table notifications enable row level security;
-drop policy if exists "Authenticated can access notifications" on notifications;
-create policy "Authenticated can access notifications" on notifications for all using (auth.role() = 'authenticated');
 create index if not exists notifications_unread_idx on notifications (read, created_at desc);
 
 -- Every email in/out (thread inbox + open/click/bounce tracking via Resend webhooks).
@@ -1424,9 +1235,6 @@ create table if not exists email_log (
   sent_by     text default '',                 -- automation | ai | human email
   created_at  timestamptz default now()
 );
-alter table email_log enable row level security;
-drop policy if exists "Authenticated can access email_log" on email_log;
-create policy "Authenticated can access email_log" on email_log for all using (auth.role() = 'authenticated');
 create index if not exists email_log_provider_idx on email_log (provider_id);
 create index if not exists email_log_thread_idx on email_log (thread_key, created_at);
 create index if not exists email_log_lead_idx on email_log (lead_id, created_at desc);
@@ -1444,9 +1252,6 @@ create table if not exists message_templates (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-alter table message_templates enable row level security;
-drop policy if exists "Authenticated can access message_templates" on message_templates;
-create policy "Authenticated can access message_templates" on message_templates for all using (auth.role() = 'authenticated');
 create index if not exists message_templates_kind_idx on message_templates (kind, name);
 
 -- Key/value settings: business_hours, auto_reply, ai_answer, knowledge_base, payment_link, booking_link, team_alerts.
@@ -1455,9 +1260,6 @@ create table if not exists comms_settings (
   value      jsonb not null default '{}',
   updated_at timestamptz default now()
 );
-alter table comms_settings enable row level security;
-drop policy if exists "Authenticated can access comms_settings" on comms_settings;
-create policy "Authenticated can access comms_settings" on comms_settings for all using (auth.role() = 'authenticated');
 
 -- Call desk: link calls to leads + outcome / callback.
 alter table call_logs add column if not exists lead_id int references leads(id) on delete set null;
@@ -1479,9 +1281,6 @@ create table if not exists followup_sequences (
   match_source text default '',   -- optional: use for leads whose tags/source contain this text
   updated_at  timestamptz default now()
 );
-alter table followup_sequences enable row level security;
-drop policy if exists "Authenticated can access followup_sequences" on followup_sequences;
-create policy "Authenticated can access followup_sequences" on followup_sequences for all using (auth.role() = 'authenticated');
 alter table followup_enrollments add column if not exists steps jsonb;
 alter table followup_enrollments add column if not exists tz_offset_min int not null default 330;
 
@@ -1503,9 +1302,6 @@ create table if not exists reminders (
   dedupe_key   text unique,
   created_at   timestamptz default now()
 );
-alter table reminders enable row level security;
-drop policy if exists "Authenticated can access reminders" on reminders;
-create policy "Authenticated can access reminders" on reminders for all using (auth.role() = 'authenticated');
 create index if not exists reminders_due_idx on reminders (status, remind_at);
 alter table tasks add column if not exists reminded_at timestamptz;
 alter table tasks add column if not exists escalated_at timestamptz;

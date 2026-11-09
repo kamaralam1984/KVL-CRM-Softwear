@@ -25,7 +25,7 @@ describe("assertCan — soft-mode rollout + demo tokens (Phase 18)", () => {
     expect(error).toHaveBeenCalled();
   });
 
-  it("denies a garbage token that isn't demo-prefixed and can't be validated (no Supabase env in this test run)", async () => {
+  it("denies a garbage token that isn't demo-prefixed and can't be validated (no database in this test run)", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await assertCan("not-a-real-jwt", "finance", "read")).toBe(false);
     expect(error).toHaveBeenCalled();

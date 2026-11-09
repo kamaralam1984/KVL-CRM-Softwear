@@ -8,7 +8,7 @@ import {
   Activity, ArrowUp, Award, FlaskConical,
 } from "lucide-react";
 import { sendPushBroadcast } from "@/lib/actions/pushNotifications";
-import { DEFAULT_SITE_ID } from "@/lib/sites/store";
+import { DEFAULT_SITE_ID } from "@/lib/sites/constants";
 import { getTrackingNumbers, createTrackingNumber, deleteTrackingNumber, getCallLogs, isTelephonyConfigured, type TrackingNumber, type CallLog } from "@/lib/actions/callTracking";
 import { getAccessToken } from "@/lib/security/clientSession";
 import { Phone, Trash2 } from "lucide-react";

@@ -3,7 +3,7 @@
 // + the lookup lib/messaging/send.ts::sendSms uses to log which approved
 // DLT template an outbound SMS was sent under.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 
@@ -21,7 +21,7 @@ export type SmsTemplate = {
 export async function getSmsTemplates(siteId = DEFAULT_SITE_ID, accessToken?: string): Promise<SmsTemplate[]> {
   if (!(await assertCan(accessToken, "marketing", "read"))) return [];
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db.from("sms_templates").select("*").eq("site_id", siteId).order("template_key");
     if (error) { console.error("[messaging] getSmsTemplates failed:", error.message); return []; }
     return (data ?? []) as SmsTemplate[];
@@ -40,7 +40,7 @@ export async function saveSmsTemplate(
 ): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "marketing", "update"))) return { ok: false };
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("sms_templates").upsert(
       {
         site_id: input.siteId ?? DEFAULT_SITE_ID,
@@ -65,7 +65,7 @@ export async function saveSmsTemplate(
 // for audit-trail logging. Returns null on any miss, never throws.
 export async function findApprovedSmsTemplate(templateKey: string, siteId = DEFAULT_SITE_ID): Promise<SmsTemplate | null> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data, error } = await db
       .from("sms_templates")
       .select("*")

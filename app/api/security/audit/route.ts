@@ -5,7 +5,7 @@
 // GET therefore returns a scaffold describing the client store + any entries
 // the caller echoes back. POST validates + normalizes an entry, rate-limits
 // the request, and echoes the normalized record so a client can persist it via
-// logAudit(). Wire a DB (e.g. lib/supabase) here to make it server-persistent.
+// logAudit(). Wire a DB (e.g. lib/db) here to make it server-persistent.
 
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/security/rateLimit";

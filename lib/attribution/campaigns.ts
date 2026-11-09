@@ -2,7 +2,7 @@
 // Auto-creates a campaign the first time a named utm_campaign is seen. Fails
 // soft — a campaign-resolution failure must never break session tracking.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -26,7 +26,7 @@ export async function resolveCampaign(
   if (!campaign) return null;
 
   try {
-    const db = getServerClient();
+    const db = getDb();
     const key = campaignKey(input.source, campaign);
     const now = new Date().toISOString();
 

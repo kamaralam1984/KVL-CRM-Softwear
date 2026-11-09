@@ -4,10 +4,10 @@
    lib/superAdmin.ts. Guards `typeof window`. Never throws.
 
    Phase 31: saveTenant/deleteTenant now ALSO fire-and-forget a real
-   Supabase write via lib/actions/tenants.ts — same dual-write pattern as
+   database write via lib/actions/tenants.ts — same dual-write pattern as
    Phase 19's lib/automation/store.ts. localStorage stays the fast client
    cache every existing caller (getTenants, resolveTenant, etc.) still reads
-   exactly as before; Supabase becomes the cross-device source of truth.
+   exactly as before; the database becomes the cross-device source of truth.
 ══════════════════════════════════════════════════════════ */
 
 import { DEFAULT_WHITE_LABEL } from "../superAdmin";

@@ -5,7 +5,7 @@
 // recordPushSubscription) — this can only reach "some browser that opted in",
 // never a named person.
 
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import webpush from "web-push";
 
 interface SubscriptionRow {
@@ -32,7 +32,7 @@ function vapidConfigured(): boolean {
 // also reach every other embedded site's opted-in visitors.
 export async function getPushSubscriberCount(siteId?: string): Promise<number> {
   try {
-    const db = getServerClient();
+    const db = getDb();
     let query = db.from("push_subscriptions").select("id", { count: "exact", head: true }).is("revoked_at", null);
     if (siteId) query = query.eq("site_id", siteId);
     const { count } = await query;
@@ -56,7 +56,7 @@ export async function sendPushBroadcast(title: string, body: string, url: string
       process.env.VAPID_PRIVATE_KEY as string
     );
 
-    const db = getServerClient();
+    const db = getDb();
     let query = db.from("push_subscriptions").select("id, endpoint, p256dh, auth").is("revoked_at", null);
     if (siteId) query = query.eq("site_id", siteId);
     const { data } = await query;

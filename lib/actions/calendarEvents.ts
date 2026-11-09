@@ -1,5 +1,5 @@
 "use server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 export type CalendarEvent = {
   id: number;
@@ -17,7 +17,7 @@ export type CalendarEvent = {
 };
 
 export async function getEvents(): Promise<CalendarEvent[]> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("calendar_events")
     .select("*")
@@ -28,7 +28,7 @@ export async function getEvents(): Promise<CalendarEvent[]> {
 }
 
 export async function createEvent(event: Omit<CalendarEvent, "id">): Promise<CalendarEvent> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("calendar_events")
     .insert(event)
@@ -39,7 +39,7 @@ export async function createEvent(event: Omit<CalendarEvent, "id">): Promise<Cal
 }
 
 export async function updateEvent(id: number, patch: Partial<CalendarEvent>): Promise<CalendarEvent> {
-  const db = getServerClient();
+  const db = getDb();
   const { data, error } = await db
     .from("calendar_events")
     .update(patch)
@@ -51,7 +51,7 @@ export async function updateEvent(id: number, patch: Partial<CalendarEvent>): Pr
 }
 
 export async function deleteEvent(id: number): Promise<void> {
-  const db = getServerClient();
+  const db = getDb();
   const { error } = await db.from("calendar_events").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

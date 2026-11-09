@@ -5,7 +5,7 @@
 // Never throws: any DB failure is reported in the response, not as a 500.
 
 import { NextResponse } from "next/server";
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export async function GET() {
   const timestamp = new Date().toISOString();
   let dbOk = false;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { error } = await db.from("sites").select("site_id").limit(1);
     dbOk = !error;
   } catch (err) {

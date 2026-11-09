@@ -1,6 +1,6 @@
 // Email delivery/engagement events (Resend webhooks) + inbound email handling.
 // bounce / complaint → central DNC; open / click → counters + hot-lead alert; inbound → drip pause + team alert.
-import { getServerClient } from "@/lib/supabase/server";
+import { getDb } from "@/lib/db";
 import { addSuppression, removeSuppression } from "@/lib/compliance/dnc";
 import { notifyTeam } from "@/lib/notify/team";
 import { handleInboundReply, findLeadIds } from "@/lib/followup/engine";
@@ -16,7 +16,7 @@ export async function applyEmailEvent(type: string, data: EmailEventData): Promi
   const id = data.email_id;
   if (!id) return;
   try {
-    const db = getServerClient();
+    const db = getDb();
     const { data: row } = await db.from("email_log").select("id,status,opens,clicks,lead_id,to_email,subject").eq("provider_id", id).maybeSingle();
     if (!row) return;
     const to = (row.to_email as string) || first(data.to);
@@ -71,7 +71,7 @@ export async function processInboundEmail(p: { from: string; to?: string; subjec
     if (!email.includes("@")) return { handled: false };
     const plain = p.text || (p.html ?? "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ");
     const body = stripQuoted(plain).slice(0, 4000) || (p.subject ?? "");
-    const db = getServerClient();
+    const db = getDb();
     const [leadId] = await findLeadIds({ email });
 
     await db.from("email_log").insert({
