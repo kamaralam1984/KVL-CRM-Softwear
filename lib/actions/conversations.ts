@@ -8,6 +8,7 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { assertCan } from "@/lib/security/requireAction";
 import { getWhatsappConversations, createWhatsappConversation, updateWhatsappConversation, type WhatsappConversation } from "./whatsapp";
+import { handleInboundReply, handleHumanReply } from "@/lib/followup/engine";
 import { sendWhatsApp, sendSms, sendInstagramDm, sendMessengerMessage, type SendResult } from "@/lib/messaging/send";
 
 export type Channel = "whatsapp" | "sms" | "instagram" | "messenger" | "webchat";
@@ -198,7 +199,15 @@ export async function sendFromLegacyConversation(
   const result = await sendWhatsApp(phone, body);
   const conversationId = await ensureConversation("whatsapp", phone, phone);
   if (conversationId) await recordMessage(conversationId, "outbound", body, result.providerMessageId);
+  if (result.ok) await handleHumanReply({ phone });
   return result;
+}
+
+async function leadIdOfConversation(conversationId: string): Promise<number | undefined> {
+  try {
+    const { data } = await getServerClient().from("conversations").select("lead_id").eq("id", conversationId).maybeSingle();
+    return (data?.lead_id as number | null) ?? undefined;
+  } catch { return undefined; }
 }
 
 // Links a conversation to a Lead once identity resolution finds/creates one
@@ -257,6 +266,7 @@ export async function postWebchatVisitorMessage(conversationId: string, body: st
   try {
     const db = getServerClient();
     await db.from("messages").insert({ conversation_id: conversationId, direction: "inbound", body });
+    await handleInboundReply({ leadId: await leadIdOfConversation(conversationId) }, body);
     const { data: convRow } = await db.from("conversations").select("unread_count").eq("id", conversationId).maybeSingle();
     await db.from("conversations").update({
       last_message_at: new Date().toISOString(),
@@ -271,6 +281,7 @@ export async function postWebchatVisitorMessage(conversationId: string, body: st
 export async function sendWebchatAgentReply(conversationId: string, body: string, accessToken?: string): Promise<{ ok: boolean }> {
   if (!(await assertCan(accessToken, "helpdesk", "create"))) return { ok: false };
   await recordMessage(conversationId, "outbound", body);
+  await handleHumanReply({ leadId: await leadIdOfConversation(conversationId) });
   return { ok: true };
 }
 
@@ -344,5 +355,6 @@ export async function sendMessage(
     { ok: false, mock: false, detail: `Channel "${channel}" isn't wired to a real send yet` };
 
   await recordMessage(conversationId, "outbound", body, result.providerMessageId);
+  if (result.ok) await handleHumanReply({ phone: toPhone });
   return result;
 }

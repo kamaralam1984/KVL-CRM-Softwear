@@ -35,7 +35,7 @@ describe("runGraph", () => {
     expect(labels).not.toContain("Log hot lead");
   });
 
-  it("reports an unwired send action as not-ok, never throws, never fakes success", async () => {
+  it("reports a send action with no recipient as not-ok, never throws, never fakes success", async () => {
     const graph: WorkflowGraph = {
       workflowKey: "wa-test",
       version: 1,
@@ -48,7 +48,7 @@ describe("runGraph", () => {
     const steps = await runGraph(graph, { company: "Acme" });
     const waStep = steps.find((s) => s.label === "Send WhatsApp");
     expect(waStep?.ok).toBe(false);
-    expect(waStep?.detail).toMatch(/Phase 21/);
+    expect(waStep?.detail).toMatch(/No phone/);
   });
 
   it("returns an error step for a graph with no trigger node", async () => {

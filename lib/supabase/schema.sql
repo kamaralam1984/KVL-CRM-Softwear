@@ -1313,3 +1313,48 @@ alter table webinar_chat_messages enable row level security;
 drop policy if exists "Authenticated can access webinar_chat_messages" on webinar_chat_messages;
 create policy "Authenticated can access webinar_chat_messages" on webinar_chat_messages for all using (auth.role() = 'authenticated');
 create index if not exists webinar_chat_messages_webinar_idx on webinar_chat_messages (webinar_id);
+
+-- ── Follow-up Engine — 90-day multi-channel drip + 24h AI soft nudge ─────────
+-- One enrollment per (lead, sequence). The drip keeps running until the client
+-- is ready to pay (payment_ready/won), opts out (stopped) or 90 days elapse.
+-- Sequence steps live in code (lib/followup/sequence.ts) so they're versioned.
+create table if not exists followup_enrollments (
+  id                   uuid primary key default gen_random_uuid(),
+  lead_id              int not null references leads(id) on delete cascade,
+  sequence_key         text not null default 'kvl-90-day-closer',
+  status               text not null default 'active' check (status in ('active','replied_waiting','payment_ready','won','completed','stopped','paused')),
+  step_index           int not null default 0,
+  attempts             int not null default 0,
+  next_run_at          timestamptz,
+  started_at           timestamptz not null default now(),
+  ends_at              timestamptz,
+  last_inbound_at      timestamptz,
+  last_human_reply_at  timestamptz,
+  last_ai_nudge_at     timestamptz,
+  ai_nudge_count       int not null default 0,
+  stop_reason          text default '',
+  created_at           timestamptz default now(),
+  updated_at           timestamptz default now(),
+  unique (lead_id, sequence_key)
+);
+alter table followup_enrollments enable row level security;
+drop policy if exists "Authenticated can access followup_enrollments" on followup_enrollments;
+create policy "Authenticated can access followup_enrollments" on followup_enrollments for all using (auth.role() = 'authenticated');
+create index if not exists followup_enrollments_due_idx on followup_enrollments (status, next_run_at);
+create index if not exists followup_enrollments_lead_idx on followup_enrollments (lead_id);
+drop trigger if exists followup_enrollments_updated_at on followup_enrollments;
+create trigger followup_enrollments_updated_at before update on followup_enrollments for each row execute procedure set_updated_at();
+
+create table if not exists followup_events (
+  id             uuid primary key default gen_random_uuid(),
+  enrollment_id  uuid not null references followup_enrollments(id) on delete cascade,
+  kind           text not null,   -- enrolled | step_sent | step_failed | call_task | inbound_reply | human_reply | ai_nudge | payment_ready | stopped | completed
+  channel        text default '',
+  ok             boolean not null default true,
+  detail         text default '',
+  created_at     timestamptz default now()
+);
+alter table followup_events enable row level security;
+drop policy if exists "Authenticated can access followup_events" on followup_events;
+create policy "Authenticated can access followup_events" on followup_events for all using (auth.role() = 'authenticated');
+create index if not exists followup_events_enrollment_idx on followup_events (enrollment_id, created_at desc);

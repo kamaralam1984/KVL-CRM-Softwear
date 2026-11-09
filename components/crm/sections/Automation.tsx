@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Zap, Plus, ChevronRight, Layers, FlaskConical, Activity, CheckCircle2,
+  Zap, Plus, ChevronRight, Layers, FlaskConical, Activity, CheckCircle2, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WORKFLOWS as AUTO_WORKFLOWS, runWorkflowTest } from "@/lib/automation/engine";
@@ -10,6 +10,7 @@ import { getRuns, isActive, setActive, timeAgo, AUTOMATION_EVENT, type WorkflowR
 import { getWorkflowRuns, getWorkflows } from "@/lib/actions/workflows";
 import { getAccessToken } from "@/lib/security/clientSession";
 import GraphBuilder from "./automation/GraphBuilder";
+import FollowUpEngine from "./automation/FollowUpEngine";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -325,7 +326,7 @@ function ExecutionsView() {
 // ─── Root Component ───────────────────────────────────────────────────────────
 
 export default function Automation() {
-  const [view, setView] = useState<"list" | "builder" | "executions">("list");
+  const [view, setView] = useState<"list" | "builder" | "executions" | "followups">("list");
   const [workflows, setWorkflows] = useState<Workflow[]>(WORKFLOWS);
 
   const toggle = (id: number) => {
@@ -336,7 +337,7 @@ export default function Automation() {
     <div className="h-full flex flex-col bg-[#080c14] overflow-hidden">
       {/* view tabs */}
       <div className="flex items-center gap-0.5 px-4 pt-4 pb-0 flex-shrink-0">
-        {(["list", "executions", "builder"] as const).map((v) => (
+        {(["list", "followups", "executions", "builder"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -349,6 +350,8 @@ export default function Automation() {
           >
             {v === "list" ? (
               <span className="flex items-center gap-1.5"><Layers size={10} /> My Workflows</span>
+            ) : v === "followups" ? (
+              <span className="flex items-center gap-1.5"><Clock size={10} /> 90-Day Follow-ups</span>
             ) : v === "executions" ? (
               <span className="flex items-center gap-1.5"><Activity size={10} /> Executions</span>
             ) : (
@@ -382,6 +385,17 @@ export default function Automation() {
                 onNew={() => setView("builder")}
                 onEdit={() => setView("builder")}
               />
+            </motion.div>
+          ) : view === "followups" ? (
+            <motion.div
+              key="followups"
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 12 }}
+              transition={{ duration: 0.18 }}
+              className="h-full"
+            >
+              <FollowUpEngine />
             </motion.div>
           ) : view === "executions" ? (
             <motion.div

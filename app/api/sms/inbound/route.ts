@@ -10,6 +10,7 @@ import { verifyTwilioSignature } from "@/lib/messaging/twilioSignature";
 import { recordInboundMessage, linkConversationToLead } from "@/lib/actions/conversations";
 import { resolveIdentity, normalizePhone } from "@/lib/identity/resolve";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
+import { handleInboundReply } from "@/lib/followup/engine";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,10 @@ export async function POST(req: NextRequest) {
     if (conversationId && resolution?.leadId) {
       await linkConversationToLead(conversationId, resolution.leadId);
     }
+
+    // Follow-up Engine: pause the drip, start the 24h human-reply clock,
+    // honour STOP/opt-out and detect "ready to pay" replies.
+    await handleInboundReply({ phone, leadId: resolution?.leadId ?? undefined }, body);
 
     return twiml();
   } catch (err) {

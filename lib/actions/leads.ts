@@ -2,6 +2,7 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { leads as seedLeads } from "@/lib/data";
 import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
+import { enrollLead, endFollowUp } from "@/lib/followup/engine";
 
 export type Lead = (typeof seedLeads)[number];
 
@@ -30,6 +31,8 @@ export async function createLead(lead: Omit<Lead, "id"> & { site_id?: string }):
     .single();
   if (error) throw new Error(error.message);
   dispatchWebhookEvent("lead.created", data as Record<string, unknown>).catch(() => {});
+  // Follow-up Engine: every new lead enters the 90-day sequence (never throws).
+  await enrollLead((data as { id: number }).id);
   return data as Lead;
 }
 
@@ -42,6 +45,8 @@ export async function updateLead(id: number, patch: Partial<Lead>): Promise<Lead
     .select()
     .single();
   if (error) throw new Error(error.message);
+  // Deal closed → client has paid / committed: stop chasing.
+  if (patch.stage === "Closed") await endFollowUp(id, "won", "Lead moved to Closed");
   return data as Lead;
 }
 

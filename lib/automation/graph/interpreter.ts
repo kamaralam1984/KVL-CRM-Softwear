@@ -9,9 +9,10 @@
 import { createTask } from "@/lib/actions/tasks";
 import { createActivity } from "@/lib/actions/activity";
 import type {
-  WorkflowGraph, GraphNode, ConditionNodeData, ActionNodeData, ActionKind,
+  WorkflowGraph, GraphNode, ConditionNodeData, ActionNodeData,
 } from "./types";
 import type { RunStep } from "../store";
+import { sendWhatsApp, sendSms, sendEmail } from "@/lib/messaging/send";
 
 // Flat context the trigger hands the interpreter — e.g. { company, score, owner }.
 export type GraphContext = Record<string, string | number | undefined>;
@@ -32,19 +33,21 @@ function evalCondition(cond: ConditionNodeData, ctx: GraphContext): boolean {
   }
 }
 
-// Not yet wired to a real channel (ships in Phase 21's lib/messaging/send.ts)
-// — honestly reported as not-implemented rather than faked as sent.
-const UNWIRED_ACTIONS = new Set<ActionKind>(["send_whatsapp", "send_email", "send_sms"]);
-
 async function runAction(node: GraphNode, data: ActionNodeData, ctx: GraphContext): Promise<RunStep> {
   const entity = String(ctx.company ?? ctx.name ?? "record");
 
-  if (UNWIRED_ACTIONS.has(data.kind)) {
-    console.warn(`[automation-graph] ${data.kind} not wired to a real channel yet — ships in Phase 21`);
-    return { label: data.label, ok: false, detail: "Channel not connected yet (Phase 21)" };
-  }
-
   try {
+    if (data.kind === "send_whatsapp" || data.kind === "send_sms" || data.kind === "send_email") {
+      const fill = (t: string) => t.replace(/\{\{(\w+)\}\}/g, (_, k: string) => String(ctx[k] ?? ""));
+      const body = fill(data.params.body || data.params.text || `Hi ${ctx.name ?? "there"}, following up from our team.`);
+      const to = data.params.to || String(data.kind === "send_email" ? ctx.email ?? "" : ctx.phone ?? "");
+      if (!to) return { label: data.label, ok: false, detail: `No ${data.kind === "send_email" ? "email" : "phone"} on this record` };
+      const r = data.kind === "send_whatsapp" ? await sendWhatsApp(to, body)
+        : data.kind === "send_sms" ? await sendSms(to, body)
+        : await sendEmail(to, fill(data.params.subject || "Following up"), body.replace(/\n/g, "<br>"));
+      return { label: data.label, ok: r.ok, detail: r.ok ? (r.mock ? "Logged (provider not configured)" : `Sent to ${to}`) : (r.detail ?? "Send failed") };
+    }
+
     if (data.kind === "create_task") {
       await createTask({
         title: data.params.title || `Follow up with ${entity}`,

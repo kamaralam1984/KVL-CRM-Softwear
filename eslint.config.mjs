@@ -16,6 +16,7 @@ const eslintConfig = defineConfig([
     // process, not part of the Next.js app bundle (same reasoning as
     // android/**, ios/** being outside the TS/lint globs already).
     "voice-relay/**",
+    "whatsapp-qr/**", // standalone Baileys service, same reasoning
   ]),
 ]);
 

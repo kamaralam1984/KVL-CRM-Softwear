@@ -1,6 +1,7 @@
 "use server";
 // Phase 27 — Commerce Suite I. CRUD for `orders`/`order_items`.
 
+import { endFollowUpByContact } from "@/lib/followup/engine";
 import { getServerClient } from "@/lib/supabase/server";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
@@ -108,7 +109,11 @@ export async function markOrderPaidByProviderRef(providerRef: string): Promise<v
     const db = getServerClient();
     const { data, error } = await db.from("orders").update({ payment_status: "paid" }).eq("payment_provider_ref", providerRef).select().maybeSingle();
     if (error) { console.error("[commerce] markOrderPaidByProviderRef failed:", error.message); return; }
-    if (data) dispatchWebhookEvent("order.paid", data as Record<string, unknown>).catch(() => {});
+    if (data) {
+      dispatchWebhookEvent("order.paid", data as Record<string, unknown>).catch(() => {});
+      const email = (data as { customer_email?: string }).customer_email;
+      if (email) await endFollowUpByContact({ email }, "won", "Order paid");
+    }
   } catch (err) {
     console.error("[commerce] markOrderPaidByProviderRef error:", err);
   }

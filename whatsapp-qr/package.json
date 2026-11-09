@@ -1,0 +1,14 @@
+{
+  "name": "kvl-whatsapp-qr",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone WhatsApp linked-device (QR) sender/receiver for KVL CRM. Run as its own always-on process, NOT on Vercel.",
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "^9.5.0",
+    "qrcode": "^1.5.4"
+  },
+  "engines": { "node": ">=20" }
+}

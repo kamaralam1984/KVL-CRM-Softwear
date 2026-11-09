@@ -16,6 +16,7 @@ import { rateLimit } from "@/lib/security/rateLimit";
 import { clientIp } from "../../../analytics/shared";
 import { verifyRazorpayWebhookSignature } from "@/lib/payments/razorpay";
 import { markOrderPaidByProviderRef } from "@/lib/actions/orders";
+import { endFollowUpByContact } from "@/lib/followup/engine";
 import { markMembershipCharged, markMembershipCancelled } from "@/lib/actions/membership";
 
 export const dynamic = "force-dynamic";
@@ -49,12 +50,18 @@ export async function POST(req: NextRequest) {
         payment_link?: { entity?: { id?: string } };
         order?: { entity?: { id?: string; receipt?: string } };
         subscription?: { entity?: { id?: string } };
+        payment?: { entity?: { email?: string; contact?: string } };
       };
     };
 
     if (event.event === "payment_link.paid" || event.event === "order.paid") {
       const ref = event.payload?.payment_link?.entity?.id ?? event.payload?.order?.entity?.id;
       if (ref) await markOrderPaidByProviderRef(ref);
+      // Client paid → stop the follow-up drip (matched by payer's phone/email).
+      const payer = event.payload?.payment?.entity;
+      if (payer?.email || payer?.contact) {
+        await endFollowUpByContact({ email: payer.email, phone: payer.contact }, "won", "Payment received (Razorpay)");
+      }
     } else if (event.event === "subscription.charged") {
       const subId = event.payload?.subscription?.entity?.id;
       if (subId) await markMembershipCharged(subId);

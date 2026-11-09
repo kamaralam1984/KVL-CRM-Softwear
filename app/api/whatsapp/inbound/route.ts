@@ -9,9 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { clientIp } from "../../analytics/shared";
 import { verifyTwilioSignature } from "@/lib/messaging/twilioSignature";
-import { recordInboundMessage, linkConversationToLead } from "@/lib/actions/conversations";
-import { resolveIdentity, normalizePhone } from "@/lib/identity/resolve";
-import { DEFAULT_SITE_ID } from "@/lib/sites/store";
+import { processInboundWhatsapp } from "@/lib/messaging/inboundWhatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -38,18 +36,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 
-    const phone = normalizePhone((params.From ?? "").replace(/^whatsapp:/, ""));
-    const body = (params.Body ?? "").slice(0, 4000);
-    if (!phone) return twiml();
-
-    const { conversationId } = await recordInboundMessage("whatsapp", phone, body, params.MessageSid);
-
-    // Voluntary act (the visitor messaged us first) — same identity-resolution
-    // pattern as the missed-call webhook.
-    const resolution = await resolveIdentity({ visitorId: `whatsapp:${phone}`, name: "", email: "", phone }, DEFAULT_SITE_ID).catch(() => null);
-    if (conversationId && resolution?.leadId) {
-      await linkConversationToLead(conversationId, resolution.leadId);
-    }
+    await processInboundWhatsapp(params.From ?? "", params.Body ?? "", params.MessageSid);
 
     return twiml();
   } catch (err) {

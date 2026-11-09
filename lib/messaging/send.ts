@@ -15,6 +15,7 @@
 // or unapproved — only logs a warning — matching "never throw" here too.
 
 import { findApprovedSmsTemplate } from "@/lib/actions/smsTemplates";
+import { whatsappProvider, sendWhatsAppCloud, sendWhatsAppQr, isCloudConfigured, isQrConfigured } from "./whatsappProviders";
 
 export interface SendResult {
   ok: boolean;
@@ -63,6 +64,10 @@ async function twilioSend(params: {
 
 /** `to` is a bare E.164 phone number (e.g. "+919812345678"), not `whatsapp:`-prefixed. */
 export function sendWhatsApp(to: string, body: string): Promise<SendResult> {
+  // Own-number providers (Meta Cloud API / QR service) — see whatsappProviders.ts.
+  const provider = whatsappProvider();
+  if (provider === "cloud") return sendWhatsAppCloud(to, body);
+  if (provider === "qr") return sendWhatsAppQr(to, body);
   const from = process.env.TWILIO_WHATSAPP_FROM; // e.g. "whatsapp:+14155238886"
   const target = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
   return twilioSend({ from, to: target, body, mockPrefix: "whatsapp" });
@@ -82,6 +87,9 @@ export async function sendSms(to: string, body: string, templateKey?: string): P
 }
 
 export function isWhatsAppConfigured(): boolean {
+  const provider = whatsappProvider();
+  if (provider === "cloud") return isCloudConfigured();
+  if (provider === "qr") return isQrConfigured();
   return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_FROM);
 }
 export function isSmsConfigured(): boolean {

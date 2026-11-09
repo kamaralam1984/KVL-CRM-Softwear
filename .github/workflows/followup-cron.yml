@@ -1,0 +1,22 @@
+name: Follow-up Engine Cron
+
+# Every 15 min: send due 90-day drip steps + AI soft nudges for replies that
+# have had no human answer in 24h. Manual trigger also available.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run-followups:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run follow-up engine
+        env:
+          FOLLOWUP_CRON_URL: ${{ secrets.FOLLOWUP_CRON_URL }}
+          FOLLOWUP_CRON_SECRET: ${{ secrets.FOLLOWUP_CRON_SECRET }}
+        run: node scripts/run-followup-cron.mjs
