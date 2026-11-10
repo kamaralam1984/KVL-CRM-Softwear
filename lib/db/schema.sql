@@ -1366,3 +1366,41 @@ create unique index if not exists wa_broadcast_recipients_uidx on wa_broadcast_r
 create index if not exists wa_broadcast_recipients_status_idx on wa_broadcast_recipients (broadcast_id, status);
 create index if not exists wa_broadcast_recipients_provider_idx on wa_broadcast_recipients (provider_message_id);
 create index if not exists wa_broadcast_recipients_phone_idx on wa_broadcast_recipients (phone_key, sent_at desc);
+
+-- Webhook retries must never create the same inbound message twice (recordInboundMessage also checks first).
+-- Guarded: skipped (with a notice) if old duplicates already exist — delete them, then re-run.
+do $$ begin
+  create unique index if not exists messages_inbound_provider_uidx on messages (provider_message_id) where direction = 'inbound' and provider_message_id is not null;
+exception when others then
+  raise notice 'messages_inbound_provider_uidx not created: %', sqlerrm;
+end $$;
+
+-- ── WhatsApp: inbound media + keyword auto-reply rules ───────────────────────
+-- Files customers send us (image / voice note / PDF / video). Stored base64 so no object-store is required;
+-- served by /api/whatsapp/media/<id>?sig=… (signed, never public). Capped at 6 MB per file in code.
+create table if not exists wa_media (
+  id         uuid primary key default gen_random_uuid(),
+  mime       text not null default 'application/octet-stream',
+  filename   text default '',
+  size       int  not null default 0,
+  data_b64   text not null,
+  created_at timestamptz default now()
+);
+
+-- Keyword rules evaluated on every inbound WhatsApp message BEFORE the AI answer / off-hours reply.
+create table if not exists wa_auto_rules (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null default '',
+  keywords    text not null default '',            -- comma / new-line / | separated
+  match       text not null default 'contains' check (match in ('contains','exact','starts')),
+  response    text not null default '',            -- supports {{name}} {{firstName}} {{bookingLink}} {{paymentLink}}
+  when_open   text not null default 'always' check (when_open in ('always','off_hours','in_hours')),
+  priority    int  not null default 100,           -- lower runs first
+  active      boolean not null default true,
+  hits        int  not null default 0,
+  last_hit_at timestamptz,
+  created_at  timestamptz default now()
+);
+create index if not exists wa_auto_rules_active_idx on wa_auto_rules (active, priority);
+
+alter table conversations add column if not exists last_rule_reply_at timestamptz;

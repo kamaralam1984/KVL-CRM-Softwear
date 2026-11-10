@@ -7,7 +7,8 @@ import {
   personalize, fillNumbered, normalizeContactPhone, resolveAudience, createBroadcast, setBroadcastStatus, retryFailed, runBroadcastBatch, sentInLast24h,
   type AudienceSpec, type BroadcastInput, type BatchReport,
 } from "@/lib/whatsapp/broadcast";
-import { loadWaConfig } from "@/lib/whatsapp/config";
+import { loadWaConfig, waEnv } from "@/lib/whatsapp/config";
+import { whatsappProvider } from "@/lib/messaging/whatsappProviders";
 import { sendWhatsApp, sendWhatsAppMedia, sendWhatsAppTemplate } from "@/lib/messaging/send";
 
 type Row = Record<string, unknown>;
@@ -19,8 +20,8 @@ export interface BroadcastSummary {
 }
 const emptyCounts = () => ({ pending: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, skipped: 0 });
 
-export async function listBroadcasts(token?: string): Promise<{ items: BroadcastSummary[]; sentLast24h: number; dailyCap: number }> {
-  if (!(await ok(token, "read"))) return { items: [], sentLast24h: 0, dailyCap: 0 };
+export async function listBroadcasts(token?: string): Promise<{ items: BroadcastSummary[]; sentLast24h: number; dailyCap: number; provider: string }> {
+  if (!(await ok(token, "read"))) return { items: [], sentLast24h: 0, dailyCap: 0, provider: "" };
   const db = getDb();
   const { data } = await db.from("wa_broadcasts").select("id,name,mode,status,note,scheduled_at,created_at,total").order("created_at", { ascending: false }).limit(30);
   const items: BroadcastSummary[] = ((data ?? []) as Row[]).map((b) => ({ ...(b as unknown as BroadcastSummary), counts: emptyCounts() }));
@@ -35,7 +36,7 @@ export async function listBroadcasts(token?: string): Promise<{ items: Broadcast
     }
   }
   const cfg = await loadWaConfig();
-  return { items, sentLast24h: await sentInLast24h(), dailyCap: cfg.limits.broadcastDailyCap };
+  return { items, sentLast24h: await sentInLast24h(), dailyCap: cfg.limits.broadcastDailyCap, provider: whatsappProvider(await waEnv()) };
 }
 
 export async function getBroadcastRecipients(id: string, status?: string, token?: string): Promise<Row[]> {

@@ -221,6 +221,9 @@ async function sendOne(b: Row, r: Row): Promise<SendResult> {
 
 /** Errors that mean "stop and try later" rather than "this number is bad". */
 const TRANSIENT = /\b429\b|rate.?limit|too many|daily cap|not connected|spam|131048|130429|131056|timeout|fetch failed|ECONN|ENOTFOUND/i;
+/** Cloud API: free text outside the 24h window is rejected for every cold contact — see sendWhatsAppCloud's hint. */
+const WINDOW_CLOSED = /24h window closed/i;
+const WINDOW_CLOSED_LIMIT = 5;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function sentInLast24h(): Promise<number> {
@@ -266,14 +269,18 @@ export async function runBroadcastBatch(id: string, budgetMs = 25_000): Promise<
   // Free up claims left behind by a crashed run.
   await db.from("wa_broadcast_recipients").update({ status: "pending", claimed_at: null }).eq("broadcast_id", id).eq("status", "sending").lt("claimed_at", new Date(Date.now() - STALE_CLAIM_MS).toISOString());
 
+  let windowClosedRun = 0; // consecutive "24h window closed" failures
+  let seen = 0;            // recipients handled this run (live-status check only every 10th — saves a DB round-trip per message)
   while (Date.now() - started < budgetMs && capLeft > 0) {
     const { data: batch } = await db.from("wa_broadcast_recipients").select("*").eq("broadcast_id", id).eq("status", "pending").order("created_at").limit(10);
     if (!batch?.length) break;
     for (const r of batch as Row[]) {
       if (Date.now() - started >= budgetMs || capLeft <= 0) return finish();
-      // Stop promptly when the user paused/cancelled mid-batch.
-      const { data: live } = await db.from("wa_broadcasts").select("status").eq("id", id).maybeSingle();
-      if (live?.status !== "running") return finish();
+      // Stop promptly (within ~10 messages) when the user paused/cancelled mid-batch.
+      if (seen++ % 10 === 0) {
+        const { data: live } = await db.from("wa_broadcasts").select("status").eq("id", id).maybeSingle();
+        if (live?.status !== "running") return finish();
+      }
       // Claim: only one runner wins this recipient.
       const { data: claimed } = await db.from("wa_broadcast_recipients").update({ status: "sending", claimed_at: new Date().toISOString() }).eq("id", r.id).eq("status", "pending").select("id");
       if (!claimed?.length) continue;
@@ -284,16 +291,23 @@ export async function runBroadcastBatch(id: string, budgetMs = 25_000): Promise<
         await db.from("wa_broadcast_recipients").update({ status: "skipped", error: "On the Do-Not-Contact list" }).eq("id", r.id);
         rep.skipped++;
       } else if (res.ok) {
-        const body = b.mode === "template" ? fillNumbered(String(b.body), ((b.template_params as string[]) ?? []).map((p) => personalize(String(p), (r.vars ?? {}) as Row))) : personalize(String(b.body ?? ""), (r.vars ?? {}) as Row);
+        const body = b.mode === "template" ? fillNumbered(String(b.body), ((b.template_params as string[]) ?? []).map((p) => personalize(String(p), (r.vars ?? {}) as Row))) : personalize(String(b.body ?? ""), (r.vars ?? {}) as Row) + (b.mode === "text" && b.opt_out_footer ? OPT_OUT_FOOTER : ""); // log exactly what was sent
         await db.from("wa_broadcast_recipients").update({ status: "sent", sent_at: now, provider_message_id: res.providerMessageId ?? null, error: res.mock ? "mock — WhatsApp provider not configured, nothing was really sent" : "" }).eq("id", r.id);
         await logOutboundMessage({ channel: "whatsapp", phone: String(r.phone), name: String(r.name ?? ""), body: b.mode === "media" ? `${body}\n[media] ${b.media_url}`.trim() : body, sentBy: "broadcast", providerId: res.providerMessageId, mock: res.mock });
-        rep.sent++; capLeft--;
+        rep.sent++; capLeft--; windowClosedRun = 0;
       } else if (TRANSIENT.test(res.detail ?? "")) {
         await db.from("wa_broadcast_recipients").update({ status: "pending", claimed_at: null }).eq("id", r.id); // retry later
         return finish(`Paused automatically: ${res.detail}`);
       } else {
         await db.from("wa_broadcast_recipients").update({ status: "failed", error: (res.detail ?? "Send failed").slice(0, 300) }).eq("id", r.id);
         rep.failed++;
+        windowClosedRun = WINDOW_CLOSED.test(res.detail ?? "") ? windowClosedRun + 1 : 0;
+        if (windowClosedRun >= WINDOW_CLOSED_LIMIT) {
+          // Every further cold contact would fail the same way (and hammer Meta) — stop and tell the user why.
+          const note = `Paused automatically: ${WINDOW_CLOSED_LIMIT} messages in a row failed because the 24h window is closed. Free text only reaches people who messaged you in the last 24h — recreate this as an approved template broadcast, then use “Retry failed”.`;
+          await db.from("wa_broadcasts").update({ status: "paused", note }).eq("id", id).eq("status", "running");
+          return finish(note);
+        }
       }
       if (cfg.limits.gapMs) await sleep(cfg.limits.gapMs);
     }

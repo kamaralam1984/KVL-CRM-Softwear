@@ -7,7 +7,7 @@
 
 import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
-import { getWhatsappConversations, createWhatsappConversation, updateWhatsappConversation, type WhatsappConversation } from "./whatsapp";
+import { getWhatsappConversations } from "./whatsapp";
 import { handleInboundReply, handleHumanReply } from "@/lib/followup/engine";
 import { sendWhatsApp, sendSms, sendInstagramDm, sendMessengerMessage, type SendResult } from "@/lib/messaging/send";
 
@@ -138,13 +138,21 @@ export async function recordInboundMessage(
   fromPhone: string,
   body: string,
   providerMessageId?: string,
-): Promise<{ conversationId: string | null; leadId: number | null }> {
+  mediaUrl?: string,
+): Promise<{ conversationId: string | null; leadId: number | null; /** true → this exact provider message was already recorded (webhook retry); callers must NOT process it again. */ duplicate?: boolean }> {
   const conversationId = await ensureConversation(channel, fromPhone, fromPhone);
   if (!conversationId) return { conversationId: null, leadId: null };
 
   try {
     const db = getDb();
-    await db.from("messages").insert({ conversation_id: conversationId, direction: "inbound", body, provider_message_id: providerMessageId ?? null });
+    // Idempotency: Meta/Twilio retry webhooks (slow response, 5xx) — never record or act on the same message twice.
+    if (providerMessageId) {
+      const { data: dup } = await db.from("messages").select("id").eq("direction", "inbound").eq("provider_message_id", providerMessageId).limit(1);
+      if (dup?.length) return { conversationId, leadId: null, duplicate: true };
+    }
+    const { error: insErr } = await db.from("messages").insert({ conversation_id: conversationId, direction: "inbound", body, provider_message_id: providerMessageId ?? null, media_url: mediaUrl ?? null });
+    if (insErr?.code === "23505") return { conversationId, leadId: null, duplicate: true }; // lost a race with a concurrent retry (unique index)
+    if (insErr) throw new Error(insErr.message);
     const { data: convRow } = await db.from("conversations").select("unread_count").eq("id", conversationId).maybeSingle();
     await db.from("conversations").update({
       last_message_at: new Date().toISOString(),
@@ -154,53 +162,7 @@ export async function recordInboundMessage(
     console.error("[conversations] recordInboundMessage failed:", err);
   }
 
-  // Dual-write (same pattern as Phase 19's automation store): the existing
-  // WhatsApp CRM section's Chats tab still reads whatsapp_conversations, so a
-  // real inbound message needs to land there too to actually show up in the
-  // UI today — not just in the new canonical tables above. WhatsApp-only for
-  // now (that's the section that exists); other channels get their own UI
-  // in later phases (23's live-chat widget, etc.) instead of forcing them
-  // into a table shaped for WhatsApp specifically.
-  if (channel === "whatsapp") {
-    try {
-      const legacyRows = await getWhatsappConversations();
-      const existing = legacyRows.find((r) => r.contact_phone === fromPhone);
-      if (existing) {
-        await updateWhatsappConversation(existing.id, { message: body, time: "Just now", unread: (existing.unread ?? 0) + 1 });
-      } else {
-        const initials = fromPhone.replace(/[^0-9]/g, "").slice(-2) || "??";
-        await createWhatsappConversation({
-          contact: fromPhone, company: "", message: body, time: "Just now",
-          unread: 1, status: "active", avatar: initials, contact_phone: fromPhone,
-        } as Omit<WhatsappConversation, "id">);
-      }
-    } catch (err) {
-      console.error("[conversations] legacy whatsapp_conversations dual-write failed:", err);
-    }
-  }
-
   return { conversationId, leadId: null };
-}
-
-// Used by the WhatsApp CRM section's composer (components/crm/sections/WhatsApp.tsx),
-// which still displays the legacy whatsapp_conversations list. Sends for real
-// when the row has a known contact_phone (set once a real inbound message has
-// been received, or entered manually); otherwise behaves exactly as before
-// this phase — logged locally only, no regression for the 5 demo rows that
-// have never had a phone number.
-export async function sendFromLegacyConversation(
-  phone: string,
-  body: string,
-  accessToken?: string,
-): Promise<SendResult> {
-  if (!(await assertCan(accessToken, "whatsapp", "create"))) return { ok: false, mock: false, detail: "Forbidden" };
-  if (!phone) return { ok: true, mock: true, detail: "No phone on file — logged locally only" };
-
-  const result = await sendWhatsApp(phone, body);
-  const conversationId = await ensureConversation("whatsapp", phone, phone);
-  if (conversationId) await recordMessage(conversationId, "outbound", body, result.providerMessageId);
-  if (result.ok) await handleHumanReply({ phone });
-  return result;
 }
 
 async function leadIdOfConversation(conversationId: string): Promise<number | undefined> {

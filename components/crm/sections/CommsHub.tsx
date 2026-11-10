@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { MessageCircle, Mail, PhoneCall, Repeat, ListOrdered, FileText, BellRing, BarChart3, Settings2, Megaphone, Plug } from "lucide-react";
+import { MessageCircle, Mail, PhoneCall, Repeat, ListOrdered, FileText, BellRing, BarChart3, Settings2, Megaphone, Plug, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import InboxTab from "./comms/InboxTab";
 import EmailTab from "./comms/EmailTab";
@@ -11,12 +11,14 @@ import RemindersTab from "./comms/RemindersTab";
 import ReportsTab from "./comms/ReportsTab";
 import SettingsTab from "./comms/SettingsTab";
 import BroadcastTab from "./comms/BroadcastTab";
+import AutoReplyTab from "./comms/AutoReplyTab";
 import WhatsAppSetupTab from "./comms/WhatsAppSetupTab";
 import FollowUpEngine from "./automation/FollowUpEngine";
 
 const TABS = [
   { id: "inbox", label: "Inbox", icon: MessageCircle, el: InboxTab },
   { id: "broadcast", label: "Broadcast", icon: Megaphone, el: BroadcastTab },
+  { id: "autoreply", label: "Auto-reply", icon: Bot, el: AutoReplyTab },
   { id: "email", label: "Email", icon: Mail, el: EmailTab },
   { id: "calls", label: "Calls", icon: PhoneCall, el: CallsTab },
   { id: "followups", label: "Follow-ups", icon: Repeat, el: FollowUpEngine },

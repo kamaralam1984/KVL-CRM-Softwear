@@ -24,6 +24,8 @@ const SECTION_TO_FEATURE: Record<string, FeatureKey> = {
   ai: "ai",
 };
 import { cn } from "@/lib/utils";
+import { getUnreadTotal } from "@/lib/actions/comms";
+import { getAccessToken } from "@/lib/security/clientSession";
 
 const menuSections = [
   {
@@ -46,7 +48,7 @@ const menuSections = [
       { id: "proposals",   label: "Proposals",      icon: FileText },
       { id: "acquisition", label: "Visitor Intelligence", icon: Radar },
       { id: "pipeline",  label: "Sales Pipeline", icon: GitBranch },
-      { id: "whatsapp",  label: "WhatsApp CRM",   icon: MessageCircle, badge: 3 },
+      { id: "whatsapp",  label: "WhatsApp CRM",   icon: MessageCircle },
       { id: "email",     label: "Email Marketing", icon: Mail },
       { id: "marketing", label: "Marketing Hub",   icon: Megaphone },
     ],
@@ -102,6 +104,13 @@ export default function Sidebar({ activeSection, onSectionChange, collapsed, onT
   const isSuperAdmin = user?.role === "Super Admin";
   const isAdmin      = user?.role === "Admin" || isSuperAdmin;
   const [wl, setWl]  = useState<WhiteLabelConfig>(DEFAULT_WHITE_LABEL);
+  // Real unread-message count for the WhatsApp badge (replaces the old hardcoded "3"); refreshed while the tab is visible.
+  const [waUnread, setWaUnread] = useState(0);
+  useEffect(() => {
+    const tick = () => { if (!document.hidden) getUnreadTotal(getAccessToken()).then(setWaUnread).catch(() => {}); };
+    const first = setTimeout(tick, 0), t = setInterval(tick, 20_000);
+    return () => { clearTimeout(first); clearInterval(t); };
+  }, []);
 
   useEffect(() => {
     setWl(loadWhiteLabel());
@@ -213,9 +222,9 @@ export default function Sidebar({ activeSection, onSectionChange, collapsed, onT
                       </motion.span>
                     )}
                   </AnimatePresence>
-                  {!collapsed && "badge" in item && item.badge && !isLocked(item.id) && !isRbacBlocked(item.id) && (
+                  {!collapsed && ((item.id === "whatsapp" ? waUnread : "badge" in item ? item.badge : 0) ?? 0) > 0 && !isLocked(item.id) && !isRbacBlocked(item.id) && (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background:"rgba(212,175,55,0.15)", color:"#D4AF37", border:"1px solid rgba(212,175,55,0.3)" }}>
-                      {item.badge}
+                      {item.id === "whatsapp" ? (waUnread > 99 ? "99+" : waUnread) : "badge" in item ? item.badge : null}
                     </span>
                   )}
                   {!collapsed && (isLocked(item.id) || isRbacBlocked(item.id)) && (

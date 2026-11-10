@@ -16,7 +16,7 @@ import http from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import pino from "pino";
 import QRCode from "qrcode";
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion, downloadMediaMessage } from "@whiskeysockets/baileys";
 
 const PORT = Number(process.env.WHATSAPP_QR_PORT || 4002);
 const SECRET = process.env.WHATSAPP_QR_SECRET;
@@ -39,17 +39,26 @@ const same = (a, b) => { const x = Buffer.from(a), y = Buffer.from(b); return x.
 const authed = (req, url) => same(req.headers.authorization || "", `Bearer ${SECRET}`) || same(url.searchParams.get("key") || "", SECRET);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function forwardInbound(from, body, id) {
+async function forwardInbound(from, body, id, media) {
   if (!CRM_URL) return log.warn("CRM_URL not set — inbound message not forwarded");
   try {
     const res = await fetch(`${CRM_URL}/api/whatsapp/qr/inbound`, {
       method: "POST",
       headers: { Authorization: `Bearer ${SECRET}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, body, id }),
+      body: JSON.stringify({ from, body, id, media }),
     });
     if (!res.ok) log.error({ status: res.status }, "CRM rejected inbound message");
   } catch (err) { log.error({ err: String(err) }, "forwarding inbound failed"); }
 }
+
+// Delivery / read receipts for messages WE sent → CRM (so broadcast reports show delivered / read in QR mode too).
+async function forwardStatus(id, status) {
+  if (!CRM_URL || !id) return;
+  try {
+    await fetch(`${CRM_URL}/api/whatsapp/qr/inbound`, { method: "POST", headers: { Authorization: `Bearer ${SECRET}`, "Content-Type": "application/json" }, body: JSON.stringify({ type: "status", id, status }) });
+  } catch (err) { log.error({ err: String(err) }, "forwarding status failed"); }
+}
+const MAX_MEDIA = 6 * 1024 * 1024;
 
 async function start() {
   const { state: auth, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -69,6 +78,16 @@ async function start() {
     }
   });
 
+  // Baileys status: 3 = DELIVERY_ACK, 4 = READ, 5 = PLAYED, 0 = ERROR
+  sock.ev.on("messages.update", (updates) => {
+    for (const u of updates) {
+      if (!u.key?.fromMe) continue;
+      const st = u.update?.status;
+      const mapped = st === 3 ? "delivered" : st === 4 || st === 5 ? "read" : st === 0 ? "failed" : null;
+      if (mapped) forwardStatus(u.key.id, mapped);
+    }
+  });
+
   sock.ev.on("messages.upsert", ({ messages, type }) => {
     if (type !== "notify") return;
     for (const m of messages) {
@@ -78,7 +97,21 @@ async function start() {
       const msg = m.message;
       const body = msg.conversation || msg.extendedTextMessage?.text || msg.buttonsResponseMessage?.selectedDisplayText || msg.listResponseMessage?.title
         || (msg.imageMessage ? "[image]" : msg.audioMessage ? "[voice note]" : msg.documentMessage ? "[document]" : msg.videoMessage ? "[video]" : "[message]");
-      forwardInbound(jid.split("@")[0], body, m.key.id);
+      const kind = msg.imageMessage ? "image" : msg.audioMessage ? "audio" : msg.videoMessage ? "video" : msg.documentMessage ? "document" : msg.stickerMessage ? "sticker" : null;
+      const caption = msg.imageMessage?.caption || msg.videoMessage?.caption || msg.documentMessage?.caption || "";
+      (async () => {
+        let media;
+        if (kind) {
+          try {
+            const buf = await downloadMediaMessage(m, "buffer", {});
+            if (buf?.length && buf.length <= MAX_MEDIA) {
+              const inner = msg[`${kind}Message`];
+              media = { kind, mime: inner?.mimetype || "", filename: inner?.fileName || "", b64: buf.toString("base64") };
+            }
+          } catch (err) { log.warn({ err: String(err) }, "media download failed — forwarding text only"); }
+        }
+        forwardInbound(jid.split("@")[0], media ? caption : body, m.key.id, media);
+      })();
     }
   });
 }

@@ -23,7 +23,7 @@ const blank: Draft = { name: "", mode: "text", body: "", mediaUrl: "", templateI
 const toggle = (xs: string[], x: string) => (xs.includes(x) ? xs.filter((y) => y !== x) : [...xs, x]);
 
 export default function BroadcastTab() {
-  const [data, reload] = useLoad(() => listBroadcasts(token()), { items: [] as BroadcastSummary[], sentLast24h: 0, dailyCap: 0 }, 5000);
+  const [data, reload] = useLoad(() => listBroadcasts(token()), { items: [] as BroadcastSummary[], sentLast24h: 0, dailyCap: 0, provider: "" }, 5000);
   const [tpls] = useLoad(() => listTemplates("whatsapp", token()), [] as Row[]);
   const [opts] = useLoad(() => getAudienceOptions(token()), { stages: [] as string[], owners: [] as string[], tags: [] as string[], leads: [] as { id: number; name: string; phone: string }[] });
   const [composing, setComposing] = useState(false);
@@ -141,7 +141,9 @@ export default function BroadcastTab() {
                     </Field>
                     <div className="flex gap-1 flex-wrap items-center"><span className="text-[10px] text-slate-500">Insert:</span>{TAGS.map((t) => <Btn key={t} type="button" onClick={() => set("body", `${d.body}${t}`)}>{t}</Btn>)}</div>
                     {d.mode === "text" && <label className="flex items-center gap-1.5 text-[11px] text-slate-300"><input type="checkbox" checked={d.optOut} onChange={(e) => set("optOut", e.target.checked)} /> Add “Reply STOP to opt out.” (recommended — keeps the number healthy)</label>}
-                    <p className="text-[10px] text-slate-500">Free-text only reaches people who messaged you in the last 24h on the Cloud API. For cold contacts use an approved template.</p>
+                    {data.provider === "cloud"
+                      ? <p className="text-[11px] text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded-lg p-2">⚠ Meta Cloud API: free text and media are delivered <b>only to people who messaged you in the last 24 hours</b>. Everyone else fails. For cold contacts switch to <b>Approved template</b>. (If 5 in a row fail for this reason the broadcast pauses itself.)</p>
+                      : <p className="text-[10px] text-slate-500">Tip: on the Cloud API, free text only reaches people who messaged you in the last 24h — use an approved template for cold contacts.</p>}
                   </>
                 )}
               </div>

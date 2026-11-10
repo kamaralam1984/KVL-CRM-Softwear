@@ -10,8 +10,10 @@ import { sendWhatsApp, sendSms } from "@/lib/messaging/send";
 import { logOutboundMessage } from "@/lib/messaging/outbound";
 import { getCommsSettings } from "./settings";
 import { isWithinBusinessHours, nextOpeningLabel } from "./hours";
+import { listActiveRules, matchRule, renderRule, bumpRuleHit } from "./rules";
 
-const COOLDOWN_MS = 6 * 3_600_000;
+const COOLDOWN_MS = 6 * 3_600_000;          // AI / off-hours replies: at most once per 6 h per conversation
+const RULE_COOLDOWN_MS = 5 * 60_000;         // keyword rules: customers can ask several different things — only block rapid-fire repeats
 const MODEL = "claude-sonnet-4-6";
 const brand = () => process.env.NEXT_PUBLIC_BRAND_NAME ?? process.env.BRAND_NAME ?? "KVL Business Solutions";
 
@@ -53,20 +55,33 @@ export async function aiAnswer(question: string, kb: string): Promise<string | n
 export async function maybeAutoRespond(p: { conversationId: string; phone: string; text: string; channel: "whatsapp" | "sms"; name?: string }): Promise<"ai" | "auto" | null> {
   try {
     const db = getDb();
-    const { data: conv } = await db.from("conversations").select("last_auto_reply_at").eq("id", p.conversationId).maybeSingle();
-    if (conv?.last_auto_reply_at && Date.now() - new Date(conv.last_auto_reply_at as string).getTime() < COOLDOWN_MS) return null;
+    const { data: conv } = await db.from("conversations").select("last_auto_reply_at,last_rule_reply_at,contact_name").eq("id", p.conversationId).maybeSingle();
+    const ago = (iso: unknown) => (iso ? Date.now() - new Date(iso as string).getTime() : Infinity);
+    const sinceLast = ago(conv?.last_auto_reply_at), sinceRule = ago(conv?.last_rule_reply_at);
 
     const s = await getCommsSettings();
-    let reply: string | null = null, by: "ai" | "auto" = "auto";
-    if (s.ai_answer.enabled) { reply = await aiAnswer(p.text, s.knowledge_base.text); if (reply) by = "ai"; }
-    if (!reply && s.auto_reply.enabled && !isWithinBusinessHours(new Date(), s.business_hours)) {
+    const open = isWithinBusinessHours(new Date(), s.business_hours);
+    let reply: string | null = null, by: "ai" | "auto" = "auto", usedRule = false;
+
+    // 1) Keyword rules (CRM ▸ WhatsApp ▸ Auto Reply) — the owner's exact wording wins over AI.
+    const rule = sinceRule >= RULE_COOLDOWN_MS ? matchRule(p.text, await listActiveRules(), open) : null;
+    if (rule) {
+      reply = renderRule(rule.response, { name: p.name ?? String(conv?.contact_name ?? ""), bookingLink: s.links.bookingLink, paymentLink: s.links.paymentLink, opens: nextOpeningLabel(new Date(), s.business_hours) });
+      if (reply) { usedRule = true; await bumpRuleHit(rule.id, rule.hits); }
+    }
+    if (!reply && sinceLast < COOLDOWN_MS) return null;
+
+    if (!reply && s.ai_answer.enabled) { reply = await aiAnswer(p.text, s.knowledge_base.text); if (reply) by = "ai"; }
+    if (!reply && s.auto_reply.enabled && !open) {
       reply = s.auto_reply.offHoursText.replace(/\{\{opens\}\}/g, nextOpeningLabel(new Date(), s.business_hours));
     }
     if (!reply) return null;
 
     const r = p.channel === "whatsapp" ? await sendWhatsApp(p.phone, reply) : await sendSms(p.phone, reply);
     if (!r.ok) return null;
-    await logOutboundMessage({ channel: p.channel, phone: p.phone, name: p.name, body: reply, sentBy: by, providerId: r.providerMessageId, mock: r.mock, markAutoReply: true });
+    // A keyword-rule reply must not use up the 6 h AI/off-hours allowance (the customer may ask something else next).
+    await logOutboundMessage({ channel: p.channel, phone: p.phone, name: p.name, body: reply, sentBy: by, providerId: r.providerMessageId, mock: r.mock, markAutoReply: !usedRule });
+    if (usedRule) await db.from("conversations").update({ last_rule_reply_at: new Date().toISOString() }).eq("id", p.conversationId);
     return by;
   } catch (err) { console.error("[comms] maybeAutoRespond failed:", err); return null; }
 }

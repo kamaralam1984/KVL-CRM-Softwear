@@ -15,12 +15,13 @@ import { markBroadcastReply } from "@/lib/whatsapp/broadcast";
 
 const RESUBSCRIBE = /^\s*(start|unstop|subscribe|resume|yes)\s*$/i;
 
-export async function processInboundWhatsapp(rawPhone: string, rawBody: string, providerMessageId?: string): Promise<void> {
+export async function processInboundWhatsapp(rawPhone: string, rawBody: string, providerMessageId?: string, mediaUrl?: string): Promise<void> {
   const phone = normalizePhone(rawPhone.replace(/^whatsapp:/, ""));
   const body = rawBody.slice(0, 4000);
   if (!phone) return;
 
-  const { conversationId } = await recordInboundMessage("whatsapp", phone, body, providerMessageId);
+  const { conversationId, duplicate } = await recordInboundMessage("whatsapp", phone, body, providerMessageId, mediaUrl);
+  if (duplicate) return; // webhook retry of a message we already handled — no second auto-reply / drip event / alert
 
   const resolution = await resolveIdentity({ visitorId: `whatsapp:${phone}`, name: "", email: "", phone }, DEFAULT_SITE_ID).catch(() => null);
   if (conversationId && resolution?.leadId) await linkConversationToLead(conversationId, resolution.leadId);

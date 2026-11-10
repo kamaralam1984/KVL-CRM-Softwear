@@ -10,8 +10,11 @@ import { rateLimit } from "@/lib/security/rateLimit";
 import { clientIp } from "../../analytics/shared";
 import { verifyTwilioSignature } from "@/lib/messaging/twilioSignature";
 import { processInboundWhatsapp } from "@/lib/messaging/inboundWhatsapp";
+import { runAfterResponse } from "@/lib/messaging/background";
+import { mediaLabel, downloadTwilioMedia, saveInboundMedia } from "@/lib/whatsapp/media";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 function twiml() {
@@ -36,7 +39,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 
-    await processInboundWhatsapp(params.From ?? "", params.Body ?? "", params.MessageSid);
+    await runAfterResponse(async () => {
+      let body = params.Body ?? "", mediaUrl: string | undefined;
+      if (Number(params.NumMedia ?? 0) > 0 && params.MediaUrl0) {
+        const mime = params.MediaContentType0 ?? "";
+        body = mediaLabel(mime.split("/")[0] === "application" ? "document" : mime.split("/")[0] || "document", body);
+        const file = await downloadTwilioMedia(params.MediaUrl0, mime);
+        if (file) mediaUrl = (await saveInboundMedia(file)) ?? undefined;
+      }
+      await processInboundWhatsapp(params.From ?? "", body, params.MessageSid, mediaUrl);
+    });
 
     return twiml();
   } catch (err) {

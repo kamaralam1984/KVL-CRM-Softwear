@@ -149,3 +149,34 @@ export async function syncMetaTemplates(token?: string): Promise<{ ok: boolean; 
     return { ok: true, added, updated, approved };
   } catch (err) { return fail(String((err as Error).message ?? err)); }
 }
+
+export interface MetaTemplateInput { name: string; category: "UTILITY" | "MARKETING"; language: string; body: string; examples: string[] }
+
+/** Creates a template on Meta (status PENDING until Meta approves — run "Sync templates" to refresh). */
+export async function submitMetaTemplate(p: MetaTemplateInput, token?: string): Promise<{ ok: boolean; error?: string }> {
+  if (!(await guard(token, "update"))) return { ok: false, error: "Forbidden" };
+  const env = await waEnv();
+  if (!env.WHATSAPP_CLOUD_TOKEN || !env.WHATSAPP_CLOUD_WABA_ID) return { ok: false, error: "Add the Access Token and WABA ID in WhatsApp Setup first." };
+  const name = p.name.trim();
+  if (!/^[a-z0-9_]{1,200}$/.test(name)) return { ok: false, error: "Template name: lowercase letters, numbers and underscores only (e.g. diwali_offer)." };
+  const body = p.body.trim();
+  if (!body || body.length > 1024) return { ok: false, error: "Body is required (max 1024 characters)." };
+  const nums = [...body.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => Number(m[1]));
+  const n = nums.length ? Math.max(...nums) : 0;
+  if (nums.some((x) => x < 1) || new Set(nums).size !== n) return { ok: false, error: "Variables must be numbered {{1}}, {{2}}, … in order, each once." };
+  if (/^\s*\{\{/.test(body) || /\}\}\s*$/.test(body)) return { ok: false, error: "Meta does not allow a variable at the very start or end of the body — add some text around it." };
+  const examples = p.examples.map((e) => e.trim()).filter(Boolean);
+  if (examples.length !== n) return { ok: false, error: `Give exactly ${n} example value${n === 1 ? "" : "s"} (one per variable) — Meta needs them to review the template.` };
+  try {
+    const r = await fetchJson(`${GRAPH}/${env.WHATSAPP_CLOUD_WABA_ID}/message_templates`, {
+      method: "POST", headers: { Authorization: `Bearer ${env.WHATSAPP_CLOUD_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name, language: p.language || "en", category: p.category, components: [{ type: "BODY", text: body, ...(n ? { example: { body_text: [examples] } } : {}) }] }),
+    });
+    if (!r.ok) { const e = r.json.error as Json | undefined; return { ok: false, error: `Meta: ${e?.error_user_msg ?? e?.message ?? r.status}` }; }
+    const db = getDb();
+    const { data: ex } = await db.from("message_templates").select("id").eq("kind", "whatsapp").eq("meta_name", name).eq("language", p.language || "en").maybeSingle();
+    const row = { kind: "whatsapp", name, meta_name: name, language: p.language || "en", body, approved: false, subject: p.category };
+    if (ex) await db.from("message_templates").update(row).eq("id", ex.id); else await db.from("message_templates").insert(row);
+    return { ok: true };
+  } catch (err) { return { ok: false, error: String((err as Error).message ?? err) }; }
+}

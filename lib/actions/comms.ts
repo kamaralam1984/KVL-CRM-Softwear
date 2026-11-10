@@ -83,6 +83,11 @@ export async function getInbox(token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
   try { const { data } = await getDb().from("conversations").select("*").order("last_message_at", { ascending: false }).limit(100); return (data ?? []) as Row[]; } catch (e) { fail(e); return []; }
 }
+/** Total unread customer messages across all conversations (sidebar badge). */
+export async function getUnreadTotal(token?: string): Promise<number> {
+  if (!(await ok(token, "read"))) return 0;
+  try { const { data } = await getDb().from("conversations").select("unread_count").gt("unread_count", 0).limit(2000); return (data ?? []).reduce((n, r) => n + Number(r.unread_count ?? 0), 0); } catch { return 0; }
+}
 export async function getThread(conversationId: string, token?: string): Promise<Row[]> {
   if (!(await ok(token, "read"))) return [];
   try {

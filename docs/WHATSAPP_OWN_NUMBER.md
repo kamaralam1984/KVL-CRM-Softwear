@@ -14,6 +14,17 @@ test-to-self, live per-recipient report (sent/delivered/read/replied/failed), pa
 It runs while the tab is open and via the existing follow-up cron (every 5 min) when it isn't. The daily cap (Setup → Limits)
 and provider pacing apply; on a rate limit or disconnect it pauses itself and resumes automatically.
 
+## Inbox, media, auto-reply
+- **Chats** (WhatsApp CRM) = the unified inbox: live (polls every few seconds), customer images / voice notes / videos / PDFs shown inline
+  (stored in `wa_media`, served via signed `/api/whatsapp/media/<id>?sig=…`, 6 MB cap), delivery ticks (✓ sent, ✓✓ delivered, blue read — also in QR mode),
+  quick replies and templates merge `{{name}}` / `{{firstName}}`; templates with `{{1}}` ask for the values before sending.
+- **Auto Reply** = keyword rules stored in `wa_auto_rules` (contains / starts / exact, business-hours condition, priority, `{{name}} {{bookingLink}} {{paymentLink}}`),
+  with a tester. Order on every inbound message: keyword rule → AI answer (knowledge base) → off-hours message. STOP is never auto-replied.
+- **Templates → "Create a WhatsApp template on Meta"** submits for approval; "Check approval status" syncs the result.
+- Webhooks answer instantly and process in the background; retried messages are ignored (idempotent); the sidebar badge shows the real unread count.
+- Apply the schema with `DATABASE_URL=… node scripts/apply-schema.mjs` (idempotent; verifies the objects) — or paste `lib/db/schema.sql` into the Neon SQL Editor (adds `wa_media`, `wa_auto_rules`, `conversations.last_rule_reply_at`, unique index on inbound message ids).
+- QR mode: redeploy the `whatsapp-qr` service (it now forwards media and delivery/read receipts).
+
 *The `.env` way (still supported):*
 
 Switch with `WHATSAPP_PROVIDER=cloud | qr | twilio` in `.env.local`
@@ -51,5 +62,17 @@ WHATSAPP_PROVIDER=qr
 WHATSAPP_QR_URL=http://<server>:4002     # put it behind HTTPS (Nginx) in production
 WHATSAPP_QR_SECRET=<same secret>
 ```
+**Updating / running it under PM2 on the VPS** (keeps the linked session — no re-scan needed, `auth/` is untouched):
+```
+cd <repo>/whatsapp-qr && git pull origin main && npm install
+# first time:
+WHATSAPP_QR_SECRET=<same secret as CRM> CRM_URL=https://<your-app> WHATSAPP_QR_PORT=4002 \
+  pm2 start server.mjs --name kvl-wa-qr && pm2 save
+# already running:
+pm2 restart kvl-wa-qr --update-env
+pm2 logs kvl-wa-qr --lines 20     # expect: "WhatsApp QR service on :4002" then "WhatsApp connected"
+```
+Then CRM ▸ WhatsApp Setup ▸ *Test connection* → state must be `connected`.
+
 Built-in protection: 4–9 s random gap between sends, `WHATSAPP_QR_DAILY_CAP` (default 200), skips numbers not on WhatsApp.
 Session lives in `whatsapp-qr/auth/` — back it up; delete it to re-link.
