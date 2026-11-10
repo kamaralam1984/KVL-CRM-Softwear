@@ -5,14 +5,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { sendWhatsApp, sendSms, isWhatsAppConfigured } from "@/lib/messaging/send";
+import { sendWhatsApp, sendSms, isWhatsAppReady } from "@/lib/messaging/send";
 import { birthdayMessage } from "@/lib/outreach/templates/seasonal";
 
 export const dynamic = "force-dynamic";
 
 async function sendToCustomer(phone: string, message: string): Promise<boolean> {
   if (!phone) return false;
-  const result = isWhatsAppConfigured() ? await sendWhatsApp(phone, message) : await sendSms(phone, message, "birthday_wish");
+  const result = (await isWhatsAppReady()) ? await sendWhatsApp(phone, message) : await sendSms(phone, message, "birthday_wish");
   return result.ok;
 }
 

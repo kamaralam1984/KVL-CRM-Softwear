@@ -6,12 +6,13 @@ import { timingSafeEqual } from "crypto";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { clientIp } from "../../../analytics/shared";
 import { processInboundWhatsapp } from "@/lib/messaging/inboundWhatsapp";
+import { waEnv } from "@/lib/whatsapp/config";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const secret = process.env.WHATSAPP_QR_SECRET;
+    const secret = (await waEnv()).WHATSAPP_QR_SECRET;
     if (!secret) return NextResponse.json({ ok: false, error: "not_configured" }, { status: 501 });
     if (!rateLimit(`whatsapp:qr:${clientIp(req)}`, 120, 60_000).allowed) {
       return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });

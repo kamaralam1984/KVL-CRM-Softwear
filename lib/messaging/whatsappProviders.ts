@@ -49,9 +49,9 @@ async function cloudPost(phoneNumberId: string, token: string, payload: Record<s
   return { res, json };
 }
 
-export async function sendWhatsAppCloud(to: string, body: string): Promise<SendResult> {
-  const token = process.env.WHATSAPP_CLOUD_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
+export async function sendWhatsAppCloud(to: string, body: string, env: NodeJS.ProcessEnv = process.env): Promise<SendResult> {
+  const token = env.WHATSAPP_CLOUD_TOKEN;
+  const phoneNumberId = env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
   const digits = waDigits(to);
   if (!token || !phoneNumberId) {
     console.log(`[messaging:whatsapp-cloud:mock] → ${digits} | ${body}`);
@@ -62,13 +62,13 @@ export async function sendWhatsAppCloud(to: string, body: string): Promise<SendR
     if (text.res.ok) return { ok: true, mock: false, providerMessageId: text.json.messages?.[0]?.id };
 
     const code = text.json.error?.code;
-    const template = process.env.WHATSAPP_CLOUD_TEMPLATE_NAME;
+    const template = env.WHATSAPP_CLOUD_TEMPLATE_NAME;
     if (code && WINDOW_CLOSED_CODES.has(code) && template) {
       // Outside the 24h window only approved templates may be sent. Meta forbids newlines/tabs in variables.
       const param = body.replace(/[\r\n\t]+/g, " ").replace(/ {5,}/g, "    ").slice(0, 1000);
       const t = await cloudPost(phoneNumberId, token, {
         to: digits, type: "template",
-        template: { name: template, language: { code: process.env.WHATSAPP_CLOUD_TEMPLATE_LANG ?? "en" }, components: [{ type: "body", parameters: [{ type: "text", text: param }] }] },
+        template: { name: template, language: { code: env.WHATSAPP_CLOUD_TEMPLATE_LANG ?? "en" }, components: [{ type: "body", parameters: [{ type: "text", text: param }] }] },
       });
       if (t.res.ok) return { ok: true, mock: false, providerMessageId: t.json.messages?.[0]?.id, detail: "sent via template (24h window closed)" };
       console.error("[messaging:whatsapp-cloud] template send failed", t.json.error);
@@ -83,9 +83,9 @@ export async function sendWhatsAppCloud(to: string, body: string): Promise<SendR
   }
 }
 
-export async function sendWhatsAppQr(to: string, body: string): Promise<SendResult> {
-  const base = process.env.WHATSAPP_QR_URL;
-  const secret = process.env.WHATSAPP_QR_SECRET;
+export async function sendWhatsAppQr(to: string, body: string, env: NodeJS.ProcessEnv = process.env): Promise<SendResult> {
+  const base = env.WHATSAPP_QR_URL;
+  const secret = env.WHATSAPP_QR_SECRET;
   const digits = waDigits(to);
   if (!base || !secret) {
     console.log(`[messaging:whatsapp-qr:mock] → ${digits} | ${body}`);
@@ -119,8 +119,8 @@ export function mediaKind(url: string): "image" | "video" | "document" {
   return "document";
 }
 
-export async function sendWhatsAppCloudMedia(to: string, mediaUrl: string, caption = ""): Promise<SendResult> {
-  const token = process.env.WHATSAPP_CLOUD_TOKEN, phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
+export async function sendWhatsAppCloudMedia(to: string, mediaUrl: string, caption = "", env: NodeJS.ProcessEnv = process.env): Promise<SendResult> {
+  const token = env.WHATSAPP_CLOUD_TOKEN, phoneNumberId = env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
   const digits = waDigits(to);
   if (!token || !phoneNumberId) {
     console.log(`[messaging:whatsapp-cloud:mock] → ${digits} | media ${mediaUrl} | ${caption}`);
@@ -136,8 +136,8 @@ export async function sendWhatsAppCloudMedia(to: string, mediaUrl: string, capti
   } catch (err) { return { ok: false, mock: false, detail: String(err) }; }
 }
 
-export async function sendWhatsAppQrMedia(to: string, mediaUrl: string, caption = ""): Promise<SendResult> {
-  const base = process.env.WHATSAPP_QR_URL, secret = process.env.WHATSAPP_QR_SECRET;
+export async function sendWhatsAppQrMedia(to: string, mediaUrl: string, caption = "", env: NodeJS.ProcessEnv = process.env): Promise<SendResult> {
+  const base = env.WHATSAPP_QR_URL, secret = env.WHATSAPP_QR_SECRET;
   const digits = waDigits(to);
   if (!base || !secret) {
     console.log(`[messaging:whatsapp-qr:mock] → ${digits} | media ${mediaUrl}`);
@@ -154,8 +154,8 @@ export async function sendWhatsAppQrMedia(to: string, mediaUrl: string, caption 
   } catch (err) { return { ok: false, mock: false, detail: String(err) }; }
 }
 
-export async function sendWhatsAppCloudTemplate(to: string, name: string, language: string, params: string[]): Promise<SendResult> {
-  const token = process.env.WHATSAPP_CLOUD_TOKEN, phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
+export async function sendWhatsAppCloudTemplate(to: string, name: string, language: string, params: string[], env: NodeJS.ProcessEnv = process.env): Promise<SendResult> {
+  const token = env.WHATSAPP_CLOUD_TOKEN, phoneNumberId = env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
   const digits = waDigits(to);
   if (!token || !phoneNumberId) {
     console.log(`[messaging:whatsapp-cloud:mock] → ${digits} | template ${name} ${JSON.stringify(params)}`);

@@ -28,7 +28,8 @@ export async function applyDeliveryStatus(providerMessageId: string, incoming: D
   if (!providerMessageId) return;
   try {
     const db = getDb();
-    const { data: row } = await db.from("messages").select("id,status,conversation_id,body").eq("provider_message_id", providerMessageId).maybeSingle();
+    await applyBroadcastRecipientStatus(providerMessageId, incoming, error);
+    const { data: row } = await db.from("messages").select("id,status,conversation_id,body,sent_by").eq("provider_message_id", providerMessageId).maybeSingle();
     if (!row) return;
     const status = nextStatus(row.status as string, incoming);
     const patch: Record<string, unknown> = { status };
@@ -37,10 +38,27 @@ export async function applyDeliveryStatus(providerMessageId: string, incoming: D
     if (incoming === "read") patch.read_at = new Date().toISOString();
     await db.from("messages").update(patch).eq("id", row.id);
 
-    if (status === "failed" && row.status !== "failed") {
+    // A failed bulk-broadcast message is shown in the broadcast report — don't spam the team with one alert each.
+    if (status === "failed" && row.status !== "failed" && row.sent_by !== "broadcast") {
       const { data: conv } = await db.from("conversations").select("lead_id,contact_name,contact_phone").eq("id", row.conversation_id).maybeSingle();
       await notifyTeam({ kind: "delivery_failed", priority: "high", leadId: (conv?.lead_id as number | null) ?? undefined,
         title: `Message to ${conv?.contact_name || conv?.contact_phone || "a contact"} failed`, body: `${error || "Not delivered"} — "${String(row.body ?? "").slice(0, 80)}"` });
     }
   } catch (err) { console.error("[messaging] applyDeliveryStatus failed:", err); }
+}
+
+/** Mirrors Meta/Twilio delivery receipts onto the broadcast recipient (sent → delivered → read / failed). */
+async function applyBroadcastRecipientStatus(providerMessageId: string, incoming: DeliveryStatus, error: string): Promise<void> {
+  try {
+    const db = getDb();
+    const { data: r } = await db.from("wa_broadcast_recipients").select("id,status").eq("provider_message_id", providerMessageId).maybeSingle();
+    if (!r) return;
+    const status = nextStatus(r.status as string, incoming);
+    const now = new Date().toISOString();
+    const patch: Record<string, unknown> = { status };
+    if (status === "failed") patch.error = (error || "Not delivered").slice(0, 300);
+    if (incoming === "delivered") patch.delivered_at = now;
+    if (incoming === "read") { patch.read_at = now; patch.delivered_at = now; }
+    await db.from("wa_broadcast_recipients").update(patch).eq("id", r.id);
+  } catch (err) { console.error("[messaging] broadcast recipient status failed:", err); }
 }

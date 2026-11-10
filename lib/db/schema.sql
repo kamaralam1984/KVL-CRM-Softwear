@@ -1312,3 +1312,57 @@ alter table calendar_events add column if not exists contact_email text default 
 alter table calendar_events add column if not exists meeting_url text default '';
 alter table invoices add column if not exists contact_phone text default '';
 alter table invoices add column if not exists contact_email text default '';
+
+-- ── WhatsApp Broadcast (bulk send) ───────────────────────────────────────────
+-- A broadcast = one message (text / media / approved Meta template) sent to many contacts with
+-- per-recipient status (sent → delivered → read, replied, failed, skipped-DNC). Sent in batches by
+-- lib/whatsapp/broadcast.ts (UI loop + the follow-up cron), paced per provider.
+create table if not exists wa_broadcasts (
+  id              uuid primary key default gen_random_uuid(),
+  name            text not null,
+  mode            text not null default 'text' check (mode in ('text','media','template')),
+  body            text not null default '',
+  media_url       text default '',
+  template_name   text default '',
+  template_lang   text default 'en',
+  template_params jsonb not null default '[]',
+  opt_out_footer  boolean not null default true,
+  window_start    int,                      -- optional send window, hours 0-23 in IST
+  window_end      int,
+  status          text not null default 'draft' check (status in ('draft','scheduled','running','paused','completed','cancelled')),
+  scheduled_at    timestamptz,
+  started_at      timestamptz,
+  completed_at    timestamptz,
+  note            text default '',
+  audience        jsonb not null default '{}',
+  total           int not null default 0,
+  created_by      text default '',
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
+);
+create index if not exists wa_broadcasts_status_idx on wa_broadcasts (status, scheduled_at);
+drop trigger if exists wa_broadcasts_updated_at on wa_broadcasts;
+create trigger wa_broadcasts_updated_at before update on wa_broadcasts for each row execute procedure set_updated_at();
+
+create table if not exists wa_broadcast_recipients (
+  id                  uuid primary key default gen_random_uuid(),
+  broadcast_id        uuid not null references wa_broadcasts(id) on delete cascade,
+  phone               text not null,
+  phone_key           text not null default '',   -- last 10 digits (matches lib/compliance/dnc.ts phoneKey)
+  name                text default '',
+  lead_id             bigint references leads(id) on delete set null,
+  vars                jsonb not null default '{}',
+  status              text not null default 'pending' check (status in ('pending','sending','sent','delivered','read','failed','skipped')),
+  error               text default '',
+  provider_message_id text,
+  claimed_at          timestamptz,
+  sent_at             timestamptz,
+  delivered_at        timestamptz,
+  read_at             timestamptz,
+  replied_at          timestamptz,
+  created_at          timestamptz default now()
+);
+create unique index if not exists wa_broadcast_recipients_uidx on wa_broadcast_recipients (broadcast_id, phone_key);
+create index if not exists wa_broadcast_recipients_status_idx on wa_broadcast_recipients (broadcast_id, status);
+create index if not exists wa_broadcast_recipients_provider_idx on wa_broadcast_recipients (provider_message_id);
+create index if not exists wa_broadcast_recipients_phone_idx on wa_broadcast_recipients (phone_key, sent_at desc);

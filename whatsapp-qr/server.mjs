@@ -2,6 +2,7 @@
 // Standalone always-on Node process (VPS/PM2/Docker) — NOT for Vercel/serverless.
 //
 //   GET  /?key=SECRET        → HTML page: scan the QR with WhatsApp ▸ Linked devices
+//   GET  /qr                 → { state, qr: <data-URL PNG | null>, ... }  (Bearer — used by CRM ▸ WhatsApp Setup)
 //   GET  /status             → { state: "open"|"connecting"|"qr"|"closed", sentToday, ... }   (Bearer)
 //   POST /send {to, body}    → queue a message (Bearer)  — human-like pacing + daily cap
 //   POST /logout             → unlink the number (Bearer)
@@ -126,6 +127,10 @@ http.createServer(async (req, res) => {
   ? `<p style="color:#34d399">✅ Connected as ${state.me?.split(":")[0] ?? "your number"}</p><p>Sent today: ${state.sentToday}/${DAILY_CAP}</p>`
   : img ? `<img src="${img}" width=320 height=320 style="background:#fff;padding:8px;border-radius:12px"><p>WhatsApp ▸ Settings ▸ Linked devices ▸ Link a device</p>`
   : `<p>Status: ${state.conn}… (page refreshes automatically)</p>`}</div></body>`);
+    }
+    if (req.method === "GET" && url.pathname === "/qr") {
+      const qr = state.qr ? await QRCode.toDataURL(state.qr, { width: 280, margin: 1 }) : null;
+      return json(res, 200, { ok: true, state: state.conn, me: state.me, qr, sentToday: state.sentToday, dailyCap: DAILY_CAP });
     }
     if (req.method === "GET" && url.pathname === "/status") return json(res, 200, { ok: true, state: state.conn, me: state.me, sentToday: state.sentToday, dailyCap: DAILY_CAP });
 

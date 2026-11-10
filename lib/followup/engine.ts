@@ -11,7 +11,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { getDb } from "@/lib/db";
-import { sendWhatsApp, sendWhatsAppTemplate, sendSms, sendEmail, isWhatsAppConfigured, isSmsConfigured } from "@/lib/messaging/send";
+import { sendWhatsApp, sendWhatsAppTemplate, sendSms, sendEmail, isWhatsAppReady, isSmsConfigured } from "@/lib/messaging/send";
 import { logOutboundMessage } from "@/lib/messaging/outbound";
 import { initiateCall } from "@/lib/voice";
 import { dropRinglessVoicemail } from "@/lib/telephony/ringlessVoicemail";
@@ -278,7 +278,7 @@ export async function sendText(lead: LeadRow, text: string, subject: string, pre
   let suppressedHits = 0;
   const tryWa = async (): Promise<Delivery | null> => {
     if (!phone) return null;
-    if (isWhatsAppConfigured() || !isSmsConfigured()) {
+    if ((await isWhatsAppReady()) || !isSmsConfigured()) {
       const r = waTemplate
         ? await sendWhatsAppTemplate(phone, { ...waTemplate, fallbackBody: text })
         : await sendWhatsApp(phone, text);

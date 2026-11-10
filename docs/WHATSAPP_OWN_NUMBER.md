@@ -1,5 +1,21 @@
 # WhatsApp — send from your own number
 
+## Easiest: set it up inside the CRM
+**Comms Hub → WhatsApp Setup** (also **WhatsApp CRM → Setup**): choose Cloud API / QR / Twilio, paste the details, *Save*,
+then *Test connection* (shows number, quality rating, or the QR to scan) and *Send test*. Values saved there override `.env`
+(empty fields fall back to `.env`); tokens are AES-encrypted in the database (`WA_CONFIG_KEY`, else `AUTH_JWT_SECRET`).
+Cloud API: add the WABA ID and use *Sync templates from Meta*. Run `lib/db/schema.sql` once (adds `wa_broadcasts*` tables).
+
+## Bulk sending — Broadcast
+**Comms Hub → Broadcast** (or **WhatsApp CRM → Broadcast**): text, image/PDF or approved template; audience from CRM leads
+(status/stage/tag/owner/score filters, hand-picked) and/or pasted numbers; merge tags `{{name}} {{firstName}} {{company}}`;
+auto-removes duplicates, bad numbers and opted-out (DNC) contacts; optional IST send window, schedule, "Reply STOP" footer,
+test-to-self, live per-recipient report (sent/delivered/read/replied/failed), pause/resume/cancel/retry-failed.
+It runs while the tab is open and via the existing follow-up cron (every 5 min) when it isn't. The daily cap (Setup → Limits)
+and provider pacing apply; on a rate limit or disconnect it pauses itself and resumes automatically.
+
+*The `.env` way (still supported):*
+
 Switch with `WHATSAPP_PROVIDER=cloud | qr | twilio` in `.env.local`
 (if unset it auto-detects from whichever variables below exist). Follow-up Engine,
 Conversations inbox, Workflow Builder and webinar reminders all use it automatically.

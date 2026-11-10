@@ -5,7 +5,7 @@
 
 import { assertCan } from "@/lib/security/requireAction";
 import { createRazorpayPaymentLink } from "@/lib/payments/razorpay";
-import { sendWhatsApp, sendSms, isWhatsAppConfigured } from "@/lib/messaging/send";
+import { sendWhatsApp, sendSms, isWhatsAppReady } from "@/lib/messaging/send";
 
 export async function sendText2Pay(
   input: { phone: string; amountRupees: number; description: string; customerName?: string },
@@ -22,7 +22,7 @@ export async function sendText2Pay(
   if (!link.ok || !link.shortUrl) return { ok: false, mock: link.mock };
 
   const message = `${input.description} — pay ₹${input.amountRupees} here: ${link.shortUrl}`;
-  const sendResult = isWhatsAppConfigured() ? await sendWhatsApp(input.phone, message) : await sendSms(input.phone, message);
+  const sendResult = (await isWhatsAppReady()) ? await sendWhatsApp(input.phone, message) : await sendSms(input.phone, message);
 
   return { ok: sendResult.ok, shortUrl: link.shortUrl, mock: link.mock || sendResult.mock };
 }

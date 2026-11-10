@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { assertCan } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import { draftReviewReply, templateReviewReply } from "@/lib/reputation/aiReply";
-import { sendWhatsApp, sendSms, isWhatsAppConfigured } from "@/lib/messaging/send";
+import { sendWhatsApp, sendSms, isWhatsAppReady } from "@/lib/messaging/send";
 
 export type Review = {
   id: string;
@@ -93,13 +93,13 @@ export async function sendReviewRequest(
   if (!phone) return { ok: false };
 
   const message = `Thanks for being a customer! We'd love a quick review: ${reviewLink}`;
-  const result = isWhatsAppConfigured() ? await sendWhatsApp(phone, message) : await sendSms(phone, message, "review_request");
+  const result = (await isWhatsAppReady()) ? await sendWhatsApp(phone, message) : await sendSms(phone, message, "review_request");
 
   try {
     const db = getDb();
     await db.from("review_requests").insert({
       customer_id: customerId,
-      channel: isWhatsAppConfigured() ? "whatsapp" : "sms",
+      channel: (await isWhatsAppReady()) ? "whatsapp" : "sms",
       status: result.ok ? "sent" : "failed",
     });
   } catch (err) {

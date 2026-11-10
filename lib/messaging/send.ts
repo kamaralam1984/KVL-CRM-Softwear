@@ -19,6 +19,7 @@ import { whatsappProvider, sendWhatsAppCloud, sendWhatsAppQr, sendWhatsAppCloudM
 import { isSuppressed } from "@/lib/compliance/dnc";
 import { unsubscribeUrl } from "@/lib/compliance/token";
 import { getDb, dbConfigured } from "@/lib/db";
+import { waEnv } from "@/lib/whatsapp/config";
 
 /** Marketing/follow-up sends honour the central DNC list. `bypassSuppression` is for
  *  internal/team alerts and genuinely transactional messages only. */
@@ -80,10 +81,11 @@ async function twilioSend(params: {
 export async function sendWhatsApp(to: string, body: string, opts: SendOpts = {}): Promise<SendResult> {
   if (!opts.bypassSuppression && (await isSuppressed({ phone: to }, "whatsapp"))) return OPTED_OUT;
   // Own-number providers (Meta Cloud API / QR service) — see whatsappProviders.ts.
-  const provider = whatsappProvider();
-  if (provider === "cloud") return sendWhatsAppCloud(to, body);
-  if (provider === "qr") return sendWhatsAppQr(to, body);
-  const from = process.env.TWILIO_WHATSAPP_FROM; // e.g. "whatsapp:+14155238886"
+  const env = await waEnv(); // CRM-saved WhatsApp settings override .env
+  const provider = whatsappProvider(env);
+  if (provider === "cloud") return sendWhatsAppCloud(to, body, env);
+  if (provider === "qr") return sendWhatsAppQr(to, body, env);
+  const from = env.TWILIO_WHATSAPP_FROM; // e.g. "whatsapp:+14155238886"
   const target = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
   return twilioSend({ from, to: target, body, mockPrefix: "whatsapp" });
 }
@@ -91,10 +93,11 @@ export async function sendWhatsApp(to: string, body: string, opts: SendOpts = {}
 /** Image / PDF / brochure. `caption` is shown under the media. */
 export async function sendWhatsAppMedia(to: string, mediaUrl: string, caption = "", opts: SendOpts = {}): Promise<SendResult> {
   if (!opts.bypassSuppression && (await isSuppressed({ phone: to }, "whatsapp"))) return OPTED_OUT;
-  const provider = whatsappProvider();
-  if (provider === "cloud") return sendWhatsAppCloudMedia(to, mediaUrl, caption);
-  if (provider === "qr") return sendWhatsAppQrMedia(to, mediaUrl, caption);
-  const from = process.env.TWILIO_WHATSAPP_FROM;
+  const env = await waEnv();
+  const provider = whatsappProvider(env);
+  if (provider === "cloud") return sendWhatsAppCloudMedia(to, mediaUrl, caption, env);
+  if (provider === "qr") return sendWhatsAppQrMedia(to, mediaUrl, caption, env);
+  const from = env.TWILIO_WHATSAPP_FROM;
   const target = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
   return twilioSend({ from, to: target, body: caption, mockPrefix: "whatsapp", mediaUrl });
 }
@@ -102,7 +105,8 @@ export async function sendWhatsAppMedia(to: string, mediaUrl: string, caption = 
 /** Approved Meta template (works outside the 24h window). Non-Cloud providers send `fallbackBody` as plain text. */
 export async function sendWhatsAppTemplate(to: string, tpl: { metaName: string; language?: string; params: string[]; fallbackBody: string }, opts: SendOpts = {}): Promise<SendResult> {
   if (!opts.bypassSuppression && (await isSuppressed({ phone: to }, "whatsapp"))) return OPTED_OUT;
-  if (whatsappProvider() === "cloud" && tpl.metaName) return sendWhatsAppCloudTemplate(to, tpl.metaName, tpl.language ?? "en", tpl.params);
+  const env = await waEnv();
+  if (whatsappProvider(env) === "cloud" && tpl.metaName) return sendWhatsAppCloudTemplate(to, tpl.metaName, tpl.language ?? "en", tpl.params, env);
   return sendWhatsApp(to, tpl.fallbackBody, { bypassSuppression: true });
 }
 
@@ -121,10 +125,17 @@ export async function sendSms(to: string, body: string, templateKey?: string, op
 }
 
 export function isWhatsAppConfigured(): boolean {
-  const provider = whatsappProvider();
-  if (provider === "cloud") return isCloudConfigured();
-  if (provider === "qr") return isQrConfigured();
-  return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_FROM);
+  return whatsAppConfiguredFor(process.env);
+}
+function whatsAppConfiguredFor(env: NodeJS.ProcessEnv): boolean {
+  const provider = whatsappProvider(env);
+  if (provider === "cloud") return isCloudConfigured(env);
+  if (provider === "qr") return isQrConfigured(env);
+  return Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_WHATSAPP_FROM);
+}
+/** Like isWhatsAppConfigured() but also counts WhatsApp settings saved in the CRM (WhatsApp Setup). Prefer this. */
+export async function isWhatsAppReady(): Promise<boolean> {
+  return whatsAppConfiguredFor(await waEnv());
 }
 export function isSmsConfigured(): boolean {
   return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_SMS_FROM);

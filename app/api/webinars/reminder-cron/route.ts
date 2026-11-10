@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { sendWhatsApp, sendSms, sendEmail, isWhatsAppConfigured, isSmsConfigured } from "@/lib/messaging/send";
+import { sendWhatsApp, sendSms, sendEmail, isWhatsAppReady, isSmsConfigured } from "@/lib/messaging/send";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,7 @@ const WINDOW_HOURS = 0.3;
 async function sendReminder(name: string, phone: string, email: string, title: string, roomUrl: string, whenLabel: string): Promise<boolean> {
   const message = `Hi ${name.split(" ")[0] || name}, reminder: "${title}" ${whenLabel}. Join here: ${roomUrl}`;
   if (phone) {
-    const result = isWhatsAppConfigured() ? await sendWhatsApp(phone, message) : isSmsConfigured() ? await sendSms(phone, message) : null;
+    const result = (await isWhatsAppReady()) ? await sendWhatsApp(phone, message) : isSmsConfigured() ? await sendSms(phone, message) : null;
     if (result?.ok) return true;
   }
   if (email) {

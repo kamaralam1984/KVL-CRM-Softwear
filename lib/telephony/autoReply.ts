@@ -5,7 +5,7 @@
 // MyOperator all normalize to the same caller_number shape there already).
 
 import { getAcquisitionSettings } from "@/lib/actions/acquisitionSettings";
-import { sendWhatsApp, sendSms, isWhatsAppConfigured, isSmsConfigured } from "@/lib/messaging/send";
+import { sendWhatsApp, sendSms, isWhatsAppReady, isSmsConfigured } from "@/lib/messaging/send";
 import { ensureConversation } from "@/lib/actions/conversations";
 import { getDb } from "@/lib/db";
 import { createTask } from "@/lib/actions/tasks";
@@ -27,7 +27,7 @@ export async function sendMissedCallAutoReply(phone: string): Promise<void> {
   try {
     const template = await getMissedCallReplyTemplate();
 
-    if (isWhatsAppConfigured()) {
+    if ((await isWhatsAppReady())) {
       const result = await sendWhatsApp(phone, template);
       const conversationId = await ensureConversation("whatsapp", phone, phone);
       if (conversationId) {

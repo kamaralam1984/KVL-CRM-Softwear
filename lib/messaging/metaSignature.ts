@@ -8,8 +8,7 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 
-export function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
-  const secret = process.env.META_APP_SECRET;
+export function verifyMetaSignature(rawBody: string, signatureHeader: string | null, secret: string | undefined = process.env.META_APP_SECRET): boolean {
   if (!secret || !signatureHeader) return false;
 
   try {

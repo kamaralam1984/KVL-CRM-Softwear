@@ -2,11 +2,10 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Send, Paperclip, Smile, Search, Plus, Check, CheckCheck,
-  MessageCircle, Megaphone, Bot, Users, Clock, Zap, ToggleLeft,
-  ToggleRight, Trash2, Edit3, PlayCircle, BarChart2, ChevronDown,
-  Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
-  Calendar, MicOff, VideoOff, ScreenShare,
+  Send, Paperclip, Smile, Search, Plus, CheckCheck,
+  MessageCircle, Megaphone, Bot, Clock, Zap, ToggleLeft,
+  ToggleRight, Trash2, PlayCircle, Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
+  Calendar, Plug,
 } from "lucide-react";
 import { whatsappConversations } from "@/lib/data";
 import { getWhatsappConversations, updateWhatsappConversation, deleteWhatsappConversation } from "@/lib/actions/whatsapp";
@@ -14,9 +13,10 @@ import { sendFromLegacyConversation } from "@/lib/actions/conversations";
 import { getAccessToken } from "@/lib/security/clientSession";
 import { createEvent } from "@/lib/actions/calendarEvents";
 import { cn } from "@/lib/utils";
+import BroadcastTab from "./comms/BroadcastTab";
+import WhatsAppSetupTab from "./comms/WhatsAppSetupTab";
 
 const inputCls = "w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-crm-border text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-blue-500/50 transition-colors";
-const selectCls = "w-full px-3 py-2 rounded-xl bg-[#0a1628] border border-crm-border text-xs text-slate-200 outline-none focus:border-blue-500/50 transition-colors";
 
 const demoMessages: Record<number, { role: "in" | "out"; text: string; time: string }[]> = {
   1: [
@@ -36,14 +36,6 @@ const demoMessages: Record<number, { role: "in" | "out"; text: string; time: str
     { role: "out", text: "Sending over the renewal doc now — great working with you!", time: "9:15 AM" },
   ],
 };
-
-type BroadcastItem = { id: number; name: string; segment: string; sent: number; delivered: number; read: number; date: string; status: "sent" | "scheduled" | "draft" };
-const initialBroadcasts: BroadcastItem[] = [
-  { id: 1, name: "Q4 Product Update",    segment: "Enterprise",  sent: 48, delivered: 46, read: 38, date: "Dec 20", status: "sent" },
-  { id: 2, name: "Holiday Greetings",    segment: "All Clients", sent: 124, delivered: 120, read: 98, date: "Dec 24", status: "sent" },
-  { id: 3, name: "January Promo Offer",  segment: "SMB",         sent: 0,  delivered: 0,  read: 0,  date: "Jan 5",  status: "scheduled" },
-  { id: 4, name: "Re-engagement Campaign", segment: "Cold Leads", sent: 0, delivered: 0,  read: 0,  date: "—",      status: "draft" },
-];
 
 type AutoRule = { id: number; trigger: string; response: string; active: boolean; hits: number };
 const initialRules: AutoRule[] = [
@@ -84,14 +76,6 @@ export default function WhatsApp() {
   const [input, setInput]             = useState("");
   const [activeTab, setActiveTab]     = useState("chats");
   const [localMsgs, setLocalMsgs]     = useState(demoMessages);
-
-  // Broadcast state
-  const [broadcasts, setBroadcasts]   = useState(initialBroadcasts);
-  const [selected, setSelected]       = useState<number[]>([]);
-  const [bMsg, setBMsg]               = useState("");
-  const [bName, setBName]             = useState("");
-  const [bSeg, setBSeg]               = useState("All Clients");
-  const [showCompose, setShowCompose] = useState(false);
 
   // Auto reply state
   const [rules, setRules]             = useState(initialRules);
@@ -167,14 +151,6 @@ export default function WhatsApp() {
     setQuickJoin("");
   };
 
-  const toggleContact = (id: number) => setSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-
-  const sendBroadcast = () => {
-    if (!bMsg.trim() || !bName.trim() || selected.length === 0) return;
-    setBroadcasts(p => [...p, { id: Date.now(), name: bName, segment: bSeg, sent: selected.length, delivered: selected.length, read: 0, date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }), status: "sent" }]);
-    setShowCompose(false); setBMsg(""); setBName(""); setSelected([]);
-  };
-
   const addRule = () => {
     if (!newTrigger.trim() || !newResponse.trim()) return;
     setRules(p => [...p, { id: Date.now(), trigger: newTrigger, response: newResponse, active: true, hits: 0 }]);
@@ -184,12 +160,6 @@ export default function WhatsApp() {
   const toggleRule = (id: number) => setRules(p => p.map(r => r.id === id ? { ...r, active: !r.active } : r));
   const deleteRule = (id: number) => setRules(p => p.filter(r => r.id !== id));
 
-  const bStatusStyle: Record<string, string> = {
-    sent: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    scheduled: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    draft: "bg-slate-500/10 text-slate-400 border-slate-500/20",
-  };
-
   return (
     <div className="h-full flex flex-col p-5 gap-4">
       {/* Tabs */}
@@ -197,6 +167,7 @@ export default function WhatsApp() {
         {[
           { id: "chats",    icon: MessageCircle, label: "Chats" },
           { id: "broadcast",icon: Megaphone,     label: "Broadcast" },
+          { id: "setup",    icon: Plug,          label: "Setup" },
           { id: "auto",     icon: Bot,           label: "Auto Reply" },
           { id: "calls",    icon: Phone,          label: "Voice Calls" },
           { id: "meetings", icon: Video,          label: "Meetings" },
@@ -301,124 +272,11 @@ export default function WhatsApp() {
         </div>
       )}
 
-      {/* ══ BROADCAST TAB ══ */}
-      {activeTab === "broadcast" && (
-        <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
-          {/* Left: Contact selector */}
-          <div className="w-64 flex-shrink-0 flex flex-col gap-3">
-            <div className="glass-card rounded-2xl border border-crm-border p-3 flex flex-col gap-2 flex-1 overflow-hidden">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-semibold text-slate-200">Select Recipients</p>
-                <span className="text-[10px] text-blue-400 font-semibold">{selected.length} selected</span>
-              </div>
-              <div className="flex items-center gap-2 px-2 h-8 rounded-lg border border-crm-border bg-white/[0.03]">
-                <Search size={11} className="text-slate-500" />
-                <input placeholder="Search contacts..." className="bg-transparent text-[11px] text-slate-200 placeholder-slate-600 outline-none flex-1" />
-              </div>
-              <div className="flex-1 space-y-1 overflow-y-auto">
-                {contacts.map((c) => {
-                  const isSel = selected.includes(c.id);
-                  return (
-                    <button key={c.id} onClick={() => toggleContact(c.id)}
-                      className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all", isSel ? "bg-blue-500/10 border border-blue-500/20" : "hover:bg-white/[0.04]")}
-                    >
-                      <div className={cn("w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-all", isSel ? "gradient-bg border-transparent" : "border-crm-border")}>
-                        {isSel && <Check size={9} className="text-white" />}
-                      </div>
-                      <div className="w-7 h-7 rounded-full gradient-bg flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">
-                        {c.avatar}
-                      </div>
-                      <span className="text-[11px] text-slate-300 truncate">{c.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <button onClick={() => setSelected(selected.length === contacts.length ? [] : contacts.map(c => c.id))}
-                className="text-[11px] text-blue-400 hover:text-blue-300 text-center py-1 transition-colors">
-                {selected.length === contacts.length ? "Deselect all" : "Select all"}
-              </button>
-            </div>
-          </div>
+      {/* ══ BROADCAST TAB — real bulk send (see comms/BroadcastTab.tsx) ══ */}
+      {activeTab === "broadcast" && <div className="flex-1 overflow-y-auto"><BroadcastTab /></div>}
 
-          {/* Right: Compose + History */}
-          <div className="flex-1 flex flex-col gap-3 overflow-hidden">
-            {/* Compose */}
-            <div className="glass-card rounded-2xl border border-crm-border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Megaphone size={14} className="text-blue-400" />
-                  <p className="text-sm font-semibold text-slate-200">New Broadcast</p>
-                </div>
-                <button onClick={() => setShowCompose(!showCompose)} className="text-xs text-slate-500 flex items-center gap-1 hover:text-slate-300 transition-colors">
-                  <ChevronDown size={13} className={cn("transition-transform", showCompose && "rotate-180")} />
-                </button>
-              </div>
-
-              <AnimatePresence>
-                {showCompose && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[11px] text-slate-500 block mb-1">Broadcast Name *</label>
-                        <input className={inputCls} placeholder="Q1 Campaign..." value={bName} onChange={e => setBName(e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-[11px] text-slate-500 block mb-1">Segment</label>
-                        <select className={selectCls} value={bSeg} onChange={e => setBSeg(e.target.value)}>
-                          {["All Clients", "Enterprise", "SMB", "Agency", "Cold Leads"].map(s => <option key={s}>{s}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-slate-500 block mb-1">Message *</label>
-                      <textarea className={cn(inputCls, "resize-none h-20")} placeholder="Type your broadcast message here..." value={bMsg} onChange={e => setBMsg(e.target.value)} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] text-slate-500">{selected.length} recipient{selected.length !== 1 ? "s" : ""} selected</p>
-                      <button onClick={sendBroadcast} disabled={!bMsg.trim() || !bName.trim() || selected.length === 0}
-                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg gradient-bg text-white text-xs font-medium disabled:opacity-40 transition-all">
-                        <Send size={11} /> Send Broadcast
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {!showCompose && (
-                <button onClick={() => setShowCompose(true)} className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-crm-border text-xs text-slate-500 hover:text-slate-300 hover:border-blue-500/30 transition-all">
-                  <Plus size={12} /> Compose new broadcast
-                </button>
-              )}
-            </div>
-
-            {/* Broadcast History */}
-            <div className="flex-1 glass-card rounded-2xl border border-crm-border overflow-hidden flex flex-col">
-              <div className="px-4 py-2.5 border-b border-crm-border">
-                <p className="text-xs font-semibold text-slate-300">Broadcast History</p>
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                {broadcasts.map((b, i) => (
-                  <motion.div key={b.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}
-                    className="flex items-center gap-4 px-4 py-3 border-b border-crm-border/50 last:border-0 hover:bg-white/[0.02] transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-slate-200 truncate">{b.name}</p>
-                      <p className="text-[10px] text-slate-500">{b.segment} · {b.date}</p>
-                    </div>
-                    <span className={cn("badge border text-[10px]", bStatusStyle[b.status])}>{b.status}</span>
-                    {b.status === "sent" && (
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-shrink-0">
-                        <span className="flex items-center gap-1"><Send size={9} /> {b.sent}</span>
-                        <span className="flex items-center gap-1"><CheckCheck size={9} className="text-blue-400" /> {b.delivered}</span>
-                        <span className="flex items-center gap-1"><BarChart2 size={9} className="text-emerald-400" /> {Math.round((b.read / b.sent) * 100)}%</span>
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ══ SETUP TAB — connect the business number (see comms/WhatsAppSetupTab.tsx) ══ */}
+      {activeTab === "setup" && <div className="flex-1 overflow-y-auto"><WhatsAppSetupTab /></div>}
 
       {/* ══ AUTO REPLY TAB ══ */}
       {activeTab === "auto" && (

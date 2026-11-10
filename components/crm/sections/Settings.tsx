@@ -10,6 +10,7 @@ import { startTwoFaEnrollment, confirmTwoFaEnrollment } from "@/lib/actions/twof
 import { getRazorpayConnectUrl, disconnectProvider, getConnectedProviders } from "@/lib/actions/integrations";
 import { getSmsTemplates, saveSmsTemplate } from "@/lib/actions/smsTemplates";
 import { getAccessToken } from "@/lib/security/clientSession";
+import { getWaSetup } from "@/lib/actions/waSetup";
 
 const SMS_TEMPLATE_KEYS: { key: string; label: string }[] = [
   { key: "missed_call_reply", label: "Missed-Call Auto-Reply" },
@@ -40,7 +41,7 @@ const notifSettings = [
 const connectedApps = [
   { name: "Slack", connected: true, color: "#4A154B" },
   { name: "Gmail", connected: true, color: "#D44638" },
-  { name: "WhatsApp", connected: true, color: "#25D366" },
+  { name: "WhatsApp", connected: false, color: "#25D366" }, // real status is loaded from WhatsApp Setup below
   { name: "Razorpay", connected: false, color: "#0C2451" },
 ];
 
@@ -103,6 +104,11 @@ export default function Settings() {
   const [twoFaCode, setTwoFaCode] = useState("");
   const [twoFaError, setTwoFaError] = useState("");
   const [twoFaBusy, setTwoFaBusy] = useState(false);
+
+  // WhatsApp connection state comes from the real provider config (CRM ▸ WhatsApp Setup / .env), not a hardcoded flag.
+  useEffect(() => {
+    getWaSetup(getAccessToken()).then((r) => { if (r) setApps((prev) => prev.map((x) => (x.name === "WhatsApp" ? { ...x, connected: r.configured } : x))); }).catch(() => {});
+  }, []);
 
   // ── Razorpay Connect status banner (reflects ?razorpay= from the OAuth callback) ──
   const [razorpayMsg, setRazorpayMsg] = useState<{ ok: boolean; text: string } | null>(null);

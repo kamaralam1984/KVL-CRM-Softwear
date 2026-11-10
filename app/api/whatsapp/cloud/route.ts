@@ -11,6 +11,7 @@ import { clientIp } from "../../analytics/shared";
 import { verifyMetaSignature } from "@/lib/messaging/metaSignature";
 import { processInboundWhatsapp } from "@/lib/messaging/inboundWhatsapp";
 import { applyDeliveryStatus, type DeliveryStatus } from "@/lib/messaging/status";
+import { waEnv } from "@/lib/whatsapp/config";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ function same(a: string, b: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const expected = process.env.WHATSAPP_CLOUD_VERIFY_TOKEN;
+  const expected = (await waEnv()).WHATSAPP_CLOUD_VERIFY_TOKEN; // saved in CRM → WhatsApp Setup (or .env)
   const p = req.nextUrl.searchParams;
   if (expected && p.get("hub.mode") === "subscribe" && same(p.get("hub.verify_token") ?? "", expected)) {
     return new NextResponse(p.get("hub.challenge") ?? "", { status: 200 });
@@ -34,12 +35,13 @@ interface CloudPayload {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.META_APP_SECRET) return NextResponse.json({ ok: false, error: "not_configured" }, { status: 501 });
+    const appSecret = (await waEnv()).META_APP_SECRET;
+    if (!appSecret) return NextResponse.json({ ok: false, error: "not_configured" }, { status: 501 });
     if (!rateLimit(`whatsapp:cloud:${clientIp(req)}`, 120, 60_000).allowed) {
       return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
     }
     const raw = await req.text();
-    if (!verifyMetaSignature(raw, req.headers.get("x-hub-signature-256"))) {
+    if (!verifyMetaSignature(raw, req.headers.get("x-hub-signature-256"), appSecret)) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
     const payload = JSON.parse(raw) as CloudPayload;

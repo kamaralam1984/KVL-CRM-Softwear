@@ -11,6 +11,7 @@ import { handleInboundReply } from "@/lib/followup/engine";
 import { classifyInbound } from "@/lib/followup/sequence";
 import { addSuppression, removeSuppression } from "@/lib/compliance/dnc";
 import { assignConversation, maybeAutoRespond } from "@/lib/comms/autoReply";
+import { markBroadcastReply } from "@/lib/whatsapp/broadcast";
 
 const RESUBSCRIBE = /^\s*(start|unstop|subscribe|resume|yes)\s*$/i;
 
@@ -23,6 +24,8 @@ export async function processInboundWhatsapp(rawPhone: string, rawBody: string, 
 
   const resolution = await resolveIdentity({ visitorId: `whatsapp:${phone}`, name: "", email: "", phone }, DEFAULT_SITE_ID).catch(() => null);
   if (conversationId && resolution?.leadId) await linkConversationToLead(conversationId, resolution.leadId);
+
+  await markBroadcastReply(phone); // counts as a "reply" on the latest broadcast this person received
 
   if (RESUBSCRIBE.test(body)) { await removeSuppression({ phone }); return; }
   const intent = classifyInbound(body);
