@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           // No component uses camera/mic/geolocation (business-card scan is a
           // file upload, Voice AI is server-side Twilio, not the browser mic).
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
           { key: "Content-Security-Policy", value: csp },
         ],
       },
