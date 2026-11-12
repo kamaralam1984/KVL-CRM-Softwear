@@ -3,7 +3,7 @@
 // Meta Cloud API, QR (linked device) or Twilio, with live connection test, QR display, webhook details,
 // test message, Meta template sync and sending limits.
 import { useEffect, useState } from "react";
-import { getWaSetup, saveWaSetup, testWaConnection, sendWaTest, syncMetaTemplates, logoutWaQr, type WaStatus } from "@/lib/actions/waSetup";
+import { getWaSetup, saveWaSetup, testWaConnection, sendWaTest, syncMetaTemplates, logoutWaQr, requestWaPairingCode, type WaStatus } from "@/lib/actions/waSetup";
 import type { WaConfig, WaProviderChoice } from "@/lib/whatsapp/config";
 import { Btn, Card, Badge, Field, inputCls, token, useLoad } from "./ui";
 
@@ -24,6 +24,7 @@ export default function WhatsAppSetupTab() {
   const [status, setStatus] = useState<WaStatus | null>(null);
   const [busy, setBusy] = useState(""), [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [test, setTest] = useState({ phone: "", text: "" });
+  const [pair, setPair] = useState<{ phone: string; code: string; err: string }>({ phone: "", code: "", err: "" });
   const cfg = edit ?? loaded?.config ?? null;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -65,6 +66,16 @@ export default function WhatsAppSetupTab() {
                       <img src={status.qr.dataUrl} alt="WhatsApp QR code" width={220} height={220} className="mx-auto rounded-lg bg-white p-2" />
                       <p className="text-[10px] text-slate-400 mt-1">WhatsApp ▸ Settings ▸ Linked devices ▸ Link a device — scan this code.</p></>
                     : <p className="text-[11px] text-slate-400">Waiting for the QR service ({status.qr.state})…</p>}
+                  <div className="mt-3 border-t border-white/[0.06] pt-2 text-left">
+                    <p className="text-[11px] text-slate-300 mb-1">QR scan nahi kar sakte (ek hi phone)? Number se link karo:</p>
+                    <div className="flex gap-1.5">
+                      <input className={inputCls} inputMode="numeric" placeholder="919812345678 (country code ke saath)" value={pair.phone} onChange={(e) => setPair({ phone: e.target.value, code: "", err: "" })} />
+                      <Btn type="button" disabled={busy === "pair" || pair.phone.replace(/\D/g, "").length < 8} onClick={async () => { setBusy("pair"); try { const r = await requestWaPairingCode(pair.phone, token()); setPair((p) => ({ ...p, code: r.code ?? "", err: r.ok ? "" : (r.error ?? "failed") })); } finally { setBusy(""); } }}>{busy === "pair" ? "…" : "Get code"}</Btn>
+                    </div>
+                    {pair.err && <p className="text-[10px] text-rose-400 mt-1">{pair.err}</p>}
+                    {pair.code && <><p className="text-center text-2xl font-bold tracking-[0.25em] text-[#c9a84c] mt-2">{pair.code}</p>
+                      <p className="text-[10px] text-slate-400 text-center">WhatsApp ▸ Settings ▸ Linked devices ▸ Link a device ▸ <b>“Link with phone number instead”</b> — yeh code daalo.</p></>}
+                  </div>
                 </div>
               )}
               {status.qr?.state === "open" && <Btn tone="danger" disabled={busy === "logout"} onClick={() => run("logout", async () => { const r = await logoutWaQr(token()); await check(); return { ok: r.ok, text: r.ok ? "Number unlinked. Scan again to link another." : (r.error ?? "Failed") }; })}>Unlink this number</Btn>}

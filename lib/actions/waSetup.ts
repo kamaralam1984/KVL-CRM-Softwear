@@ -95,6 +95,17 @@ export async function testWaConnection(token?: string): Promise<WaStatus> {
   return out;
 }
 
+/** "Link with phone number": asks the QR service for an 8-character pairing code to type into WhatsApp. */
+export async function requestWaPairingCode(phone: string, token?: string): Promise<{ ok: boolean; code?: string; error?: string }> {
+  if (!(await guard(token, "update"))) return { ok: false, error: "Forbidden" };
+  const env = await waEnv();
+  if (!isQrConfigured(env)) return { ok: false, error: "QR service not configured." };
+  try {
+    const r = await fetchJson(`${env.WHATSAPP_QR_URL!.replace(/\/$/, "")}/pair`, { method: "POST", headers: { Authorization: `Bearer ${env.WHATSAPP_QR_SECRET}`, "Content-Type": "application/json" }, body: JSON.stringify({ phone }) });
+    return r.ok && r.json.code ? { ok: true, code: String(r.json.code) } : { ok: false, error: String(r.json.error ?? `QR service answered ${r.status}`) };
+  } catch (err) { return { ok: false, error: String(err) }; }
+}
+
 export async function logoutWaQr(token?: string): Promise<{ ok: boolean; error?: string }> {
   if (!(await guard(token, "update"))) return { ok: false, error: "Forbidden" };
   const env = await waEnv();

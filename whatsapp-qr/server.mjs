@@ -219,6 +219,17 @@ http.createServer(async (req, res) => {
       try { return json(res, 200, { ok: true, id: await enqueueSend(to, body, mediaUrl, mediaKind) }); }
       catch (err) { return json(res, 502, { ok: false, error: String(err.message || err) }); }
     }
+    if (req.method === "POST" && url.pathname === "/pair") {
+      const { phone } = await readJson(req);
+      const digits = String(phone || "").replace(/\D/g, "");
+      if (!/^\d{8,15}$/.test(digits)) return json(res, 400, { ok: false, error: "phone must be 8-15 digits with country code, e.g. 919812345678" });
+      if (state.conn === "open") return json(res, 409, { ok: false, error: "already linked" });
+      if (!sock) return json(res, 503, { ok: false, error: "service starting, retry in a few seconds" });
+      try {
+        const raw = await sock.requestPairingCode(digits);
+        return json(res, 200, { ok: true, code: String(raw).replace(/(.{4})(.{4})/, "$1-$2") });
+      } catch (err) { return json(res, 502, { ok: false, error: `could not get a pairing code: ${String(err.message || err)}` }); }
+    }
     if (req.method === "POST" && url.pathname === "/logout") { await sock?.logout().catch(() => {}); return json(res, 200, { ok: true }); }
     return json(res, 404, { ok: false, error: "not_found" });
   } catch (err) { log.error({ err: String(err) }, "request failed"); return json(res, 500, { ok: false, error: "internal_error" }); }
