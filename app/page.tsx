@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Globe, AlertTriangle } from "lucide-react";
+import MobileNav from "@/components/crm/MobileNav";
 import Sidebar from "@/components/crm/Sidebar";
 import TopNav from "@/components/crm/TopNav";
 import { ThemeProvider, useTheme } from "@/components/crm/ThemeContext";
@@ -130,6 +131,7 @@ function CRMAppInner() {
   const [activeSection, setActiveSection]   = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [aiOpen, setAiOpen]                 = useState(false);
+  const [drawerOpen, setDrawerOpen]         = useState(false);
   const { darkMode, toggleDark } = useTheme();
   const [saConfig, setSaConfig]             = useState(() => loadSAConfig());
 
@@ -177,7 +179,7 @@ function CRMAppInner() {
         <motion.div key="landing"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="h-screen overflow-y-auto"
+          className="h-dvh overflow-y-auto"
         >
           <LandingPage onGetStarted={() => setView("auth")} />
         </motion.div>
@@ -192,7 +194,7 @@ function CRMAppInner() {
         <motion.div key="auth"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="h-screen overflow-y-auto"
+          className="h-dvh overflow-y-auto"
         >
           <Auth onAuth={(u) => { setUser(u); setView("app"); }} onBack={() => setView("landing")} />
         </motion.div>
@@ -239,9 +241,10 @@ function CRMAppInner() {
         initial={{ opacity: 0, scale: 0.99 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-        className={`flex h-screen w-screen overflow-hidden ${darkMode ? "dark" : "light"}`}
+        className={`flex h-dvh w-screen overflow-hidden ${darkMode ? "dark" : "light"}`}
         style={{ background: darkMode ? "#080c14" : "#F8F6F1", transition: "background 0.3s ease" }}
       >
+        <div className="hidden md:block h-full flex-shrink-0">
         <Sidebar
           activeSection={activeSection}
           onSectionChange={setActiveSection}
@@ -251,6 +254,20 @@ function CRMAppInner() {
           onLogout={handleLogout}
           effectiveFeatures={effectiveFeatures}
         />
+        </div>
+
+        {/* Phone drawer */}
+        <AnimatePresence>
+          {drawerOpen && (
+            <motion.div key="drawer" className="md:hidden fixed inset-0 z-[70] flex" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+              <motion.div className="h-full w-[17rem] max-w-[85vw] shadow-2xl" style={{ background: "var(--bg)" }} initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}>
+                <Sidebar mobile activeSection={activeSection} onSectionChange={(id) => { setActiveSection(id); setDrawerOpen(false); }}
+                  collapsed={false} onToggleCollapse={() => {}} user={user} onLogout={handleLogout} effectiveFeatures={effectiveFeatures} />
+              </motion.div>
+              <button aria-label="Close menu" className="flex-1 bg-black/60 backdrop-blur-[2px]" onClick={() => setDrawerOpen(false)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <TopNav
@@ -260,6 +277,7 @@ function CRMAppInner() {
             onToggleDark={toggleDark}
             user={user}
             onLogout={handleLogout}
+            onMenu={() => setDrawerOpen(true)}
           />
 
           <main className="flex-1 overflow-hidden relative">
@@ -287,6 +305,7 @@ function CRMAppInner() {
               </motion.div>
             </AnimatePresence>
           </main>
+          <MobileNav activeSection={activeSection} onSectionChange={setActiveSection} onMore={() => setDrawerOpen(true)} />
         </div>
 
         <AIAssistant open={aiOpen} onClose={() => setAiOpen(false)} />

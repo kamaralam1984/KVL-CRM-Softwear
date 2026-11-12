@@ -65,7 +65,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ toast, success, error, warning, info, ai }}>
       {children}
       {/* Toast container */}
-      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none">
+      <div className="fixed bottom-24 md:bottom-5 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none">
         <AnimatePresence>
           {toasts.map(t => {
             const cfg = toastConfig[t.type];
@@ -79,7 +79,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 exit={{ opacity: 0, y: 12, scale: 0.95 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className={cn(
-                  "pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl border shadow-2xl min-w-[280px] max-w-[380px]",
+                  "pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl border shadow-2xl min-w-[240px] max-w-[min(380px,calc(100vw-2rem))]",
                   cfg.bg, cfg.border
                 )}
                 style={{ boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}

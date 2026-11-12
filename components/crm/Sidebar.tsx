@@ -98,9 +98,11 @@ interface SidebarProps {
   user?: AuthUser | null;
   onLogout?: () => void;
   effectiveFeatures?: PlanFeatureMap | null;
+  /** Rendered inside the phone drawer: fixed 256px width, no collapse handle. */
+  mobile?: boolean;
 }
 
-export default function Sidebar({ activeSection, onSectionChange, collapsed, onToggleCollapse, user, onLogout, effectiveFeatures }: SidebarProps) {
+export default function Sidebar({ activeSection, onSectionChange, collapsed, onToggleCollapse, user, onLogout, effectiveFeatures, mobile }: SidebarProps) {
   const isSuperAdmin = user?.role === "Super Admin";
   const isAdmin      = user?.role === "Admin" || isSuperAdmin;
   const [wl, setWl]  = useState<WhiteLabelConfig>(DEFAULT_WHITE_LABEL);
@@ -134,7 +136,7 @@ export default function Sidebar({ activeSection, onSectionChange, collapsed, onT
     <motion.aside
       animate={{ width: collapsed ? 72 : 256 }}
       transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-      className="relative flex-shrink-0 h-full flex flex-col glass border-r z-20"
+      className="relative flex-shrink-0 h-full flex flex-col glass border-r z-20 pt-[env(safe-area-inset-top)]"
       style={{ background: "var(--sidebar-bg)", borderColor: "var(--border-col)" }}
     >
       {/* Logo */}
@@ -345,13 +347,13 @@ export default function Sidebar({ activeSection, onSectionChange, collapsed, onT
       </div>
 
       {/* Collapse Toggle */}
-      <button
+      {!mobile && <button
         onClick={onToggleCollapse}
         className="absolute -right-3 top-20 w-6 h-6 rounded-full glass border flex items-center justify-center hover:border-red-500/40 transition-colors z-30"
         style={{ background: "var(--surface, #0d1424)", borderColor: "var(--border-col)" }}
       >
         {collapsed ? <ChevronRight size={12} className="text-slate-400" /> : <ChevronLeft size={12} className="text-slate-400" />}
-      </button>
+      </button>}
     </motion.aside>
   );
 }

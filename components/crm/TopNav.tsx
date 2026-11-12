@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Bell, Sparkles, ChevronDown, Sun, Moon, Command, X, LogOut, Settings, User } from "lucide-react";
+import { Menu, Search, Bell, Sparkles, ChevronDown, Sun, Moon, Command, X, LogOut, Settings, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNotifications, markNotificationsRead } from "@/lib/actions/comms";
 import { getAccessToken } from "@/lib/security/clientSession";
@@ -34,9 +34,10 @@ interface TopNavProps {
   onToggleDark: () => void;
   user?: AuthUser | null;
   onLogout?: () => void;
+  onMenu?: () => void;
 }
 
-export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDark, user, onLogout }: TopNavProps) {
+export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDark, user, onLogout, onMenu }: TopNavProps) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
@@ -71,22 +72,24 @@ export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDa
 
 
   return (
-    <header className="h-14 flex items-center gap-4 px-5 border-b flex-shrink-0" style={{ background: "var(--nav-bg)", borderColor: "var(--border-col)" }}>
+    <header className="min-h-14 flex items-center gap-2 md:gap-4 px-3 md:px-5 pt-[env(safe-area-inset-top)] md:pt-0 border-b flex-shrink-0" style={{ background: "var(--nav-bg)", borderColor: "var(--border-col)" }}>
+      <button onClick={onMenu} aria-label="Open menu" className="md:hidden w-9 h-9 -ml-1 rounded-lg flex items-center justify-center text-slate-300 active:bg-white/[0.08]"><Menu size={20} /></button>
       {/* Page Title */}
-      <div className="min-w-0 flex-shrink-0">
-        <h1 className="text-sm font-semibold text-slate-100 leading-tight">{info.title}</h1>
-        <p className="text-[11px] text-slate-500 leading-tight">{info.subtitle}</p>
+      <div className="min-w-0 md:flex-shrink-0">
+        <h1 className="text-sm font-semibold text-slate-100 leading-tight truncate">{info.title}</h1>
+        <p className="hidden md:block text-[11px] text-slate-500 leading-tight">{info.subtitle}</p>
       </div>
 
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Search */}
+      {/* Search (phones: icon that opens the command palette) */}
+      <button aria-label="Search" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))} className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center border border-crm-border bg-white/[0.03]"><Search size={15} className="text-slate-400" /></button>
       <motion.div
         animate={{ width: searchFocused ? 280 : 200 }}
         transition={{ duration: 0.2 }}
         className={cn(
-          "relative flex items-center gap-2 px-3 h-8 rounded-lg border transition-colors",
+          "relative hidden md:flex items-center gap-2 px-3 h-8 rounded-lg border transition-colors",
           searchFocused ? "border-blue-500/50 bg-white/[0.06]" : "border-crm-border bg-white/[0.03]"
         )}
       >
@@ -113,7 +116,7 @@ export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDa
         <button
           onClick={toggleNotifications}
           aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
-          className="relative w-8 h-8 rounded-lg flex items-center justify-center border border-crm-border bg-white/[0.03] hover:bg-white/[0.06] hover:border-blue-500/30 transition-all"
+          className="relative w-9 h-9 md:w-8 md:h-8 rounded-lg flex items-center justify-center border border-crm-border bg-white/[0.03] hover:bg-white/[0.06] hover:border-blue-500/30 transition-all"
         >
           <Bell size={15} className="text-slate-400" />
           {unread > 0 && <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{unread > 9 ? "9+" : unread}</span>}
@@ -125,7 +128,7 @@ export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDa
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 top-10 w-80 glass-card rounded-xl border z-50 overflow-hidden"
+              className="absolute right-[-3.5rem] md:right-0 top-10 w-[calc(100vw-1.5rem)] max-w-80 glass-card rounded-xl border z-50 overflow-hidden"
               style={{ borderColor: "var(--border-col)" }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border">
@@ -154,17 +157,17 @@ export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDa
       {/* Assistant Button */}
       <button
         onClick={onToggleAI}
-        className="flex items-center gap-2 px-3 h-8 rounded-lg text-white text-xs font-bold hover:opacity-90 transition-all"
+        className="flex items-center gap-2 px-2.5 md:px-3 h-9 md:h-8 rounded-lg text-white text-xs font-bold hover:opacity-90 transition-all"
         style={{ background:"linear-gradient(135deg,#D4AF37,#F5C842)", boxShadow:"0 2px 12px rgba(212,175,55,0.4)" }}
       >
         <Sparkles size={13} />
-        <span>Assistant</span>
+        <span className="hidden sm:inline">Assistant</span>
       </button>
 
       {/* Dark Mode */}
       <button
         onClick={onToggleDark}
-        className="w-8 h-8 rounded-lg border border-crm-border flex items-center justify-center hover:bg-white/[0.06] transition-all"
+        className="w-9 h-9 md:w-8 md:h-8 rounded-lg border border-crm-border flex items-center justify-center hover:bg-white/[0.06] transition-all"
       >
         {darkMode ? <Sun size={14} className="text-amber-400" /> : <Moon size={14} className="text-slate-400" />}
       </button>
@@ -179,7 +182,7 @@ export default function TopNav({ activeSection, onToggleAI, darkMode, onToggleDa
             {user?.avatar ?? "U"}
           </div>
           {user && <span className="text-xs text-slate-300 hidden xl:inline">{user.name}</span>}
-          <ChevronDown size={12} className={cn("text-slate-500 transition-transform", showUserMenu && "rotate-180")} />
+          <ChevronDown size={12} className={cn("hidden sm:block text-slate-500 transition-transform", showUserMenu && "rotate-180")} />
         </button>
 
         <AnimatePresence>
