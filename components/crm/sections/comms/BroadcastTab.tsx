@@ -190,9 +190,25 @@ export default function BroadcastTab() {
                   </details>
                 </div>
               ) : (
+                <>
                 <Field label="One contact per line — “Name, +91 98123 45678” or just the number">
                   <textarea rows={6} className={inputCls} value={d.pasted} onChange={(e) => set("pasted", e.target.value)} placeholder={"Asha, 9812345678\n+971 50 123 4567"} />
                 </Field>
+              {d.tab === "paste" && (
+                <label className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+                  <span className="px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] font-semibold">📎 Upload CSV / TXT</span>
+                  <span className="text-[10px] text-slate-500">ek line = ek contact (naam, number). Purani list mein judta hai; duplicates hat jate hain.</span>
+                  <input type="file" accept=".csv,.txt,text/csv,text/plain" className="hidden" onChange={async (e) => {
+                    const f = e.target.files?.[0]; e.target.value = "";
+                    if (!f) return;
+                    const text = (await f.text()).replace(/\r/g, "").replace(/^\uFEFF/, "").split("\n").map((l) => l.trim()).filter(Boolean);
+                    // skip a header row like "name,phone"
+                    if (text[0] && !/\d{6,}/.test(text[0])) text.shift();
+                    set("pasted", [d.pasted.trim(), ...text].filter(Boolean).join("\n"));
+                  }} />
+                </label>
+              )}
+                </>
               )}
               {preview && (
                 <div className="mt-2 text-[10px] text-slate-400 space-y-0.5 border-t border-white/[0.06] pt-2">
