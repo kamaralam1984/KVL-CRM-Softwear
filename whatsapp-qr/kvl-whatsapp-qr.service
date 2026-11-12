@@ -1,0 +1,18 @@
+# systemd alternative to PM2. Install (as the user that runs it):
+#   mkdir -p ~/.config/systemd/user && cp kvl-whatsapp-qr.service ~/.config/systemd/user/
+#   (edit WorkingDirectory below) then:
+#   systemctl --user daemon-reload && systemctl --user enable --now kvl-whatsapp-qr
+#   loginctl enable-linger $USER      # keep it running after logout / start at boot
+[Unit]
+Description=KVL CRM WhatsApp QR service
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/Project/KVL-CRM-Softwear/whatsapp-qr
+EnvironmentFile=%h/Project/KVL-CRM-Softwear/whatsapp-qr/.env
+ExecStart=/usr/bin/env node server.mjs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

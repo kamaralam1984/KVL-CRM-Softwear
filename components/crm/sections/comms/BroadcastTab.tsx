@@ -2,13 +2,15 @@
 // WhatsApp Broadcast — send one message to many people: text / image-PDF / approved template, audience from
 // CRM leads (filters or hand-picked) + pasted numbers, merge tags, send window, schedule, live per-recipient report.
 import { useEffect, useRef, useState } from "react";
-import { listBroadcasts, getBroadcastRecipients, previewAudience, getAudienceOptions, createWaBroadcast, controlBroadcast, runBroadcastNow, sendBroadcastTest, type BroadcastSummary } from "@/lib/actions/waBroadcast";
+import { listBroadcasts, getBroadcastRecipients, previewAudience, getAudienceOptions, createWaBroadcast, controlBroadcast, runBroadcastNow, sendBroadcastTest, type BroadcastSummary, type QrLive } from "@/lib/actions/waBroadcast";
 import { listTemplates } from "@/lib/actions/comms";
 import type { AudienceSpec } from "@/lib/whatsapp/broadcast";
+import { istHour, inSendWindow, etaMinutes, formatEta, spin, spinVariants } from "@/lib/whatsapp/plan";
 import { Btn, Card, Badge, Field, inputCls, fmt, token, useLoad, s, type Row } from "./ui";
 
 const STATUS_TONE: Record<string, "slate" | "green" | "amber" | "red" | "gold" | "blue"> = { draft: "slate", scheduled: "blue", running: "gold", paused: "amber", completed: "green", cancelled: "red" };
 const TAGS = ["{{name}}", "{{firstName}}", "{{company}}"];
+const SPINS = ["{Hi|Hello|Namaste}", "{Thanks|Thank you}"];
 const LEAD_STATUSES = ["hot", "warm", "cold"];
 const paramCount = (body: string) => { const n = [...body.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => Number(m[1])); return n.length ? Math.max(...n) : 0; };
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
@@ -23,7 +25,7 @@ const blank: Draft = { name: "", mode: "text", body: "", mediaUrl: "", templateI
 const toggle = (xs: string[], x: string) => (xs.includes(x) ? xs.filter((y) => y !== x) : [...xs, x]);
 
 export default function BroadcastTab() {
-  const [data, reload] = useLoad(() => listBroadcasts(token()), { items: [] as BroadcastSummary[], sentLast24h: 0, dailyCap: 0, provider: "" }, 5000);
+  const [data, reload] = useLoad(() => listBroadcasts(token()), { items: [] as BroadcastSummary[], sentLast24h: 0, dailyCap: 0, provider: "", qr: null as QrLive | null }, 5000);
   const [tpls] = useLoad(() => listTemplates("whatsapp", token()), [] as Row[]);
   const [opts] = useLoad(() => getAudienceOptions(token()), { stages: [] as string[], owners: [] as string[], tags: [] as string[], leads: [] as { id: number; name: string; phone: string }[] });
   const [composing, setComposing] = useState(false);
@@ -80,9 +82,20 @@ export default function BroadcastTab() {
     optOutFooter: d.optOut, windowStart: d.useWindow ? d.wStart : null, windowEnd: d.useWindow ? d.wEnd : null,
     scheduledAtIso: d.schedule ? new Date(d.schedule).toISOString() : null, audience: spec,
   });
+  const isQr = data.provider === "qr";
+  const modes = (isQr ? ["text", "media"] : ["text", "media", "template"]) as ("text" | "media" | "template")[];
+  const nowH = istHour();
+  const outsideWindow = d.useWindow && !d.schedule && !inSendWindow(d.wStart, d.wEnd);
+  const sendable = preview?.sendable ?? 0;
+  const etaMin = isQr ? etaMinutes(sendable) : 0; // QR service paces 4–9 s per message + typing delay
+  const qr = data.qr;
+  const qrDown = isQr && qr != null && qr.state !== "open";
+  const variants = spinVariants(d.body);
+  const missing = [!d.name.trim() && "broadcast name", !(d.mode === "template" ? Boolean(tpl) : d.body.trim() || d.mediaUrl.trim()) && "message", sendable === 0 && "at least one sendable recipient"].filter(Boolean) as string[];
   const valid = d.name.trim() && (d.mode === "template" ? Boolean(tpl) : d.body.trim() || d.mediaUrl.trim()) && (preview?.sendable ?? 0) > 0;
 
   const create = async (start: boolean) => {
+    if (start && !confirm(`${d.schedule ? "Schedule" : "Send"} “${d.name.trim()}” to ${sendable} contact${sendable === 1 ? "" : "s"} via ${data.provider === "qr" ? "your own WhatsApp number (QR)" : data.provider === "cloud" ? "Meta Cloud API" : "Twilio"}?${etaMin ? `\nTakes about ${formatEta(etaMin)}.` : ""}${outsideWindow ? `\nIt is outside the send window — it will start at ${d.wStart}:00 IST.` : ""}\n\nSend a test to yourself first if you haven't.`)) return;
     setBusy("create"); setMsg(null);
     try {
       const r = await createWaBroadcast(input(), start, token());
@@ -103,7 +116,7 @@ export default function BroadcastTab() {
   };
 
   const sample = { name: "Asha Sharma", firstName: "Asha", company: "Acme Pvt Ltd" };
-  const fill = (t: string) => t.replace(/\{\{\s*(name|firstName|company)\s*\}\}/g, (_, k: keyof typeof sample) => sample[k]);
+  const fill = (t: string) => spin(t, "preview").replace(/\{\{\s*(name|firstName|company)\s*\}\}/g, (_, k: keyof typeof sample) => sample[k]);
   const previewText = d.mode === "template"
     ? s(tpl?.body).replace(/\{\{\s*(\d+)\s*\}\}/g, (_, i: string) => fill(d.params[Number(i) - 1] ?? `{{${i}}}`))
     : fill(d.body) + (d.mode === "text" && d.optOut ? "\n\nReply STOP to opt out." : "");
@@ -111,9 +124,12 @@ export default function BroadcastTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="text-[11px] text-slate-400">Sent in the last 24h: <b className="text-white">{data.sentLast24h}</b>{data.dailyCap ? <> / {data.dailyCap} cap</> : null}</div>
+        <div className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">{data.provider && <Badge tone={isQr ? "amber" : data.provider === "cloud" ? "green" : "blue"}>Via {data.provider === "qr" ? "WhatsApp QR (own number)" : data.provider === "cloud" ? "Meta Cloud API" : "Twilio"}</Badge>}Sent in the last 24h: <b className="text-white">{data.sentLast24h}</b>{data.dailyCap ? <> / {data.dailyCap} cap</> : null}</div>
         <div className="flex items-center gap-2">{msg && <span className={`text-[11px] ${msg.ok ? "text-emerald-400" : "text-rose-400"}`}>{msg.text}</span>}<Btn tone="gold" onClick={() => { setComposing(!composing); setMsg(null); }}>{composing ? "Close" : "+ New broadcast"}</Btn></div>
       </div>
+
+      {qrDown && <p className="text-[11px] text-rose-300 border border-rose-500/40 bg-rose-500/10 rounded-lg p-2">🔴 WhatsApp number is <b>{qr?.state === "unreachable" ? "unreachable (QR service is not running)" : qr?.state}</b>. Sending is blocked and running broadcasts will pause. Open WhatsApp Setup → scan the QR / start the service.</p>}
+      {isQr && qr?.state === "open" && qr.warmup && <p className="text-[11px] text-sky-300 border border-sky-500/30 bg-sky-500/10 rounded-lg p-2">🌱 Number warm-up: linked {qr.linkedDays ?? 0} day(s) ago — limited to <b>{qr.dailyCap}/day</b> for now (rises automatically up to {qr.maxCap}). This protects the number from bans.</p>}
 
       {composing && (
         <div className="grid lg:grid-cols-2 gap-3">
@@ -121,7 +137,7 @@ export default function BroadcastTab() {
             <Card title="1 · Message">
               <div className="space-y-2">
                 <Field label="Broadcast name (internal)"><input className={inputCls} value={d.name} onChange={(e) => set("name", e.target.value)} placeholder="Diwali offer – hot leads" /></Field>
-                <div className="flex gap-1">{(["text", "media", "template"] as const).map((m) => <Btn key={m} tone={d.mode === m ? "gold" : "ghost"} onClick={() => set("mode", m)}>{m === "text" ? "Text" : m === "media" ? "Image / PDF" : "Approved template"}</Btn>)}</div>
+                <div className="flex gap-1">{modes.map((m) => <Btn key={m} tone={d.mode === m ? "gold" : "ghost"} onClick={() => set("mode", m)}>{m === "text" ? "Text" : m === "media" ? "Image / PDF" : "Approved template"}</Btn>)}</div>
                 {d.mode === "template" ? (
                   <>
                     <Field label="Template (approved on Meta — works even outside the 24h window)">
@@ -139,11 +155,14 @@ export default function BroadcastTab() {
                     <Field label={d.mode === "media" ? "Caption" : "Message"}>
                       <textarea rows={5} className={inputCls} value={d.body} onChange={(e) => set("body", e.target.value)} placeholder="Hi {{firstName}}, …" />
                     </Field>
-                    <div className="flex gap-1 flex-wrap items-center"><span className="text-[10px] text-slate-500">Insert:</span>{TAGS.map((t) => <Btn key={t} type="button" onClick={() => set("body", `${d.body}${t}`)}>{t}</Btn>)}</div>
+                    <div className="flex gap-1 flex-wrap items-center"><span className="text-[10px] text-slate-500">Insert:</span>{TAGS.map((t) => <Btn key={t} type="button" onClick={() => set("body", `${d.body}${t}`)}>{t}</Btn>)}<span className="text-[10px] text-slate-500 ml-2">Vary wording:</span>{SPINS.map((t) => <Btn key={t} type="button" onClick={() => set("body", `${d.body}${t}`)}>{t}</Btn>)}</div>
+                    <p className="text-[10px] text-slate-500">{variants > 1 ? <>Spintax active — {variants} different versions will go out (each person gets one). Identical text to hundreds of people is a ban signal.</> : <>Tip: write <code>{"{Hi|Hello|Namaste}"}</code> — each person gets one of the options, so messages aren’t identical.</>}</p>
                     {d.mode === "text" && <label className="flex items-center gap-1.5 text-[11px] text-slate-300"><input type="checkbox" checked={d.optOut} onChange={(e) => set("optOut", e.target.checked)} /> Add “Reply STOP to opt out.” (recommended — keeps the number healthy)</label>}
+                    <div className="text-[10px] text-slate-500 text-right">{d.body.length} characters</div>
+                    {isQr && <p className="text-[11px] text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded-lg p-2">⚠ Own-number (QR) mode is unofficial — bulk or unsolicited messages can get this number banned. Messages go out one by one with a 4–9 s gap and a daily cap. Templates are not used in this mode.</p>}
                     {data.provider === "cloud"
                       ? <p className="text-[11px] text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded-lg p-2">⚠ Meta Cloud API: free text and media are delivered <b>only to people who messaged you in the last 24 hours</b>. Everyone else fails. For cold contacts switch to <b>Approved template</b>. (If 5 in a row fail for this reason the broadcast pauses itself.)</p>
-                      : <p className="text-[10px] text-slate-500">Tip: on the Cloud API, free text only reaches people who messaged you in the last 24h — use an approved template for cold contacts.</p>}
+                      : isQr ? null : <p className="text-[10px] text-slate-500">Tip: on the Cloud API, free text only reaches people who messaged you in the last 24h — use an approved template for cold contacts.</p>}
                   </>
                 )}
               </div>
@@ -195,13 +214,15 @@ export default function BroadcastTab() {
                 <label className="flex items-center gap-1.5 text-[11px] text-slate-300"><input type="checkbox" checked={d.useWindow} onChange={(e) => set("useWindow", e.target.checked)} /> Only send between
                   <input type="number" min={0} max={23} className={`${inputCls} !w-14`} value={d.wStart} onChange={(e) => set("wStart", Number(e.target.value))} /> and
                   <input type="number" min={0} max={23} className={`${inputCls} !w-14`} value={d.wEnd} onChange={(e) => set("wEnd", Number(e.target.value))} /> (IST hours) — unsent messages wait for the next window</label>
-                <Field label="Schedule (optional — leave empty to start now)"><input type="datetime-local" className={inputCls} value={d.schedule} onChange={(e) => set("schedule", e.target.value)} /></Field>
+                {outsideWindow && <p className="text-[11px] text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded-lg p-2">⏰ It is {nowH}:00 IST now — outside {d.wStart}:00–{d.wEnd}:00. “Send now” will queue and start at {d.wStart}:00 IST. Untick the window to send immediately.</p>}
+                {etaMin > 0 && <p className="text-[10px] text-slate-400">Estimated time: ~{formatEta(etaMin)} for {sendable} messages (paced to protect your number).</p>}
+                <Field label="Schedule (optional, your device’s local time — leave empty to start now)"><input type="datetime-local" className={inputCls} value={d.schedule} onChange={(e) => set("schedule", e.target.value)} /></Field>
                 <div className="flex gap-1.5 items-end">
                   <div className="flex-1"><Field label="Send a test to my number first"><input className={inputCls} value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="+91 …" /></Field></div>
                   <Btn disabled={busy === "test" || !testPhone.trim() || (d.mode === "template" ? !tpl : !d.body.trim() && !d.mediaUrl.trim())} onClick={sendTest}>{busy === "test" ? "…" : "Send test"}</Btn>
                 </div>
-                <div className="flex gap-1.5 pt-1"><Btn tone="gold" disabled={!valid || busy === "create"} onClick={() => create(true)}>{d.schedule ? "Schedule broadcast" : "Send now"}</Btn><Btn disabled={!valid || busy === "create"} onClick={() => create(false)}>Save as draft</Btn></div>
-                {!valid && <p className="text-[10px] text-slate-500">Needs a name, a message (or template) and at least one sendable recipient.</p>}
+                <div className="flex gap-1.5 pt-1"><Btn tone="gold" disabled={!valid || qrDown || busy === "create"} onClick={() => create(true)}>{d.schedule ? "Schedule broadcast" : "Send now"}</Btn><Btn disabled={!valid || busy === "create"} onClick={() => create(false)}>Save as draft</Btn></div>
+                {!valid && <p className="text-[10px] text-rose-400">Still needed: {missing.join(", ")}.</p>}
               </div>
             </Card>
           </div>

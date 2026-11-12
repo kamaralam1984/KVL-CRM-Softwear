@@ -10,6 +10,7 @@ import { waEnv } from "@/lib/whatsapp/config";
 import { runAfterResponse } from "@/lib/messaging/background";
 import { applyDeliveryStatus, type DeliveryStatus } from "@/lib/messaging/status";
 import { mediaLabel, saveInboundMedia } from "@/lib/whatsapp/media";
+import { notifyTeam } from "@/lib/notify/team";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -25,7 +26,13 @@ export async function POST(req: NextRequest) {
     if (got.length !== want.length || !timingSafeEqual(got, want)) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
-    const j = (await req.json()) as { type?: string; from?: string; body?: string; id?: string; status?: string; media?: { kind?: string; mime?: string; filename?: string; b64?: string } };
+    const j = (await req.json()) as { type?: string; state?: string; reason?: string; from?: string; body?: string; id?: string; status?: string; media?: { kind?: string; mime?: string; filename?: string; b64?: string } };
+    if (j.type === "state") { // QR service connection health → in-app alert (bell) + team contacts
+      const st = String(j.state ?? "");
+      if (st === "open") await notifyTeam({ kind: "whatsapp_status", priority: "normal", title: "✅ WhatsApp number reconnected", body: "Broadcasts and replies are flowing again." });
+      else if (st === "closed" || st === "logged_out") await notifyTeam({ kind: "whatsapp_status", priority: "high", title: st === "logged_out" ? "⚠ WhatsApp logged out — re-scan the QR" : "⚠ WhatsApp number disconnected", body: `${String(j.reason ?? "").slice(0, 200)} Open CRM ▸ WhatsApp ▸ Setup to reconnect. Running broadcasts will pause on their own.`.trim() });
+      return NextResponse.json({ ok: true });
+    }
     if (j.type === "status") { // delivery / read receipt for a message we sent (QR service forwards Baileys receipts)
       if (j.id && (j.status === "delivered" || j.status === "read" || j.status === "failed")) await runAfterResponse(() => applyDeliveryStatus(j.id!, j.status as DeliveryStatus, "Not delivered"));
       return NextResponse.json({ ok: true });

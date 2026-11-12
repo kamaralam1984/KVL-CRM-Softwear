@@ -13,6 +13,7 @@
 // use the official Cloud API mode instead.
 
 import http from "node:http";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { timingSafeEqual } from "node:crypto";
 import pino from "pino";
 import QRCode from "qrcode";
@@ -25,6 +26,20 @@ const AUTH_DIR = process.env.WHATSAPP_QR_AUTH_DIR || "./auth";
 const DAILY_CAP = Number(process.env.WHATSAPP_QR_DAILY_CAP || 200);
 const MIN_GAP_MS = Number(process.env.WHATSAPP_QR_MIN_GAP_MS || 4000);
 const MAX_GAP_MS = Number(process.env.WHATSAPP_QR_MAX_GAP_MS || 9000);
+
+// Warm-up: a freshly linked number that suddenly sends hundreds a day gets flagged. The cap ramps up with the
+// days since first link (WHATSAPP_QR_WARMUP=off disables; the plain DAILY_CAP always applies as the ceiling).
+const WARMUP = process.env.WHATSAPP_QR_WARMUP !== "off";
+const META_FILE = `${AUTH_DIR}/kvl-meta.json`;
+function loadMeta() { try { return JSON.parse(readFileSync(META_FILE, "utf8")); } catch { return {}; } }
+function saveMeta(m) { try { mkdirSync(AUTH_DIR, { recursive: true }); writeFileSync(META_FILE, JSON.stringify(m)); } catch {} }
+const meta = loadMeta();
+function warmupCap() {
+  if (!WARMUP || !meta.firstLinkedAt) return Infinity;
+  const days = (Date.now() - meta.firstLinkedAt) / 86_400_000;
+  return days < 2 ? 30 : days < 4 ? 60 : days < 7 ? 100 : days < 14 ? 150 : Infinity;
+}
+const effectiveCap = () => Math.min(DAILY_CAP, warmupCap());
 
 if (!SECRET || SECRET.length < 16) {
   console.error("[wa-qr] Set WHATSAPP_QR_SECRET (min 16 chars). Exiting.");
@@ -58,6 +73,20 @@ async function forwardStatus(id, status) {
     await fetch(`${CRM_URL}/api/whatsapp/qr/inbound`, { method: "POST", headers: { Authorization: `Bearer ${SECRET}`, "Content-Type": "application/json" }, body: JSON.stringify({ type: "status", id, status }) });
   } catch (err) { log.error({ err: String(err) }, "forwarding status failed"); }
 }
+// Connection health → CRM (in-app alert). "closed" is debounced so a quick auto-reconnect doesn't page anyone.
+let closedTimer = null, alerted = false;
+async function forwardState(st, reason = "") {
+  if (!CRM_URL) return;
+  try {
+    await fetch(`${CRM_URL}/api/whatsapp/qr/inbound`, { method: "POST", headers: { Authorization: `Bearer ${SECRET}`, "Content-Type": "application/json" }, body: JSON.stringify({ type: "state", state: st, reason }) });
+  } catch (err) { log.error({ err: String(err) }, "forwarding state failed"); }
+}
+function onConnectionState(st, reason = "") {
+  clearTimeout(closedTimer);
+  if (st === "open") { if (alerted) { alerted = false; forwardState("open"); } return; }
+  const fire = () => { alerted = true; forwardState(st, reason); };
+  if (st === "logged_out") fire(); else closedTimer = setTimeout(fire, 90_000);
+}
 const MAX_MEDIA = 6 * 1024 * 1024;
 
 async function start() {
@@ -68,11 +97,16 @@ async function start() {
 
   sock.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
     if (qr) { state.qr = qr; state.conn = "qr"; log.info("QR ready — open /?key=… and scan"); }
-    if (connection === "open") { state.conn = "open"; state.qr = null; state.me = sock.user?.id ?? null; log.info({ me: state.me }, "WhatsApp connected"); }
+    if (connection === "open") {
+      state.conn = "open"; state.qr = null; state.me = sock.user?.id ?? null; log.info({ me: state.me }, "WhatsApp connected");
+      if (!meta.firstLinkedAt) { meta.firstLinkedAt = Date.now(); saveMeta(meta); }
+      onConnectionState("open");
+    }
     if (connection === "close") {
       const code = lastDisconnect?.error?.output?.statusCode;
       state.conn = "closed";
-      if (code === DisconnectReason.loggedOut) { log.warn("Logged out — delete ./auth and restart to re-link"); return; }
+      if (code === DisconnectReason.loggedOut) { log.warn("Logged out — delete ./auth and restart to re-link"); onConnectionState("logged_out", "WhatsApp logged this device out — re-scan the QR"); return; }
+      onConnectionState("closed", `connection lost (code ${code ?? "?"})`);
       log.warn({ code }, "connection closed — reconnecting in 5s");
       setTimeout(start, 5000);
     }
@@ -123,13 +157,21 @@ function enqueueSend(to, body, mediaUrl, mediaKind) {
     const today = new Date().toDateString();
     if (state.day !== today) { state.day = today; state.sentToday = 0; }
     if (state.conn !== "open") throw new Error(`WhatsApp not connected (${state.conn})`);
-    if (state.sentToday >= DAILY_CAP) throw new Error(`Daily cap of ${DAILY_CAP} reached`);
+    const cap = effectiveCap();
+    if (state.sentToday >= cap) throw new Error(`Daily cap of ${cap} reached${cap < DAILY_CAP ? " (number warm-up limit)" : ""}`);
     const [hit] = (await sock.onWhatsApp(to)) || [];
     if (!hit?.exists) throw new Error("Number is not on WhatsApp");
     const content = !mediaUrl ? { text: body }
       : mediaKind === "image" ? { image: { url: mediaUrl }, caption: body }
       : mediaKind === "video" ? { video: { url: mediaUrl }, caption: body }
       : { document: { url: mediaUrl }, caption: body, fileName: decodeURIComponent(mediaUrl.split("?")[0].split("/").pop() || "file"), mimetype: "application/octet-stream" };
+    // Look human: "typing…" for a moment proportional to the message length before it lands.
+    try {
+      await sock.presenceSubscribe(hit.jid);
+      await sock.sendPresenceUpdate("composing", hit.jid);
+      await sleep(Math.min(5000, 700 + (body?.length || 20) * 35 + Math.random() * 900));
+      await sock.sendPresenceUpdate("paused", hit.jid);
+    } catch { /* presence is cosmetic — never block the send */ }
     const res = await sock.sendMessage(hit.jid, content);
     state.sentToday++;
     await sleep(MIN_GAP_MS + Math.random() * (MAX_GAP_MS - MIN_GAP_MS));
@@ -157,15 +199,18 @@ http.createServer(async (req, res) => {
       return res.end(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=refresh content=5>
 <title>WhatsApp link</title><body style="font-family:system-ui;background:#0d1420;color:#e2e8f0;display:grid;place-items:center;min-height:100vh;margin:0;text-align:center">
 <div><h2>KVL WhatsApp</h2>${state.conn === "open"
-  ? `<p style="color:#34d399">✅ Connected as ${state.me?.split(":")[0] ?? "your number"}</p><p>Sent today: ${state.sentToday}/${DAILY_CAP}</p>`
+  ? `<p style="color:#34d399">✅ Connected as ${state.me?.split(":")[0] ?? "your number"}</p><p>Sent today: ${state.sentToday}/${effectiveCap()}</p>`
   : img ? `<img src="${img}" width=320 height=320 style="background:#fff;padding:8px;border-radius:12px"><p>WhatsApp ▸ Settings ▸ Linked devices ▸ Link a device</p>`
   : `<p>Status: ${state.conn}… (page refreshes automatically)</p>`}</div></body>`);
     }
     if (req.method === "GET" && url.pathname === "/qr") {
       const qr = state.qr ? await QRCode.toDataURL(state.qr, { width: 280, margin: 1 }) : null;
-      return json(res, 200, { ok: true, state: state.conn, me: state.me, qr, sentToday: state.sentToday, dailyCap: DAILY_CAP });
+      return json(res, 200, { ok: true, state: state.conn, me: state.me, qr, sentToday: state.sentToday, dailyCap: effectiveCap() });
     }
-    if (req.method === "GET" && url.pathname === "/status") return json(res, 200, { ok: true, state: state.conn, me: state.me, sentToday: state.sentToday, dailyCap: DAILY_CAP });
+    if (req.method === "GET" && url.pathname === "/status") {
+      const w = warmupCap();
+      return json(res, 200, { ok: true, state: state.conn, me: state.me, sentToday: state.sentToday, dailyCap: effectiveCap(), maxCap: DAILY_CAP, warmup: Number.isFinite(w) && w < DAILY_CAP, linkedDays: meta.firstLinkedAt ? Math.floor((Date.now() - meta.firstLinkedAt) / 86_400_000) : null });
+    }
 
     if (req.method === "POST" && url.pathname === "/send") {
       const { to, body = "", mediaUrl, mediaKind } = await readJson(req);

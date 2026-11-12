@@ -20,8 +20,22 @@ export interface BroadcastSummary {
 }
 const emptyCounts = () => ({ pending: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, skipped: 0 });
 
-export async function listBroadcasts(token?: string): Promise<{ items: BroadcastSummary[]; sentLast24h: number; dailyCap: number; provider: string }> {
-  if (!(await ok(token, "read"))) return { items: [], sentLast24h: 0, dailyCap: 0, provider: "" };
+export interface QrLive { state: string; me: string | null; sentToday: number; dailyCap: number; maxCap: number; warmup: boolean; linkedDays: number | null }
+
+/** Live health of the QR service (null when not in QR mode / unreachable). Short timeout so the page never hangs. */
+async function qrLive(env: NodeJS.ProcessEnv): Promise<QrLive | null> {
+  const base = env.WHATSAPP_QR_URL, secret = env.WHATSAPP_QR_SECRET;
+  if (!base || !secret) return null;
+  try {
+    const res = await fetch(`${base.replace(/\/$/, "")}/status`, { headers: { Authorization: `Bearer ${secret}` }, signal: AbortSignal.timeout(2500), cache: "no-store" });
+    if (!res.ok) return { state: "unreachable", me: null, sentToday: 0, dailyCap: 0, maxCap: 0, warmup: false, linkedDays: null };
+    const j = (await res.json()) as Partial<QrLive>;
+    return { state: String(j.state ?? "unknown"), me: j.me ?? null, sentToday: Number(j.sentToday ?? 0), dailyCap: Number(j.dailyCap ?? 0), maxCap: Number(j.maxCap ?? j.dailyCap ?? 0), warmup: Boolean(j.warmup), linkedDays: j.linkedDays ?? null };
+  } catch { return { state: "unreachable", me: null, sentToday: 0, dailyCap: 0, maxCap: 0, warmup: false, linkedDays: null }; }
+}
+
+export async function listBroadcasts(token?: string): Promise<{ items: BroadcastSummary[]; sentLast24h: number; dailyCap: number; provider: string; qr: QrLive | null }> {
+  if (!(await ok(token, "read"))) return { items: [], sentLast24h: 0, dailyCap: 0, provider: "", qr: null };
   const db = getDb();
   const { data } = await db.from("wa_broadcasts").select("id,name,mode,status,note,scheduled_at,created_at,total").order("created_at", { ascending: false }).limit(30);
   const items: BroadcastSummary[] = ((data ?? []) as Row[]).map((b) => ({ ...(b as unknown as BroadcastSummary), counts: emptyCounts() }));
@@ -36,7 +50,12 @@ export async function listBroadcasts(token?: string): Promise<{ items: Broadcast
     }
   }
   const cfg = await loadWaConfig();
-  return { items, sentLast24h: await sentInLast24h(), dailyCap: cfg.limits.broadcastDailyCap, provider: whatsappProvider(await waEnv()) };
+  const env = await waEnv();
+  const provider = whatsappProvider(env);
+  const qr = provider === "qr" ? await qrLive(env) : null;
+  // The QR service enforces its own (lower, warm-up aware) daily cap — show the effective one.
+  const dailyCap = qr?.dailyCap ? Math.min(cfg.limits.broadcastDailyCap || Infinity, qr.dailyCap) : cfg.limits.broadcastDailyCap;
+  return { items, sentLast24h: await sentInLast24h(), dailyCap, provider, qr };
 }
 
 export async function getBroadcastRecipients(id: string, status?: string, token?: string): Promise<Row[]> {

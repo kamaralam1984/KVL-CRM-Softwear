@@ -15,6 +15,7 @@ import { phoneKey } from "@/lib/compliance/dnc";
 import { sendWhatsApp, sendWhatsAppMedia, sendWhatsAppTemplate, type SendResult } from "@/lib/messaging/send";
 import { logOutboundMessage } from "@/lib/messaging/outbound";
 import { loadWaConfig } from "./config";
+import { inSendWindow, spin } from "./plan";
 
 type Row = Record<string, unknown>;
 const STALE_CLAIM_MS = 10 * 60_000;
@@ -50,9 +51,9 @@ export function normalizeContactPhone(raw: string, countryCode: string): string 
   return full.length >= 10 && full.length <= 15 ? `+${full}` : null;
 }
 
-/** {{name}} {{firstName}} {{company}} {{phone}} — unknown tags are left empty. */
+/** Spintax {Hi|Hello} (stable per recipient phone) then {{name}} {{firstName}} {{company}} {{phone}} — unknown tags are left empty. */
 export function personalize(text: string, v: Record<string, unknown>): string {
-  return text.replace(/\{\{\s*(name|firstName|company|phone)\s*\}\}/gi, (_, k: string) => {
+  return spin(text, String(v.phone ?? "")).replace(/\{\{\s*(name|firstName|company|phone)\s*\}\}/gi, (_, k: string) => {
     const key = k.toLowerCase() === "firstname" ? "firstName" : k.toLowerCase();
     return String(v[key] ?? "");
   });
@@ -66,14 +67,6 @@ export function templateParamCount(body: string): number {
   return nums.length ? Math.max(...nums) : 0;
 }
 const firstName = (n: string) => n.trim().split(/\s+/)[0] ?? "";
-
-function inSendWindow(start: unknown, end: unknown, now = new Date()): boolean {
-  if (start == null || end == null) return true;
-  const s = Number(start), e = Number(end);
-  if (!Number.isFinite(s) || !Number.isFinite(e) || s === e) return true;
-  const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", hour12: false }).format(now)) % 24;
-  return s < e ? h >= s && h < e : h >= s || h < e; // supports overnight windows
-}
 
 // ── audience ─────────────────────────────────────────────────────────────────
 export async function resolveAudience(spec: AudienceSpec): Promise<AudienceResult> {
@@ -224,6 +217,9 @@ const TRANSIENT = /\b429\b|rate.?limit|too many|daily cap|not connected|spam|131
 /** Cloud API: free text outside the 24h window is rejected for every cold contact — see sendWhatsAppCloud's hint. */
 const WINDOW_CLOSED = /24h window closed/i;
 const WINDOW_CLOSED_LIMIT = 5;
+/** Any other run of consecutive failures (e.g. number banned / session broken) — stop instead of burning through the list. */
+const FAIL_STREAK_LIMIT = 10;
+const NOT_A_PROBLEM = /not on whatsapp/i; // a bad number is the recipient's fault, not a sign the sender is broken
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function sentInLast24h(): Promise<number> {
@@ -270,6 +266,7 @@ export async function runBroadcastBatch(id: string, budgetMs = 25_000): Promise<
   await db.from("wa_broadcast_recipients").update({ status: "pending", claimed_at: null }).eq("broadcast_id", id).eq("status", "sending").lt("claimed_at", new Date(Date.now() - STALE_CLAIM_MS).toISOString());
 
   let windowClosedRun = 0; // consecutive "24h window closed" failures
+  let failStreak = 0;      // consecutive failures of any other kind
   let seen = 0;            // recipients handled this run (live-status check only every 10th — saves a DB round-trip per message)
   while (Date.now() - started < budgetMs && capLeft > 0) {
     const { data: batch } = await db.from("wa_broadcast_recipients").select("*").eq("broadcast_id", id).eq("status", "pending").order("created_at").limit(10);
@@ -294,7 +291,7 @@ export async function runBroadcastBatch(id: string, budgetMs = 25_000): Promise<
         const body = b.mode === "template" ? fillNumbered(String(b.body), ((b.template_params as string[]) ?? []).map((p) => personalize(String(p), (r.vars ?? {}) as Row))) : personalize(String(b.body ?? ""), (r.vars ?? {}) as Row) + (b.mode === "text" && b.opt_out_footer ? OPT_OUT_FOOTER : ""); // log exactly what was sent
         await db.from("wa_broadcast_recipients").update({ status: "sent", sent_at: now, provider_message_id: res.providerMessageId ?? null, error: res.mock ? "mock — WhatsApp provider not configured, nothing was really sent" : "" }).eq("id", r.id);
         await logOutboundMessage({ channel: "whatsapp", phone: String(r.phone), name: String(r.name ?? ""), body: b.mode === "media" ? `${body}\n[media] ${b.media_url}`.trim() : body, sentBy: "broadcast", providerId: res.providerMessageId, mock: res.mock });
-        rep.sent++; capLeft--; windowClosedRun = 0;
+        rep.sent++; capLeft--; windowClosedRun = 0; failStreak = 0;
       } else if (TRANSIENT.test(res.detail ?? "")) {
         await db.from("wa_broadcast_recipients").update({ status: "pending", claimed_at: null }).eq("id", r.id); // retry later
         return finish(`Paused automatically: ${res.detail}`);
@@ -302,6 +299,12 @@ export async function runBroadcastBatch(id: string, budgetMs = 25_000): Promise<
         await db.from("wa_broadcast_recipients").update({ status: "failed", error: (res.detail ?? "Send failed").slice(0, 300) }).eq("id", r.id);
         rep.failed++;
         windowClosedRun = WINDOW_CLOSED.test(res.detail ?? "") ? windowClosedRun + 1 : 0;
+        if (!NOT_A_PROBLEM.test(res.detail ?? "")) failStreak++;
+        if (failStreak >= FAIL_STREAK_LIMIT) {
+          const note = `Paused automatically: ${FAIL_STREAK_LIMIT} messages in a row failed (${(res.detail ?? "unknown error").slice(0, 120)}). Check WhatsApp Setup — the number may be disconnected or restricted — then Resume or “Retry failed”.`;
+          await db.from("wa_broadcasts").update({ status: "paused", note }).eq("id", id).eq("status", "running");
+          return finish(note);
+        }
         if (windowClosedRun >= WINDOW_CLOSED_LIMIT) {
           // Every further cold contact would fail the same way (and hammer Meta) — stop and tell the user why.
           const note = `Paused automatically: ${WINDOW_CLOSED_LIMIT} messages in a row failed because the 24h window is closed. Free text only reaches people who messaged you in the last 24h — recreate this as an approved template broadcast, then use “Retry failed”.`;

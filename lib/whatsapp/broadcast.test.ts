@@ -14,6 +14,11 @@ describe("normalizeContactPhone", () => {
 describe("message merge", () => {
   const v = { name: "Asha Sharma", firstName: "Asha", company: "Acme", phone: "+919812345678" };
   it("fills merge tags", () => expect(personalize("Hi {{firstName}} from {{ company }}", v)).toBe("Hi Asha from Acme"));
+  it("applies spintax stably per recipient, alongside merge tags", () => {
+    const out = personalize("{Hi|Hello} {{firstName}}", v);
+    expect(out).toMatch(/^(Hi|Hello) Asha$/);
+    expect(personalize("{Hi|Hello} {{firstName}}", v)).toBe(out); // logged text === sent text
+  });
   it("leaves unknown tags alone", () => expect(personalize("{{foo}}", v)).toBe("{{foo}}"));
   it("fills Meta numbered params", () => expect(fillNumbered("Hello {{1}}, order {{2}}", ["Asha", "A12"])).toBe("Hello Asha, order A12"));
   it("counts template params", () => { expect(templateParamCount("Hi {{1}} {{2}}")).toBe(2); expect(templateParamCount("no vars")).toBe(0); });
