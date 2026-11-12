@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
+import QrCameraScanner from "../QrCameraScanner";
 import {
   Globe,
   Search,
@@ -40,6 +41,7 @@ const inputCls =
 
 export default function WebsiteAnalyzer() {
   const [url, setUrl] = useState("");
+  const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WebsiteAnalysis | null>(null);
@@ -103,6 +105,8 @@ export default function WebsiteAnalyzer() {
         subtitle="Scan any site for SEO, performance, security and technology signals"
       />
 
+      {scanning && <QrCameraScanner onClose={() => setScanning(false)} onScan={(t) => { setScanning(false); setUrl(/^https?:\/\//i.test(t.trim()) ? t.trim() : /^[\w-]+(\.[\w-]+)+/.test(t.trim()) ? `https://${t.trim()}` : t.trim()); }} />}
+
       {/* Search form */}
       <Card>
         <form onSubmit={handleSubmit} className="flex items-center gap-2.5">
@@ -122,6 +126,7 @@ export default function WebsiteAnalyzer() {
               disabled={loading}
             />
           </div>
+          <button type="button" onClick={() => setScanning(true)} disabled={loading} className="px-3 py-2.5 rounded-xl bg-white/[0.06] text-slate-200 text-sm hover:bg-white/[0.1]" title="Scan a QR code with the camera">📷 Scan QR</button>
           <button
             type="submit"
             disabled={loading || !url.trim()}

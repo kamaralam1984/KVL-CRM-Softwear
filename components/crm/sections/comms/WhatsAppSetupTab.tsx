@@ -106,6 +106,10 @@ export default function WhatsAppSetupTab() {
           <Card title="2 · QR service details">
             <p className="text-[10px] text-amber-400/90 mb-2">⚠ Unofficial — WhatsApp may ban numbers used for bulk messages. Use a number you can afford to lose, or use the Cloud API.</p>
             <div className="space-y-2">
+              <div className="rounded-lg border border-slate-700 p-2 text-[11px] text-slate-300 flex items-center gap-2 flex-wrap">
+                <span>Local testing? Terminal mein <code>npm run wa-qr</code> chalao, phir:</span>
+                <Btn type="button" onClick={() => up((c) => { c.qr.url = "http://localhost:4002"; c.qr.secret = "kvl-local-wa-secret-2026"; })}>Use local defaults</Btn>
+              </div>
               <Field label="Service URL (HTTPS in production) — where /whatsapp-qr runs"><input className={inputCls} value={cfg.qr.url} onChange={(e) => up((c) => { c.qr.url = e.target.value; })} placeholder="https://wa.yourdomain.com" /></Field>
               <Field label="Shared secret (same as WHATSAPP_QR_SECRET on the service, 16+ chars)">
                 <div className="flex gap-1.5"><input type="password" autoComplete="off" className={inputCls} value={cfg.qr.secret} onChange={(e) => up((c) => { c.qr.secret = e.target.value; })} /><Btn type="button" onClick={() => up((c) => { c.qr.secret = rand(); })}>Generate</Btn></div>
