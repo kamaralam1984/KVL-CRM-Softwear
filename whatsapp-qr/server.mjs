@@ -13,7 +13,7 @@
 // use the official Cloud API mode instead.
 
 import http from "node:http";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { timingSafeEqual } from "node:crypto";
 import pino from "pino";
 import QRCode from "qrcode";
@@ -105,7 +105,15 @@ async function start() {
     if (connection === "close") {
       const code = lastDisconnect?.error?.output?.statusCode;
       state.conn = "closed";
-      if (code === DisconnectReason.loggedOut) { log.warn("Logged out — delete ./auth and restart to re-link"); onConnectionState("logged_out", "WhatsApp logged this device out — re-scan the QR"); return; }
+      if (code === DisconnectReason.loggedOut) {
+        // Unlinked from the phone (or a half-finished pairing): drop the dead session and start a fresh one so a new QR / pairing code appears on its own.
+        log.warn("Logged out — clearing saved session and starting a fresh link");
+        onConnectionState("logged_out", "WhatsApp logged this device out — re-link with a QR or pairing code");
+        try { rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
+        meta.firstLinkedAt = undefined; state.me = null; state.qr = null;
+        setTimeout(start, 2000);
+        return;
+      }
       onConnectionState("closed", `connection lost (code ${code ?? "?"})`);
       log.warn({ code }, "connection closed — reconnecting in 5s");
       setTimeout(start, 5000);
@@ -224,11 +232,17 @@ http.createServer(async (req, res) => {
       const digits = String(phone || "").replace(/\D/g, "");
       if (!/^\d{8,15}$/.test(digits)) return json(res, 400, { ok: false, error: "phone must be 8-15 digits with country code, e.g. 919812345678" });
       if (state.conn === "open") return json(res, 409, { ok: false, error: "already linked" });
-      if (!sock) return json(res, 503, { ok: false, error: "service starting, retry in a few seconds" });
-      try {
-        const raw = await sock.requestPairingCode(digits);
-        return json(res, 200, { ok: true, code: String(raw).replace(/(.{4})(.{4})/, "$1-$2") });
-      } catch (err) { return json(res, 502, { ok: false, error: `could not get a pairing code: ${String(err.message || err)}` }); }
+      // WhatsApp only issues a code once the socket has finished its handshake (that is when a QR is offered), so wait for that.
+      const ready = async (ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (state.qr && sock) return true; await new Promise((r) => setTimeout(r, 400)); } return false; };
+      let lastErr = "";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (!(await ready(12_000))) { lastErr = "WhatsApp is not reachable from the server yet — try again in a few seconds"; continue; }
+        try {
+          const raw = await sock.requestPairingCode(digits);
+          return json(res, 200, { ok: true, code: String(raw).replace(/(.{4})(.{4})/, "$1-$2") });
+        } catch (err) { lastErr = String(err.message || err); await new Promise((r) => setTimeout(r, 2500)); }
+      }
+      return json(res, 502, { ok: false, error: `could not get a pairing code: ${lastErr}` });
     }
     if (req.method === "POST" && url.pathname === "/logout") { await sock?.logout().catch(() => {}); return json(res, 200, { ok: true }); }
     return json(res, 404, { ok: false, error: "not_found" });
