@@ -228,11 +228,13 @@ export default function BroadcastTab() {
             <Card title="3 · Delivery">
               <div className="space-y-2">
                 <label className="flex items-center gap-1.5 text-[11px] text-slate-300"><input type="checkbox" checked={d.useWindow} onChange={(e) => set("useWindow", e.target.checked)} /> Only send between
-                  <input type="number" min={0} max={23} className={`${inputCls} !w-14`} value={d.wStart} onChange={(e) => set("wStart", Number(e.target.value))} /> and
-                  <input type="number" min={0} max={23} className={`${inputCls} !w-14`} value={d.wEnd} onChange={(e) => set("wEnd", Number(e.target.value))} /> (IST hours) — unsent messages wait for the next window</label>
+                  <input type="number" min={0} max={23} className={`${inputCls} !w-14`} value={d.wStart} onChange={(e) => set("wStart", Math.min(23, Math.max(0, Math.floor(Number(e.target.value) || 0))))} /> and
+                  <input type="number" min={0} max={23} className={`${inputCls} !w-14`} value={d.wEnd} onChange={(e) => set("wEnd", Math.min(23, Math.max(0, Math.floor(Number(e.target.value) || 0))))} /> (IST hours) — unsent messages wait for the next window</label>
+                {d.useWindow && d.wStart === d.wEnd && <p className="text-[10px] text-slate-400">Start aur end same ({d.wStart}) hain — isliye koi time limit nahi, 24 ghante bhejega. Time limit chahiye to jaise 9 aur 20 daalo.</p>}
                 {outsideWindow && <p className="text-[11px] text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded-lg p-2">⏰ It is {nowH}:00 IST now — outside {d.wStart}:00–{d.wEnd}:00. “Send now” will queue and start at {d.wStart}:00 IST. Untick the window to send immediately.</p>}
                 {etaMin > 0 && <p className="text-[10px] text-slate-400">Estimated time: ~{formatEta(etaMin)} for {sendable} messages (paced to protect your number).</p>}
-                <Field label="Schedule (optional, your device’s local time — leave empty to start now)"><input type="datetime-local" className={inputCls} value={d.schedule} onChange={(e) => set("schedule", e.target.value)} /></Field>
+                <Field label="Schedule (optional, your device’s local time — leave empty to start now)"><div className="flex gap-1.5"><input type="datetime-local" className={inputCls} value={d.schedule} onChange={(e) => set("schedule", e.target.value)} />{d.schedule && <Btn type="button" onClick={() => set("schedule", "")}>Clear</Btn>}</div></Field>
+                {d.schedule && new Date(d.schedule).getTime() <= Date.now() && <p className="text-[11px] text-amber-400">⏰ Yeh time nikal chuka hai — broadcast turant shuru hoga. “Clear” dabao to normal “Send now” ban jayega.</p>}
                 <div className="flex gap-1.5 items-end">
                   <div className="flex-1"><Field label="Send a test to my number first"><input className={inputCls} value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="+91 …" /></Field></div>
                   <Btn disabled={busy === "test" || !testPhone.trim() || (d.mode === "template" ? !tpl : !d.body.trim() && !d.mediaUrl.trim())} onClick={sendTest}>{busy === "test" ? "…" : "Send test"}</Btn>
