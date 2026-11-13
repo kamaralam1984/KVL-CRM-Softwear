@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Share2, CheckSquare, Square, Image as ImageIcon, Video, Type, Film, BookOpen,
   Calendar, Clock, Sparkles, Send, Zap, ChevronLeft, ChevronRight, BarChart2,
-  Copy, Check, LayoutDashboard, AlertTriangle, RefreshCw, Trash2, Info, Layers,
+  Copy, Check, LayoutDashboard, AlertTriangle, RefreshCw, Trash2, Info, Layers, Plug,
 } from "lucide-react";
 import {
   getSocialPosts, getSocialConnections, schedulePost, postSocialNow, retrySocialPost, cancelSocialPost,
@@ -16,34 +16,13 @@ import {
 } from "@/lib/actions/socialPosts";
 import { generateSocialContent, type SocialVariation } from "@/lib/actions/socialAI";
 import { getAccessToken } from "@/lib/security/clientSession";
-import { PLATFORM_LABEL, PLATFORM_LIMITS, validatePost, type SocialPlatform } from "@/lib/social/validate";
+import { PLATFORM_LABEL, PLATFORM_LIMITS, validatePost } from "@/lib/social/validate";
 import type { PlatformConnection } from "@/lib/social/connections";
+import { GOLD, EMERALD, RED, CARD, PLATFORMS, PLATFORM_COLOR, PlatformIcon, type PlatformKey } from "./social/shared";
+import ConnectAccountsTab from "./social/ConnectAccounts";
 
-// ── Palette / platform look ─────────────────────────────────────────────────
-const GOLD    = "#D4AF37";
-const EMERALD = "#00A86B";
-const RED     = "#EF4444";
-const BG      = "var(--bg, #080c14)";
-const CARD    = { background: "rgba(128,128,128,0.06)", borderColor: "rgba(128,128,128,0.18)" } as const;
-
-type PlatformKey = SocialPlatform;
-const PLATFORMS: PlatformKey[] = ["facebook", "instagram", "linkedin", "twitter"];
-const PLATFORM_COLOR: Record<PlatformKey, string> = { facebook: "#1877F2", instagram: "#E1306C", linkedin: "#0A66C2", twitter: "#1DA1F2" };
-const PLATFORM_GLYPH: Record<PlatformKey, string> = { facebook: "f", instagram: "Ig", linkedin: "in", twitter: "X" };
-
-// lucide v1 has no brand icons, so each platform gets a coloured badge with its own mark.
-function PlatformIcon({ platform, size = 14 }: { platform: PlatformKey; size?: number }) {
-  const c = PLATFORM_COLOR[platform];
-  return (
-    <span
-      className="inline-flex shrink-0 items-center justify-center rounded-md font-black leading-none"
-      style={{ width: size + 8, height: size + 8, background: c, color: "#fff", fontSize: Math.max(8, size - 3) }}
-      aria-label={PLATFORM_LABEL[platform]}
-    >
-      {PLATFORM_GLYPH[platform]}
-    </span>
-  );
-}
+// ── Palette / platform look (shared with the Connect Accounts tab) ───────────
+const BG = "var(--bg, #080c14)";
 
 type Conns = Record<PlatformKey, PlatformConnection>;
 interface Data { posts: SocialPost[]; conns: Conns | null; loaded: boolean; refresh: () => void }
@@ -116,7 +95,7 @@ function PostRow({ post, onChanged }: { post: SocialPost; onChanged: () => void 
 }
 
 // ── TAB: Dashboard ───────────────────────────────────────────────────────────
-function DashboardTab({ data }: { data: Data }) {
+function DashboardTab({ data, onConnect }: { data: Data; onConnect: () => void }) {
   const { posts, conns, loaded, refresh } = data;
   const [weekAgo] = useState(() => Date.now() - 7 * 86400000);
   const upcoming = posts.filter((p) => p.status === "scheduled" || p.status === "draft")
@@ -147,14 +126,16 @@ function DashboardTab({ data }: { data: Data }) {
                 <p className="mt-2 text-[11px] font-semibold" style={{ color: c?.connected ? EMERALD : "#94a3b8" }}>
                   {!conns ? "Checking…" : c?.connected ? "● Connected" : "○ Not connected"}
                 </p>
-                {conns && !c?.connected && c?.missing.length ? (
-                  <p className="mt-1 break-words text-[10px] leading-snug text-slate-500">Add {c.missing.join(", ")} to the server settings to connect.</p>
-                ) : null}
+                {conns && !c?.connected && (
+                  <button onClick={onConnect} className="mt-2 flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold" style={{ borderColor: `${GOLD}55`, color: GOLD }}>
+                    <Plug size={10} /> Connect
+                  </button>
+                )}
               </div>
             );
           })}
         </div>
-        <p className="mt-3 text-[11px] text-slate-600">Posts can only be sent to connected accounts. Nothing is faked: an unconnected platform is blocked instead of pretending to publish.</p>
+        <p className="mt-3 text-[11px] text-slate-600">Posts can only be sent to connected accounts. Nothing is faked: an unconnected platform is blocked instead of pretending to publish. Set up accounts in the <b>Connect Accounts</b> tab.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -197,7 +178,7 @@ const POST_TYPES: { key: PostType; label: string; icon: typeof Type; supported: 
   { key: "reel",  label: "Reel",  icon: Film,      supported: false },
 ];
 
-function SchedulePostTab({ data, initialContent, initialPlatform }: { data: Data; initialContent: string; initialPlatform?: PlatformKey }) {
+function SchedulePostTab({ data, initialContent, initialPlatform, onConnect }: { data: Data; initialContent: string; initialPlatform?: PlatformKey; onConnect: () => void }) {
   const { conns, refresh } = data;
   const [selected, setSelected] = useState<Set<PlatformKey>>(new Set(initialPlatform ? [initialPlatform] : []));
   const [postType, setPostType] = useState<PostType>("text");
@@ -287,7 +268,7 @@ function SchedulePostTab({ data, initialContent, initialPlatform }: { data: Data
             })}
           </div>
           {conns && PLATFORMS.every((k) => !conns[k].connected) && (
-            <p className="mt-3 flex gap-1.5 text-[11px] text-amber-500"><Info size={12} className="mt-0.5 shrink-0" /> No platform is connected yet. Open the Dashboard tab to see exactly what to add.</p>
+            <p className="mt-3 flex gap-1.5 text-[11px] text-amber-500"><Info size={12} className="mt-0.5 shrink-0" /> No platform is connected yet. <button onClick={onConnect} className="font-semibold underline">Connect accounts</button> first.</p>
           )}
         </div>
 
@@ -628,6 +609,7 @@ const TABS = [
   { id: "calendar",  label: "Content Calendar", icon: Calendar },
   { id: "analytics", label: "Analytics",        icon: BarChart2 },
   { id: "ai",        label: "AI Generator",     icon: Sparkles },
+  { id: "connect",   label: "Connect Accounts", icon: Plug },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -671,10 +653,11 @@ export default function Social() {
 
       <AnimatePresence mode="wait">
         <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
-          {activeTab === "dashboard" && <DashboardTab data={data} />}
-          {activeTab === "schedule"  && <SchedulePostTab data={data} initialContent={prefill.content} initialPlatform={prefill.platform} />}
+          {activeTab === "dashboard" && <DashboardTab data={data} onConnect={() => setActiveTab("connect")} />}
+          {activeTab === "schedule"  && <SchedulePostTab data={data} initialContent={prefill.content} initialPlatform={prefill.platform} onConnect={() => setActiveTab("connect")} />}
           {activeTab === "calendar"  && <ContentCalendarTab data={data} />}
           {activeTab === "analytics" && <AnalyticsTab data={data} />}
+          {activeTab === "connect"   && <ConnectAccountsTab onChanged={load} />}
           {activeTab === "ai"        && <AIGeneratorTab onUse={(content, platform) => { setPrefill({ content, platform }); setActiveTab("schedule"); }} />}
         </motion.div>
       </AnimatePresence>

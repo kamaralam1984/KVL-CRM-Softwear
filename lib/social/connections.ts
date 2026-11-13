@@ -12,7 +12,7 @@ const REQUIRED: Record<SocialPlatform, string[]> = {
 
 export interface PlatformConnection { connected: boolean; missing: string[] }
 
-export function platformConnection(platform: SocialPlatform): PlatformConnection {
-  const missing = REQUIRED[platform].filter((k) => !process.env[k]);
+export function platformConnection(platform: SocialPlatform, env: Record<string, string | undefined> = process.env): PlatformConnection {
+  const missing = REQUIRED[platform].filter((k) => !env[k]);
   return { connected: missing.length === 0, missing };
 }

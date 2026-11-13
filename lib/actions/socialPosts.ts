@@ -7,6 +7,7 @@ import { assertCan, assertCanStrict } from "@/lib/security/requireAction";
 import { DEFAULT_SITE_ID } from "@/lib/sites/store";
 import { publishSocialPost } from "@/lib/social/publish";
 import { platformConnection, type PlatformConnection } from "@/lib/social/connections";
+import { socialEnv } from "@/lib/social/config";
 import { validatePost, PLATFORM_LABEL, type SocialPlatform } from "@/lib/social/validate";
 
 export type SocialPostStatus = "draft" | "scheduled" | "published" | "failed";
@@ -51,16 +52,17 @@ export async function getSocialConnections(accessToken?: string): Promise<Record
   const all = (["facebook", "instagram", "linkedin", "twitter"] as SocialPlatform[]);
   const empty = Object.fromEntries(all.map((p) => [p, { connected: false, missing: [] as string[] }])) as Record<SocialPlatform, PlatformConnection>;
   if (!(await assertCan(accessToken, "social", "read"))) return empty;
-  return Object.fromEntries(all.map((p) => [p, platformConnection(p)])) as Record<SocialPlatform, PlatformConnection>;
+  const env = await socialEnv();
+  return Object.fromEntries(all.map((p) => [p, platformConnection(p, env)])) as Record<SocialPlatform, PlatformConnection>;
 }
 
 // Shared gate for every outbound action: valid post + the platform really has credentials.
 // Without credentials the publisher only LOGS (mock), so we refuse instead of recording a
 // post as "published" that never left the server.
-function gate(input: PostInput): string | null {
+function gate(input: PostInput, env: NodeJS.ProcessEnv): string | null {
   const bad = validatePost({ platform: input.platform, postType: input.postType, content: input.content, mediaUrl: input.mediaUrls[0] });
   if (bad) return bad;
-  const conn = platformConnection(input.platform);
+  const conn = platformConnection(input.platform, env);
   if (!conn.connected) return `${PLATFORM_LABEL[input.platform]} isn't connected on the server yet (missing ${conn.missing.join(", ")}).`;
   return null;
 }
@@ -85,7 +87,7 @@ async function insertPost(input: {
 // when scheduled_at arrives.
 export async function schedulePost(input: PostInput & { scheduledAt: string }, accessToken?: string): Promise<ActionResult> {
   if (!(await assertCanStrict(accessToken, "social", "create"))) return { ok: false, error: "Sign in with a role that can post to social media." };
-  const bad = gate(input);
+  const bad = gate(input, await socialEnv());
   if (bad) return { ok: false, error: bad };
   const when = new Date(input.scheduledAt);
   if (isNaN(when.getTime())) return { ok: false, error: "Pick a valid date and time." };
@@ -103,10 +105,11 @@ export async function schedulePost(input: PostInput & { scheduledAt: string }, a
 // "Post Now" — publishes immediately, then records the real result (published or failed).
 export async function postSocialNow(input: PostInput, accessToken?: string): Promise<ActionResult> {
   if (!(await assertCanStrict(accessToken, "social", "create"))) return { ok: false, error: "Sign in with a role that can post to social media." };
-  const bad = gate(input);
+  const env = await socialEnv();
+  const bad = gate(input, env);
   if (bad) return { ok: false, error: bad };
 
-  const result = await publishSocialPost(input.platform, input.content, input.mediaUrls[0]);
+  const result = await publishSocialPost(input.platform, input.content, input.mediaUrls[0], env);
   try {
     const { data, error } = await insertPost({ ...input, scheduledAt: null, status: result.ok ? "published" : "failed" });
     if (error) console.error("[social] postSocialNow record failed:", error.message);
@@ -131,9 +134,10 @@ export async function retrySocialPost(id: string, accessToken?: string): Promise
     const post = row as SocialPost;
     if (post.status === "published") return { ok: false, error: "This post is already published." };
     const input: PostInput = { platform: post.platform, postType: post.post_type, content: post.content, mediaUrls: post.media_urls ?? [] };
-    const bad = gate(input);
+    const env = await socialEnv();
+    const bad = gate(input, env);
     if (bad) return { ok: false, error: bad };
-    const result = await publishSocialPost(post.platform, post.content, post.media_urls?.[0]);
+    const result = await publishSocialPost(post.platform, post.content, post.media_urls?.[0], env);
     await db.from("social_posts").update({
       status: result.ok ? "published" : "failed",
       external_post_id: result.externalPostId ?? null,
@@ -172,11 +176,12 @@ export async function publishDueSocialPosts(): Promise<{ processed: number; publ
       .limit(50);
     if (error || !data?.length) return { processed: 0, published: 0 };
 
+    const env = await socialEnv();
     let published = 0;
     for (const row of data as SocialPost[]) {
-      const connected = platformConnection(row.platform).connected;
+      const connected = platformConnection(row.platform, env).connected;
       const result = connected
-        ? await publishSocialPost(row.platform, row.content, row.media_urls?.[0])
+        ? await publishSocialPost(row.platform, row.content, row.media_urls?.[0], env)
         : { ok: false, mock: false, externalPostId: undefined };
       await db.from("social_posts").update({
         status: result.ok ? "published" : "failed",

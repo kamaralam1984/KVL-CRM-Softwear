@@ -21,14 +21,14 @@ function mockResult(platform: string, content: string): SocialPublishResult {
 }
 
 // --- FACEBOOK PAGE (organic) -----------------------------------------------
-export async function publishFacebookPost(content: string, imageUrl?: string): Promise<SocialPublishResult> {
-  const pageId = process.env.META_PAGE_ID;
-  const pageToken = process.env.META_PAGE_ACCESS_TOKEN;
+export async function publishFacebookPost(content: string, imageUrl?: string, env: NodeJS.ProcessEnv = process.env): Promise<SocialPublishResult> {
+  const pageId = env.META_PAGE_ID;
+  const pageToken = env.META_PAGE_ACCESS_TOKEN;
   if (!pageId || !pageToken) return mockResult("facebook", content);
 
   try {
     // A photo post goes to /photos (caption + public image URL); plain text goes to /feed.
-    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/${imageUrl ? "photos" : "feed"}`, {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/${imageUrl ? "photos" : "feed"}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(imageUrl
@@ -48,13 +48,13 @@ export async function publishFacebookPost(content: string, imageUrl?: string): P
 }
 
 // --- INSTAGRAM (organic, via the connected Facebook Page's IG Business account) ---
-export async function publishInstagramPost(content: string, imageUrl?: string): Promise<SocialPublishResult> {
-  const igUserId = process.env.META_INSTAGRAM_USER_ID;
-  const pageToken = process.env.META_PAGE_ACCESS_TOKEN;
+export async function publishInstagramPost(content: string, imageUrl?: string, env: NodeJS.ProcessEnv = process.env): Promise<SocialPublishResult> {
+  const igUserId = env.META_INSTAGRAM_USER_ID;
+  const pageToken = env.META_PAGE_ACCESS_TOKEN;
   if (!igUserId || !pageToken || !imageUrl) return mockResult("instagram", content); // IG requires media — no text-only posts
 
   try {
-    const createRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media`, {
+    const createRes = await fetch(`https://graph.facebook.com/v21.0/${igUserId}/media`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image_url: imageUrl, caption: content, access_token: pageToken }),
@@ -66,7 +66,7 @@ export async function publishInstagramPost(content: string, imageUrl?: string): 
     const { id: creationId } = (await createRes.json()) as { id?: string };
     if (!creationId) return { ok: false, mock: false, detail: "instagram: no creation id returned" };
 
-    const publishRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media_publish`, {
+    const publishRes = await fetch(`https://graph.facebook.com/v21.0/${igUserId}/media_publish`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ creation_id: creationId, access_token: pageToken }),
@@ -84,9 +84,11 @@ export async function publishInstagramPost(content: string, imageUrl?: string): 
 }
 
 // --- LINKEDIN (organic, via a company Page) --------------------------------
-export async function publishLinkedinPost(content: string): Promise<SocialPublishResult> {
-  const token = process.env.LINKEDIN_ACCESS_TOKEN; // same token already used for lead sourcing/ads
-  const orgUrn = process.env.LINKEDIN_ORGANIZATION_URN; // e.g. "urn:li:organization:12345678"
+export const DEFAULT_LINKEDIN_API_VERSION = "202510";
+
+export async function publishLinkedinPost(content: string, env: NodeJS.ProcessEnv = process.env): Promise<SocialPublishResult> {
+  const token = env.LINKEDIN_ACCESS_TOKEN;
+  const orgUrn = env.LINKEDIN_ORGANIZATION_URN; // e.g. "urn:li:organization:12345678"
   if (!token || !orgUrn) return mockResult("linkedin", content);
 
   try {
@@ -95,7 +97,7 @@ export async function publishLinkedinPost(content: string): Promise<SocialPublis
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
-        "LinkedIn-Version": "202401",
+        "LinkedIn-Version": env.LINKEDIN_API_VERSION || DEFAULT_LINKEDIN_API_VERSION,
         "X-Restli-Protocol-Version": "2.0.0",
       },
       body: JSON.stringify({
@@ -120,9 +122,9 @@ export async function publishLinkedinPost(content: string): Promise<SocialPublis
 }
 
 // --- TWITTER / X (organic) --------------------------------------------------
-export async function publishTwitterPost(content: string): Promise<SocialPublishResult> {
+export async function publishTwitterPost(content: string, env: NodeJS.ProcessEnv = process.env): Promise<SocialPublishResult> {
   const url = "https://api.twitter.com/2/tweets";
-  const authHeader = buildTwitterOAuthHeader("POST", url);
+  const authHeader = buildTwitterOAuthHeader("POST", url, env);
   if (!authHeader) return mockResult("twitter", content);
 
   try {
@@ -152,12 +154,12 @@ export async function publishTwitterPost(content: string): Promise<SocialPublish
 export type { SocialPlatform } from "./validate";
 import type { SocialPlatform } from "./validate";
 
-export async function publishSocialPost(platform: SocialPlatform, content: string, mediaUrl?: string): Promise<SocialPublishResult> {
+export async function publishSocialPost(platform: SocialPlatform, content: string, mediaUrl?: string, env: NodeJS.ProcessEnv = process.env): Promise<SocialPublishResult> {
   switch (platform) {
-    case "facebook": return publishFacebookPost(content, mediaUrl);
-    case "instagram": return publishInstagramPost(content, mediaUrl);
-    case "linkedin": return publishLinkedinPost(content);
-    case "twitter": return publishTwitterPost(content);
+    case "facebook": return publishFacebookPost(content, mediaUrl, env);
+    case "instagram": return publishInstagramPost(content, mediaUrl, env);
+    case "linkedin": return publishLinkedinPost(content, env);
+    case "twitter": return publishTwitterPost(content, env);
     default: return mockResult(platform, content);
   }
 }

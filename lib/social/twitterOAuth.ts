@@ -18,20 +18,16 @@ function percentEncode(str: string): string {
   return encodeURIComponent(str).replace(/[!*'()]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
-export function isTwitterConfigured(): boolean {
-  return Boolean(
-    process.env.TWITTER_API_KEY &&
-      process.env.TWITTER_API_SECRET &&
-      process.env.TWITTER_ACCESS_TOKEN &&
-      process.env.TWITTER_ACCESS_SECRET,
-  );
+export function isTwitterConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(env.TWITTER_API_KEY && env.TWITTER_API_SECRET && env.TWITTER_ACCESS_TOKEN && env.TWITTER_ACCESS_SECRET);
 }
 
-export function buildTwitterOAuthHeader(method: string, url: string): string | null {
-  const consumerKey = process.env.TWITTER_API_KEY;
-  const consumerSecret = process.env.TWITTER_API_SECRET;
-  const token = process.env.TWITTER_ACCESS_TOKEN;
-  const tokenSecret = process.env.TWITTER_ACCESS_SECRET;
+// `env` lets callers pass the CRM-saved credentials overlaid on process.env (lib/social/config.ts).
+export function buildTwitterOAuthHeader(method: string, url: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const consumerKey = env.TWITTER_API_KEY;
+  const consumerSecret = env.TWITTER_API_SECRET;
+  const token = env.TWITTER_ACCESS_TOKEN;
+  const tokenSecret = env.TWITTER_ACCESS_SECRET;
   if (!consumerKey || !consumerSecret || !token || !tokenSecret) return null;
 
   const oauthParams: Record<string, string> = {
