@@ -2,6 +2,7 @@
 import { getDb } from "@/lib/db";
 import { deals as seedDeals } from "@/lib/data";
 import { dispatchWebhookEvent } from "@/lib/webhooks/dispatch";
+import { runCustomGraphs } from "@/lib/automation/graph/dispatch";
 
 export type Deal = (typeof seedDeals)[number];
 
@@ -36,7 +37,14 @@ export async function updateDeal(id: number, patch: Partial<Deal>): Promise<Deal
     .select()
     .single();
   if (error) throw new Error(error.message);
-  if (patch.stage === "Closed Won") dispatchWebhookEvent("deal.won", data as Record<string, unknown>).catch(() => {});
+  if (patch.stage === "Closed Won") {
+    dispatchWebhookEvent("deal.won", data as Record<string, unknown>).catch(() => {});
+    // Canvases listening to "Deal Won" (there is no built-in deal-won logic to replace).
+    const d = data as Record<string, unknown>;
+    runCustomGraphs("deal_won", {
+      name: String(d.name ?? ""), company: String(d.company ?? ""), value: Number(d.value) || 0, owner: String(d.owner ?? ""),
+    }, "deal-won").catch(() => {});
+  }
   return data as Deal;
 }
 

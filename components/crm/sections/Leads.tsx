@@ -5,6 +5,8 @@ import { Search, Filter, Plus, MoreHorizontal, Star, Phone, Mail, Brain, Pencil,
 import { leads as initialLeads } from "@/lib/data";
 import { getLeads, createLead, updateLead, deleteLead } from "@/lib/actions/leads";
 import { triggerLeadCreated } from "@/lib/automation/engine";
+import { fireLeadCreatedGraphs } from "@/lib/actions/graphTriggers";
+import { getAccessToken } from "@/lib/security/clientSession";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
 
@@ -128,7 +130,10 @@ export default function Leads() {
     createLead(leadData).catch(() => {});
     // Fire the Lead Nurture automation — creates a follow-up task + activity,
     // and logs the run so it shows live on the Automation page.
-    triggerLeadCreated(newLead);
+    // A canvas saved for Lead Nurture replaces the built-in run; if none (or not allowed / offline) the built-in runs.
+    fireLeadCreatedGraphs(newLead, getAccessToken())
+      .then((replaced) => { if (!replaced) triggerLeadCreated(newLead); })
+      .catch(() => triggerLeadCreated(newLead));
     setShowModal(false);
     setForm(emptyForm);
   };

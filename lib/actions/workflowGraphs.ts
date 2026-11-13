@@ -3,7 +3,7 @@
 // per workflow key (see lib/automation/graph/types.ts).
 
 import { getDb } from "@/lib/db";
-import { assertCan } from "@/lib/security/requireAction";
+import { assertCan, assertCanStrict } from "@/lib/security/requireAction";
 import { emptyGraph, type WorkflowGraph } from "@/lib/automation/graph/types";
 import { runGraph, type GraphContext } from "@/lib/automation/graph/interpreter";
 import { recordWorkflowRun } from "@/lib/actions/workflows";
@@ -32,7 +32,8 @@ export async function getWorkflowGraph(workflowKey: string, accessToken?: string
 }
 
 export async function saveWorkflowGraph(graph: WorkflowGraph, accessToken?: string): Promise<{ ok: boolean }> {
-  if (!(await assertCan(accessToken, "automation", "update"))) return { ok: false };
+  // Strict: a saved canvas can send messages and call URLs automatically, so anonymous saves are refused.
+  if (!(await assertCanStrict(accessToken, "automation", "update"))) return { ok: false };
   try {
     const db = getDb();
     const { error } = await db.from("workflow_graphs").upsert(
@@ -61,6 +62,11 @@ export async function testWorkflowGraph(
   accessToken?: string,
   sample: Record<string, string | number> = {},
 ): Promise<WorkflowRun> {
+  // Strict: Test run really sends to the phone/email in the sample record.
+  if (!(await assertCanStrict(accessToken, "automation", "update"))) {
+    return { id: `graph-run-${Date.now().toString(36)}`, workflowId: workflowKey, workflowName: workflowKey, trigger: "Denied", entity: sampleEntity,
+      steps: [{ label: "Not allowed", ok: false, detail: "Sign in with a role that can edit automations" }], ok: false, at: Date.now() };
+  }
   const graph = await getWorkflowGraph(workflowKey, accessToken);
   // Test data typed in the builder (name / email / phone / score …). Bounded and
   // flat so a crafted call can't smuggle anything bigger into the run context.

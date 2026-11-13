@@ -9,6 +9,7 @@ import { getDb } from "@/lib/db";
 import { getVisitorAttribution } from "@/lib/tracking/store";
 import { createLead } from "@/lib/actions/leads";
 import { triggerLeadCreated } from "@/lib/automation/engine";
+import { runCustomGraphs } from "@/lib/automation/graph/dispatch";
 import type { IdentityResolution } from "./types";
 
 function log(where: string, err: unknown) {
@@ -126,7 +127,13 @@ export async function resolveIdentity(
 
       // Reuse the existing Lead Nurture automation (spec §19: form_submitted → create
       // lead, assign owner, create follow-up task) — no separate workflow needed.
-      triggerLeadCreated({ name, company: input.company?.trim() || "", score, owner });
+      // A canvas saved for Lead Nurture replaces the built-in version; otherwise the built-in runs.
+      const replaced = await runCustomGraphs(
+        "lead_created",
+        { name, company: input.company?.trim() || "", email, phone: input.phone.trim(), score, owner },
+        "lead-nurture",
+      ).catch(() => false);
+      if (!replaced) triggerLeadCreated({ name, company: input.company?.trim() || "", score, owner });
     }
 
     await db.from("visitor_identity_links").insert({

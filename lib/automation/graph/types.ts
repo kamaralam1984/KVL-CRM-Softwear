@@ -124,7 +124,7 @@ export const NODE_CATALOG: CatalogEntry[] = [
   { type: "trigger", kind: "high_intent_visitor", label: "High-Intent Visitor", desc: "A website visitor shows buying intent", group: "Trigger" },
   { type: "trigger", kind: "lead_score_spike", label: "Lead Score Spike", desc: "A lead's score jumps", group: "Trigger" },
   { type: "trigger", kind: "deal_won", label: "Deal Won", desc: "A deal moves to Closed Won", group: "Trigger" },
-  { type: "trigger", kind: "customer_health_drop", label: "Customer Health Drop", desc: "A customer's health score falls", group: "Trigger" },
+  { type: "trigger", kind: "customer_health_drop", label: "Customer Health Drop", desc: "Not auto-fired yet — use Test run", group: "Trigger" },
   { type: "condition", kind: "if", label: "IF", desc: "Split into TRUE / FALSE paths", group: "Logic" },
   { type: "action", kind: "set_field", label: "Set Field", desc: "Create a value to use in later nodes", group: "Logic" },
   { type: "action", kind: "send_whatsapp", label: "Send WhatsApp", desc: "Message the lead on WhatsApp", group: "Messaging" },
@@ -183,7 +183,21 @@ export interface WorkflowGraph {
   version: number;
 }
 
+/** The CRM event each built-in workflow listens to — also the default trigger of its canvas. */
+export const WORKFLOW_TRIGGER: Record<string, TriggerKind> = {
+  "lead-nurture": "lead_created",
+  "deal-won": "deal_won",
+  "churn-alert": "customer_health_drop",
+  "high-intent-visitor": "high_intent_visitor",
+  "hot-lead-alert": "lead_score_spike",
+};
+
+/** Events the CRM really fires into saved canvases today. */
+export const LIVE_TRIGGERS: TriggerKind[] = ["lead_created", "high_intent_visitor", "lead_score_spike", "deal_won"];
+
 export function emptyGraph(workflowKey: string): WorkflowGraph {
+  const kind = WORKFLOW_TRIGGER[workflowKey] ?? "lead_created";
+  const label = TRIGGER_KINDS.find((t) => t.kind === kind)?.label ?? "New Lead Created";
   return {
     workflowKey,
     version: 1,
@@ -192,7 +206,7 @@ export function emptyGraph(workflowKey: string): WorkflowGraph {
         id: "trigger-1",
         type: "trigger",
         position: { x: 60, y: 160 },
-        data: { kind: "lead_created", label: "New Lead Created" },
+        data: { kind, label },
       },
     ],
     edges: [],

@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/crm/ThemeContext";
 import { WORKFLOWS as AUTO_WORKFLOWS } from "@/lib/automation/engine";
 import {
-  TRIGGER_KINDS, ACTION_KINDS, CONDITION_OPS, ACTION_FIELDS, CONTEXT_FIELDS, NODE_CATALOG, emptyGraph,
+  TRIGGER_KINDS, ACTION_KINDS, CONDITION_OPS, ACTION_FIELDS, CONTEXT_FIELDS, NODE_CATALOG, LIVE_TRIGGERS, emptyGraph,
   type WorkflowGraph, type GraphNode, type GraphNodeType, type CatalogEntry, type NodeGroup,
   type TriggerNodeData, type ConditionNodeData, type ActionNodeData, type ActionKind, type ParamField,
 } from "@/lib/automation/graph/types";
@@ -285,6 +285,18 @@ function Builder() {
 
   const selected = useMemo(() => nodes.find((n) => n.id === selectedId) ?? null, [nodes, selectedId]);
   const hasTrigger = nodes.some((n) => n.type === "trigger");
+  // Is this canvas wired to fire by itself? (live event + something connected after the trigger)
+  const liveInfo = useMemo(() => {
+    const trig = nodes.find((n) => n.type === "trigger");
+    if (!trig) return { live: false, text: "No trigger — add one" };
+    const kind = (trig.data as unknown as TriggerNodeData).kind;
+    const label = (trig.data as unknown as TriggerNodeData).label;
+    const connected = edges.some((e) => e.source === trig.id);
+    if (kind === "manual") return { live: false, text: "Manual — runs on Test run only" };
+    if (!LIVE_TRIGGERS.includes(kind)) return { live: false, text: `“${label}” isn't auto-fired yet — Test run only` };
+    if (!connected) return { live: false, text: "Connect a node after the trigger to go live" };
+    return { live: true, text: `Live: runs on “${label}” once saved` };
+  }, [nodes, edges]);
   const used = useMemo(() => new Set(edges.map((e) => `${e.source}:${e.sourceHandle ?? ""}`)), [edges]);
   const status = useMemo(() => {
     const m: Record<string, { ok: boolean; detail?: string }> = {};
@@ -466,6 +478,9 @@ function Builder() {
               </select>
               <ChevronDown size={11} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500" />
             </div>
+            <span title="Switch the workflow on/off in the My Workflows tab" className={cn("hidden items-center gap-1 text-[10px] sm:flex", liveInfo.live ? "text-emerald-400" : "text-slate-500")}>
+              <span className={cn("h-1.5 w-1.5 rounded-full", liveInfo.live ? "bg-emerald-400" : "bg-slate-500")} /> {liveInfo.text}
+            </span>
             {dirty && <span className="flex items-center gap-1 text-[10px] text-amber-400"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Unsaved</span>}
           </div>
           <div className="relative flex items-center gap-1.5">
@@ -583,7 +598,9 @@ function Builder() {
                     <p className="mt-1 text-[9px] leading-snug text-slate-600">
                       {(selected.data as unknown as TriggerNodeData).kind === "manual"
                         ? "Runs only when you press Test run."
-                        : "Runs automatically when this happens in the CRM. Test run simulates it with the sample record."}
+                        : LIVE_TRIGGERS.includes((selected.data as unknown as TriggerNodeData).kind)
+                          ? "Fires automatically when this happens in the CRM (while the workflow is on in My Workflows). A canvas saved for this workflow replaces its built-in steps."
+                          : "Not fired automatically yet — use Test run."}
                     </p>
                   </div>
                 )}

@@ -86,6 +86,8 @@ vi.mock("@/lib/tracking/store", () => ({
 
 vi.mock("@/lib/actions/leads", () => ({ createLead: createLeadMock }));
 vi.mock("@/lib/automation/engine", () => ({ triggerLeadCreated: triggerLeadCreatedMock }));
+// No saved canvases in these tests → the built-in Lead Nurture runs.
+vi.mock("@/lib/automation/graph/dispatch", () => ({ runCustomGraphs: async () => false }));
 
 // Imported after the mocks — vi.mock calls are hoisted by Vitest regardless,
 // but this keeps the file readable top-to-bottom.

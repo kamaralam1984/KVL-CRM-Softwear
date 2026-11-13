@@ -11,6 +11,7 @@
 import { getDb } from "@/lib/db";
 import { getRules, bandFromScore } from "./rules";
 import { triggerHighIntentVisitor, triggerLeadScoreSpike } from "@/lib/automation/engine";
+import { runCustomGraphs } from "@/lib/automation/graph/dispatch";
 import type { IntentBand } from "./types";
 
 const HOT_BANDS: IntentBand[] = ["hot", "very_hot"];
@@ -24,7 +25,7 @@ function log(where: string, err: unknown) {
 async function syncLeadScore(leadId: number, score: number, band: IntentBand): Promise<void> {
   try {
     const db = getDb();
-    const { data: lead } = await db.from("leads").select("score, name, company").eq("id", leadId).maybeSingle();
+    const { data: lead } = await db.from("leads").select("score, name, company, email, phone").eq("id", leadId).maybeSingle();
     const previousScore = (lead?.score as number | undefined) ?? 0;
 
     // leads.status is a 3-tier check constraint (hot/warm/cold) — hot and
@@ -34,12 +35,18 @@ async function syncLeadScore(leadId: number, score: number, band: IntentBand): P
     await db.from("leads").update({ score, status }).eq("id", leadId);
 
     if (score >= LEAD_ALERT_THRESHOLD && previousScore < LEAD_ALERT_THRESHOLD) {
-      triggerLeadScoreSpike({
+      const spike = {
         leadId,
         name: (lead?.name as string | undefined) ?? "",
         company: (lead?.company as string | undefined) ?? "",
         score,
-      });
+      };
+      const replaced = await runCustomGraphs(
+        "lead_score_spike",
+        { ...spike, email: (lead?.email as string | undefined) ?? "", phone: (lead?.phone as string | undefined) ?? "" },
+        "hot-lead-alert",
+      ).catch(() => false);
+      if (!replaced) triggerLeadScoreSpike(spike);
     }
   } catch (err) {
     log("syncLeadScore", err);
@@ -80,7 +87,12 @@ async function addIntentPoints(visitorId: string, points: number, siteId: string
     if (link) {
       await syncLeadScore(link.lead_id as number, next, band);
     } else if (HOT_BANDS.includes(band) && !HOT_BANDS.includes(previousBand)) {
-      triggerHighIntentVisitor({ visitorId, score: next, band, source });
+      const replaced = await runCustomGraphs(
+        "high_intent_visitor",
+        { name: `Visitor ${visitorId}`, company: visitorId, visitorId, score: next, band, source },
+        "high-intent-visitor",
+      ).catch(() => false);
+      if (!replaced) triggerHighIntentVisitor({ visitorId, score: next, band, source });
     }
   } catch (err) {
     log("addIntentPoints", err);
