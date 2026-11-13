@@ -21,23 +21,26 @@ function mockResult(platform: string, content: string): SocialPublishResult {
 }
 
 // --- FACEBOOK PAGE (organic) -----------------------------------------------
-export async function publishFacebookPost(content: string): Promise<SocialPublishResult> {
+export async function publishFacebookPost(content: string, imageUrl?: string): Promise<SocialPublishResult> {
   const pageId = process.env.META_PAGE_ID;
   const pageToken = process.env.META_PAGE_ACCESS_TOKEN;
   if (!pageId || !pageToken) return mockResult("facebook", content);
 
   try {
-    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/feed`, {
+    // A photo post goes to /photos (caption + public image URL); plain text goes to /feed.
+    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/${imageUrl ? "photos" : "feed"}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: content, access_token: pageToken }),
+      body: JSON.stringify(imageUrl
+        ? { url: imageUrl, caption: content, access_token: pageToken }
+        : { message: content, access_token: pageToken }),
     });
     if (!res.ok) {
       console.error(`[social] facebook publish HTTP ${res.status}`);
       return { ok: false, mock: false, detail: `facebook ${res.status}` };
     }
-    const j = (await res.json()) as { id?: string };
-    return { ok: true, mock: false, externalPostId: j.id };
+    const j = (await res.json()) as { id?: string; post_id?: string };
+    return { ok: true, mock: false, externalPostId: j.post_id ?? j.id };
   } catch (err) {
     console.error("[social] facebook publish error:", err);
     return { ok: false, mock: false, detail: String(err) };
@@ -146,11 +149,12 @@ export async function publishTwitterPost(content: string): Promise<SocialPublish
 // creators). Rather than fake a "post" that can't exist for this platform,
 // it was removed from SocialPlatform entirely (see Social.tsx) instead of
 // being left as a silently-mocked option next to real channels.
-export type SocialPlatform = "facebook" | "instagram" | "linkedin" | "twitter";
+export type { SocialPlatform } from "./validate";
+import type { SocialPlatform } from "./validate";
 
 export async function publishSocialPost(platform: SocialPlatform, content: string, mediaUrl?: string): Promise<SocialPublishResult> {
   switch (platform) {
-    case "facebook": return publishFacebookPost(content);
+    case "facebook": return publishFacebookPost(content, mediaUrl);
     case "instagram": return publishInstagramPost(content, mediaUrl);
     case "linkedin": return publishLinkedinPost(content);
     case "twitter": return publishTwitterPost(content);
