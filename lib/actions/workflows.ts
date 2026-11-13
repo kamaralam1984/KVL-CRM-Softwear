@@ -53,15 +53,18 @@ export async function getWorkflows(accessToken?: string): Promise<DbWorkflow[]> 
   }
 }
 
-export async function setWorkflowActive(key: string, active: boolean, accessToken?: string): Promise<void> {
-  if (!(await assertCan(accessToken, "automation", "update"))) return;
+/** "denied" = this user may not change workflows (caller must NOT flip its local copy); "error" = DB unavailable (demo mode) so local-only is fine. */
+export async function setWorkflowActive(key: string, active: boolean, accessToken?: string): Promise<"ok" | "denied" | "error"> {
+  if (!(await assertCan(accessToken, "automation", "update"))) return "denied";
   try {
     const db = getDb();
     await ensureSeeded(db);
     const { error } = await db.from("workflows").update({ active }).eq("key", key);
-    if (error) console.error("[automation] setWorkflowActive failed:", error.message);
+    if (error) { console.error("[automation] setWorkflowActive failed:", error.message); return "error"; }
+    return "ok";
   } catch (err) {
     console.error("[automation] setWorkflowActive error:", err);
+    return "error";
   }
 }
 

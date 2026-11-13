@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeWebsite } from "@/lib/analyzer";
+import { isSafeWebhookUrl } from "@/lib/security/ssrfGuard";
 
 // A full scan fans out to four analyzers (incl. network fetches) — give it room.
 export const maxDuration = 60;
@@ -21,6 +22,14 @@ function checkAuth(req: NextRequest): NextResponse | null {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   return null;
+}
+
+// The analyzer fetches whatever URL it is given, so refuse anything that isn't a public http(s) address
+// (localhost / private ranges would let a caller probe the server's own network).
+async function rejectUnsafeUrl(raw: string): Promise<NextResponse | null> {
+  const full = /^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`;
+  if (await isSafeWebhookUrl(full)) return null;
+  return NextResponse.json({ error: "url must be a public http(s) address" }, { status: 400 });
 }
 
 export async function POST(req: NextRequest) {
@@ -41,6 +50,9 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+
+  const unsafe = await rejectUnsafeUrl(url);
+  if (unsafe) return unsafe;
 
   try {
     const analysis = await analyzeWebsite(url);
@@ -66,6 +78,9 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
+
+  const unsafe = await rejectUnsafeUrl(url);
+  if (unsafe) return unsafe;
 
   try {
     const analysis = await analyzeWebsite(url);

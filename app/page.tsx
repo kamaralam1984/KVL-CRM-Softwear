@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
+import { hydrateActiveFromDb } from "@/lib/automation/store";
+import { getAccessToken } from "@/lib/security/clientSession";
 import { AnimatePresence, motion } from "framer-motion";
 import { Globe, AlertTriangle } from "lucide-react";
 import MobileNav from "@/components/crm/MobileNav";
@@ -133,6 +135,13 @@ function CRMAppInner() {
   const [aiOpen, setAiOpen]                 = useState(false);
   const [drawerOpen, setDrawerOpen]         = useState(false);
   const { darkMode, toggleDark } = useTheme();
+  // Workflow on/off lives in the database; refresh this browser's cache once per login so the
+  // client-side trigger gates agree with the server and with other devices.
+  const userId = user?.id;
+  useEffect(() => {
+    if (userId) hydrateActiveFromDb(getAccessToken()).catch(() => {});
+  }, [userId]);
+
   // Mirror the theme on <html> so portalled UI (modals, native <select> lists) outside
   // the wrapper div below is themed too.
   useEffect(() => {

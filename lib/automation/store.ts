@@ -4,7 +4,8 @@
 //
 // Phase 19: dual-write added. localStorage stays the fast, always-available
 // client cache every existing reader (isActive, getRuns) still uses exactly
-// as before; addRun/setActive now ALSO fire-and-forget a real database write
+// as before; addRun ALSO fire-and-forgets a real database write (the active toggle is
+// database-first — see toggleWorkflowActive below)
 // via lib/actions/workflows.ts, so runs and the active-toggle survive a
 // restart and are visible cross-device (see docs/GHL_PARITY_STATUS.md).
 // This also closes a documented gap (ACQUISITION_ENGINE_ROADMAP.md Wave 5):
@@ -13,7 +14,7 @@
 // in the run feed even though they created real Task/Activity rows — the new
 // recordWorkflowRun() call below runs unconditionally, client or server.
 
-import { recordWorkflowRun, setWorkflowActive as setWorkflowActiveRemote } from "@/lib/actions/workflows";
+import { recordWorkflowRun, getWorkflows as getWorkflowsRemote, setWorkflowActive as setWorkflowActiveRemote } from "@/lib/actions/workflows";
 
 export type RunStep = { label: string; ok: boolean; detail?: string; nodeId?: string };
 export type WorkflowRun = {
@@ -62,22 +63,40 @@ export function isActive(workflowId: string, def = true): boolean {
   }
 }
 
-export function setActive(workflowId: string, on: boolean): void {
-  // Best-effort remote sync so the toggle is visible cross-device next time
-  // the UI loads via lib/actions/workflows.ts::getWorkflows(). The local
-  // trigger functions in lib/automation/engine.ts still gate on the fast
-  // synchronous localStorage read below (isActive), unchanged.
-  setWorkflowActiveRemote(workflowId, on).catch(() => {});
-
+// ── Database is the source of truth for on/off ───────────────────────────────
+// localStorage is only a fast synchronous cache for the client-side trigger gates (isActive).
+// - hydrateActiveFromDb(): overwrite the cache with the database values (call once after login)
+// - toggleWorkflowActive(): write the database FIRST, flip the cache only if that was allowed,
+//   so a denied/failed change never leaves this browser out of step with the server.
+// The token is passed in (not read here) because this module is also imported by server code.
+function readActive(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(ACTIVE_KEY) || "{}"); } catch { return {}; }
+}
+function writeActive(m: Record<string, boolean>): void {
   if (typeof window === "undefined") return;
-  let m: Record<string, boolean> = {};
+  try { localStorage.setItem(ACTIVE_KEY, JSON.stringify(m)); } catch { /* storage unavailable */ }
+}
+
+export async function hydrateActiveFromDb(accessToken?: string): Promise<Record<string, boolean> | null> {
   try {
-    m = JSON.parse(localStorage.getItem(ACTIVE_KEY) || "{}");
+    const rows = await getWorkflowsRemote(accessToken);
+    if (!rows.length) return null;
+    const m = readActive();
+    for (const w of rows) m[w.key] = w.active;
+    writeActive(m);
+    return m;
   } catch {
-    m = {};
+    return null;
   }
-  m[workflowId] = on;
-  localStorage.setItem(ACTIVE_KEY, JSON.stringify(m));
+}
+
+/** Returns false when the change was refused (no permission) — nothing was changed in that case. */
+export async function toggleWorkflowActive(workflowId: string, on: boolean, accessToken?: string): Promise<boolean> {
+  const res = await setWorkflowActiveRemote(workflowId, on, accessToken).catch(() => "error" as const);
+  if (res === "denied") return false;
+  writeActive({ ...readActive(), [workflowId]: on });
+  return true;
 }
 
 // "time ago" helper for display

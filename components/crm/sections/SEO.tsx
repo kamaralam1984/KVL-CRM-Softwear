@@ -1,20 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle,
-  XCircle, RefreshCw, Plus, Trash2, ExternalLink, BarChart2,
-  Globe, Link2, Eye, Target, Zap, FileText, Image, AlertCircle,
-  ChevronUp, ChevronDown, Minus,
+  Search, AlertTriangle, CheckCircle, XCircle, RefreshCw, Plus, Trash2, BarChart2,
+  Globe, AlertCircle, ChevronUp, ChevronDown, Minus, Copy, Wrench, Info,
 } from "lucide-react";
+import { runSeoAudit } from "@/lib/actions/seoAudit";
+import type { AuditReport, AuditItem } from "@/lib/analyzer/audit";
+import { getAccessToken } from "@/lib/security/clientSession";
 
 /* ── Palette ─────────────────────────────────────────── */
 const GOLD    = "#D4AF37";
 const EMERALD = "#00A86B";
-const BG      = "#080c14";
-const SURFACE = "#0d1424";
-const BORDER  = "rgba(255,255,255,0.07)";
+const BG      = "var(--bg, #080c14)";
+const SURFACE = "var(--surface, #0d1424)";
+const BORDER  = "var(--border-col, rgba(255,255,255,0.07))";
 
 /* ── Mock Data ───────────────────────────────────────── */
 const TOP_KEYWORDS = [
@@ -47,25 +48,6 @@ const COMPARISON_ROWS = [
   { feature: "Backlinks",        you: 12400, c1: 284000, c2: 510000 },
   { feature: "Organic Keywords", you: 2840, c1: 48200,  c2: 72400 },
   { feature: "Monthly Traffic",  you: 38200, c1: 1200000, c2: 3400000 },
-];
-
-const AUDIT_PASSED = [
-  { label: "HTTPS Enabled",          desc: "Your site uses a valid SSL certificate." },
-  { label: "XML Sitemap Present",     desc: "Sitemap found at /sitemap.xml." },
-  { label: "Mobile Friendly",         desc: "All pages pass the mobile usability test." },
-  { label: "Robots.txt Valid",        desc: "robots.txt is accessible and correctly formatted." },
-  { label: "Canonical Tags Set",      desc: "Canonical URLs are configured on key pages." },
-];
-
-const AUDIT_WARNINGS = [
-  { label: "Missing Image Alt Tags",    desc: "23 images across 9 pages are missing alt attributes." },
-  { label: "Thin Meta Descriptions",    desc: "14 pages have meta descriptions under 50 characters." },
-  { label: "Page Speed (Desktop)",      desc: "Average LCP is 3.4 s — target is below 2.5 s." },
-];
-
-const AUDIT_CRITICAL = [
-  { label: "Broken Internal Links",    desc: "7 internal links return 404. Hurts crawlability." },
-  { label: "Duplicate Title Tags",     desc: "11 pages share identical <title> values." },
 ];
 
 /* ── Helpers ─────────────────────────────────────────── */
@@ -114,9 +96,6 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 function ScoreGauge({ score }: { score: number }) {
   const pct  = score / 100;
   const r    = 56;
-  const circ = 2 * Math.PI * r;
-  // half-circle arc: offset for 0–100 mapped to upper semicircle
-  const dashOffset = circ * (1 - pct * 0.5) - circ * 0.5;
   const color = score >= 80 ? EMERALD : score >= 50 ? GOLD : "#EF4444";
   return (
     <div className="flex flex-col items-center">
@@ -473,7 +452,7 @@ function CompetitorAnalysis() {
               </tr>
             </thead>
             <tbody>
-              {COMPARISON_ROWS.map((row, ri) => {
+              {COMPARISON_ROWS.map((row) => {
                 const maxVal = Math.max(row.you, row.c1, row.c2);
                 const vals   = [row.you, row.c1, row.c2];
                 return (
@@ -500,131 +479,188 @@ function CompetitorAnalysis() {
   );
 }
 
-/* ── Tab: SEO Audit ──────────────────────────────────── */
-function SEOAudit() {
-  const [running, setRunning] = useState(false);
-  const [done, setDone]       = useState(true);
-  const [fixed, setFixed]     = useState<Set<string>>(new Set());
+/* ── Sample-data notice (Overview / Keywords / Competitors) ─ */
+function SampleNotice() {
+  return (
+    <div className="mb-4 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-xs" style={{ borderColor: `${GOLD}44`, background: `${GOLD}10`, color: GOLD }}>
+      <Info size={14} className="mt-0.5 shrink-0" />
+      <p>
+        <b>Sample data.</b> The rankings, traffic and competitor numbers on this tab are illustrative examples, not your real figures.
+        Real numbers need a search-data source (e.g. Google Search Console or a SERP API) — use the <b>SEO Audit</b> tab for live results about your site.
+      </p>
+    </div>
+  );
+}
 
-  const runAudit = () => {
-    setRunning(true);
-    setDone(false);
-    setTimeout(() => { setRunning(false); setDone(true); }, 2200);
+/* ── Tab: SEO Audit (real — runs the Website Analyzer on your site) ─ */
+const SITE_KEY = "kvl_seo_site";
+function initialSite(): string {
+  if (typeof window === "undefined") return "";
+  try { return localStorage.getItem(SITE_KEY) || window.location.host; } catch { return window.location.host; }
+}
+function ago(ms: number) {
+  const m = Math.floor((Date.now() - ms) / 60000);
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`;
+}
+
+function SEOAudit() {
+  const [site, setSite]       = useState(initialSite);
+  const [report, setReport]   = useState<AuditReport | null>(null);
+  const [running, setRunning] = useState(true);   // first audit starts as soon as the tab opens
+  const [error, setError]     = useState("");
+
+  const apply = (res: Awaited<ReturnType<typeof runSeoAudit>>) => {
+    if (res.ok) { setReport(res.report); setError(""); try { localStorage.setItem(SITE_KEY, site.trim()); } catch { /* ignore */ } }
+    else setError(res.error);
+    setRunning(false);
   };
 
-  const fixItem = (label: string) => setFixed(prev => new Set(prev).add(label));
+  useEffect(() => {
+    let cancelled = false;
+    runSeoAudit(initialSite(), getAccessToken())
+      .then((res) => { if (!cancelled) apply(res); })
+      .catch(() => { if (!cancelled) { setError("Could not reach the server. Check your connection and try again."); setRunning(false); } });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const score = Math.round(((AUDIT_PASSED.length + fixed.size) / (AUDIT_PASSED.length + AUDIT_WARNINGS.length + AUDIT_CRITICAL.length)) * 100);
+  const runAudit = async () => {
+    setRunning(true);
+    setError("");
+    try { apply(await runSeoAudit(site, getAccessToken())); }
+    catch { setError("Could not reach the server. Check your connection and try again."); setRunning(false); }
+  };
+
+  const items  = report?.items ?? [];
+  const passed = items.filter((i) => i.status === "pass");
+  const warns  = items.filter((i) => i.status === "warn");
+  const fails  = items.filter((i) => i.status === "fail");
+  const score  = report?.score ?? 0;
 
   return (
     <div className="space-y-5">
-      {/* Run button + score */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-semibold text-slate-300">Full Site Audit</h3>
-          <p className="text-xs text-slate-600 mt-0.5">Checks 58 SEO factors across your entire domain</p>
+          <p className="text-xs text-slate-600 mt-0.5">
+            {report ? `Checked ${items.length} SEO, speed, security and link factors on ${report.domain} · ${ago(report.checkedAt)}` : "Checks SEO, speed, security and link factors on your live website"}
+          </p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={runAudit}
-          disabled={running}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-          style={{ background: running ? "rgba(0,168,107,0.2)" : EMERALD, color: running ? EMERALD : "#000" }}
-        >
-          <RefreshCw size={14} className={running ? "animate-spin" : ""} />
-          {running ? "Running Audit…" : "Run Full Audit"}
-        </motion.button>
+        <form onSubmit={(e) => { e.preventDefault(); void runAudit(); }} className="flex items-center gap-2">
+          <input
+            value={site}
+            onChange={(e) => setSite(e.target.value)}
+            placeholder="your-site.com"
+            aria-label="Website to audit"
+            className="w-56 rounded-xl border bg-transparent px-3 py-2.5 text-xs text-slate-200 outline-none focus:border-[#D4AF37]/60"
+            style={{ borderColor: BORDER }}
+          />
+          <motion.button
+            type="submit"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            disabled={running}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            style={{ background: running ? "rgba(0,168,107,0.2)" : EMERALD, color: running ? EMERALD : "#000" }}
+          >
+            <RefreshCw size={14} className={running ? "animate-spin" : ""} />
+            {running ? "Auditing…" : report ? "Re-run audit" : "Run audit"}
+          </motion.button>
+        </form>
       </div>
 
-      {/* Progress bar */}
-      {done && (
-        <Card>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-slate-500 font-medium">Overall Score</p>
-            <p className="text-sm font-black" style={{ color: score >= 80 ? EMERALD : GOLD }}>{score}/100</p>
-          </div>
-          <div className="h-3 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-            <motion.div
-              className="h-3 rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${score}%` }}
-              transition={{ duration: 0.9, ease: "easeOut" }}
-              style={{ background: `linear-gradient(90deg, ${EMERALD}, ${GOLD})` }}
-            />
-          </div>
-          <p className="text-xs text-slate-600 mt-2">{AUDIT_PASSED.length + fixed.size} checks passed · {AUDIT_WARNINGS.length + AUDIT_CRITICAL.length - fixed.size} need attention</p>
-        </Card>
+      {error && (
+        <div className="flex items-start gap-2 rounded-xl border px-3 py-2.5 text-xs" style={{ borderColor: "#EF444455", background: "#EF444412", color: "#F87171" }}>
+          <AlertCircle size={14} className="mt-0.5 shrink-0" /> {error}
+        </div>
       )}
 
-      {/* Running skeleton */}
       {running && (
         <Card className="flex items-center justify-center py-10">
           <div className="text-center space-y-3">
             <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin mx-auto" style={{ borderColor: `${EMERALD}66`, borderTopColor: EMERALD }} />
-            <p className="text-sm text-slate-400">Crawling your site…</p>
+            <p className="text-sm text-slate-400">Scanning {site.trim() || "your site"}…</p>
           </div>
         </Card>
       )}
 
-      {/* Results */}
-      {done && (
-        <div className="space-y-4">
-          {/* Passed */}
-          <AuditGroup
-            title="Passed"
-            count={AUDIT_PASSED.length}
-            icon={<CheckCircle size={15} style={{ color: EMERALD }} />}
-            color={EMERALD}
-            items={AUDIT_PASSED}
-            fixed={fixed}
-            onFix={fixItem}
-            showFix={false}
-          />
-          {/* Warnings */}
-          <AuditGroup
-            title="Warnings"
-            count={AUDIT_WARNINGS.length}
-            icon={<AlertTriangle size={15} style={{ color: "#F59E0B" }} />}
-            color="#F59E0B"
-            items={AUDIT_WARNINGS}
-            fixed={fixed}
-            onFix={fixItem}
-            showFix
-          />
-          {/* Critical */}
-          <AuditGroup
-            title="Critical"
-            count={AUDIT_CRITICAL.length}
-            icon={<XCircle size={15} style={{ color: "#EF4444" }} />}
-            color="#EF4444"
-            items={AUDIT_CRITICAL}
-            fixed={fixed}
-            onFix={fixItem}
-            showFix
-          />
-        </div>
+      {report && !running && (
+        <>
+          <Card>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-slate-500 font-medium">Overall Score</p>
+              <p className="text-sm font-black" style={{ color: score >= 80 ? EMERALD : score >= 50 ? GOLD : "#EF4444" }}>{score}/100</p>
+            </div>
+            <div className="h-3 rounded-full overflow-hidden" style={{ background: "rgba(128,128,128,0.18)" }}>
+              <motion.div
+                className="h-3 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${score}%` }}
+                transition={{ duration: 0.9, ease: "easeOut" }}
+                style={{ background: `linear-gradient(90deg, ${EMERALD}, ${GOLD})` }}
+              />
+            </div>
+            <p className="text-xs text-slate-600 mt-2">{passed.length} passed · {warns.length} warning{warns.length === 1 ? "" : "s"} · {fails.length} critical</p>
+            {report.estimatedSpeed && report.reachable && (
+              <p className="text-[11px] text-slate-600 mt-1">Speed figures are estimates. Add a Google PageSpeed API key (PAGESPEED_API_KEY) on the server for lab-accurate numbers.</p>
+            )}
+          </Card>
+
+          {items.length > 0 && fails.length + warns.length === 0 && (
+            <Card><p className="text-sm font-semibold" style={{ color: EMERALD }}>All {items.length} checks passed — nothing to fix on {report.domain}.</p></Card>
+          )}
+
+          <div className="space-y-4">
+            {fails.length > 0 && (
+              <AuditGroup title="Critical" icon={<XCircle size={15} style={{ color: "#EF4444" }} />} color="#EF4444" items={fails} />
+            )}
+            {warns.length > 0 && (
+              <AuditGroup title="Warnings" icon={<AlertTriangle size={15} style={{ color: "#F59E0B" }} />} color="#F59E0B" items={warns} />
+            )}
+            <AuditGroup title="Passed" icon={<CheckCircle size={15} style={{ color: EMERALD }} />} color={EMERALD} items={passed} defaultOpen={fails.length + warns.length === 0} />
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-function AuditGroup({ title, count, icon, color, items, fixed, onFix, showFix }: {
-  title: string; count: number; icon: React.ReactNode; color: string;
-  items: { label: string; desc: string }[]; fixed: Set<string>;
-  onFix: (l: string) => void; showFix: boolean;
+function FixPanel({ item }: { item: AuditItem }) {
+  const [copied, setCopied] = useState(false);
+  if (!item.fix) return null;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(item.fix?.snippet ?? ""); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard unavailable */ }
+  };
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border p-3" style={{ borderColor: BORDER, background: "rgba(128,128,128,0.08)" }}>
+      <ol className="list-decimal space-y-1 pl-4 text-xs text-slate-400">
+        {item.fix.steps.map((st) => <li key={st}>{st}</li>)}
+      </ol>
+      {item.fix.snippet && (
+        <div className="relative">
+          <pre className="overflow-x-auto rounded-md p-2.5 pr-16 text-[11px] leading-relaxed" style={{ background: "#0a0f1a", color: "#e2e8f0" }}>{item.fix.snippet}</pre>
+          <button onClick={() => void copy()} className="absolute right-2 top-2 flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] text-slate-300 hover:bg-white/10" style={{ borderColor: "rgba(255,255,255,0.15)" }}>
+            <Copy size={10} /> {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      )}
+      <p className="text-[11px] text-slate-600">After you change your site, press <b>Re-run audit</b> to confirm it is fixed.</p>
+    </div>
+  );
+}
+
+function AuditGroup({ title, icon, color, items, defaultOpen = true }: {
+  title: string; icon: React.ReactNode; color: string; items: AuditItem[]; defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen);
+  const [fixOpen, setFixOpen] = useState<string | null>(null);
   return (
     <Card>
-      <button
-        className="w-full flex items-center justify-between"
-        onClick={() => setOpen(p => !p)}
-      >
+      <button className="w-full flex items-center justify-between" onClick={() => setOpen((p) => !p)}>
         <div className="flex items-center gap-2">
           {icon}
           <span className="text-sm font-semibold" style={{ color }}>{title}</span>
-          <span className="text-xs px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${color}22`, color }}>{count}</span>
+          <span className="text-xs px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${color}22`, color }}>{items.length}</span>
         </div>
         {open ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
       </button>
@@ -639,41 +675,30 @@ function AuditGroup({ title, count, icon, color, items, fixed, onFix, showFix }:
             className="overflow-hidden"
           >
             <div className="mt-3 space-y-2">
-              {items.map(item => {
-                const isFixed = fixed.has(item.label);
-                return (
-                  <div
-                    key={item.label}
-                    className="flex items-start justify-between gap-3 p-3 rounded-lg"
-                    style={{ background: "rgba(255,255,255,0.03)", opacity: isFixed ? 0.5 : 1 }}
-                  >
+              {items.length === 0 && <p className="text-xs text-slate-600">Nothing here.</p>}
+              {items.map((item) => (
+                <div key={item.id} className="p-3 rounded-lg" style={{ background: "rgba(128,128,128,0.08)" }}>
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-2 min-w-0">
-                      {isFixed
-                        ? <CheckCircle size={13} style={{ color: EMERALD }} className="mt-0.5 shrink-0" />
-                        : <div className="w-3 h-3 rounded-full mt-0.5 shrink-0" style={{ background: `${color}66`, border: `1.5px solid ${color}` }} />
-                      }
+                      <div className="w-3 h-3 rounded-full mt-0.5 shrink-0" style={{ background: `${color}66`, border: `1.5px solid ${color}` }} />
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-200">{item.label}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
+                        <p className="text-xs font-semibold text-slate-200">{item.label} <span className="font-normal text-slate-600">· {item.group}</span></p>
+                        <p className="text-xs text-slate-500 mt-0.5 break-words">{item.desc}</p>
                       </div>
                     </div>
-                    {showFix && !isFixed && (
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => onFix(item.label)}
-                        className="text-xs px-2.5 py-1 rounded-lg font-semibold shrink-0"
+                    {item.fix && item.status !== "pass" && (
+                      <button
+                        onClick={() => setFixOpen((cur) => (cur === item.id ? null : item.id))}
+                        className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg font-semibold shrink-0"
                         style={{ background: `${color}22`, color }}
                       >
-                        Fix
-                      </motion.button>
-                    )}
-                    {showFix && isFixed && (
-                      <span className="text-xs px-2.5 py-1 rounded-lg font-semibold shrink-0" style={{ background: `${EMERALD}22`, color: EMERALD }}>Fixed</span>
+                        <Wrench size={11} /> {fixOpen === item.id ? "Hide" : "How to fix"}
+                      </button>
                     )}
                   </div>
-                );
-              })}
+                  {fixOpen === item.id && <FixPanel item={item} />}
+                </div>
+              ))}
             </div>
           </motion.div>
         )}
@@ -699,11 +724,11 @@ export default function SEO() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-black text-slate-100">SEO Suite</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Monitor rankings, audit health, and outperform competitors</p>
+          <p className="text-xs text-slate-500 mt-0.5">Audit your live site; rankings and competitor views show sample data until a search source is connected</p>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-xs text-slate-500">Live tracking</span>
+          <div className="w-2 h-2 rounded-full" style={{ background: activeTab === "audit" ? EMERALD : GOLD }} />
+          <span className="text-xs text-slate-500">{activeTab === "audit" ? "Live audit" : "Sample data"}</span>
         </div>
       </div>
 
@@ -738,6 +763,7 @@ export default function SEO() {
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.18 }}
         >
+          {activeTab !== "audit" && <SampleNotice />}
           {activeTab === "overview"    && <Overview onTabChange={setActiveTab} />}
           {activeTab === "keywords"   && <KeywordTracker />}
           {activeTab === "competitor" && <CompetitorAnalysis />}

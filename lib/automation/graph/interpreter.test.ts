@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runGraph } from "./interpreter";
+import { runGraph, checkSendAllowed, resetSendGuard } from "./interpreter";
 import type { WorkflowGraph } from "./types";
 
 const baseGraph = (): WorkflowGraph => ({
@@ -111,5 +111,39 @@ describe("runGraph", () => {
     expect(blocked[1].detail).toMatch(/Blocked/);
     const bad = await runGraph(mk("set_field", { key: "bad key!", value: "x" }), {});
     expect(bad[1].ok).toBe(false);
+  });
+
+  it("dry run logs what WOULD be sent and sends nothing", async () => {
+    const graph: WorkflowGraph = {
+      workflowKey: "dry-test",
+      version: 1,
+      nodes: [
+        { id: "t", type: "trigger", position: { x: 0, y: 0 }, data: { kind: "lead_created", label: "T" } },
+        { id: "w", type: "action", position: { x: 0, y: 0 }, data: { kind: "send_whatsapp", label: "WA", params: { body: "Hi {{name}}" } } },
+        { id: "h", type: "action", position: { x: 0, y: 0 }, data: { kind: "http_request", label: "Hook", params: { method: "POST", url: "https://example.com/hook" } } },
+      ],
+      edges: [{ id: "1", source: "t", target: "w" }, { id: "2", source: "w", target: "h" }],
+    };
+    const steps = await runGraph(graph, { name: "Asha", phone: "+919876543210" }, { dryRun: true, auto: true });
+    expect(steps[1].ok).toBe(true);
+    expect(steps[1].detail).toMatch(/^Dry run — would send whatsapp to \+919876543210: “Hi Asha”/);
+    expect(steps[2].detail).toMatch(/^Dry run — would POST https:\/\/example\.com\/hook/);
+  });
+});
+
+describe("send guard (automatic runs)", () => {
+  it("blocks the same step messaging the same recipient twice within an hour", () => {
+    resetSendGuard();
+    expect(checkSendAllowed("wf", "n1", "+91999", 1_000)).toBeNull();
+    expect(checkSendAllowed("wf", "n1", "+91999", 2_000)).toMatch(/already messaged/);
+    expect(checkSendAllowed("wf", "n1", "+91888", 2_000)).toBeNull(); // different person is fine
+    expect(checkSendAllowed("wf", "n1", "+91999", 1_000 + 61 * 60 * 1000)).toBeNull(); // window passed
+  });
+
+  it("stops a workflow after 100 sends per hour", () => {
+    resetSendGuard();
+    for (let i = 0; i < 100; i++) expect(checkSendAllowed("loop", "n", `+91${i}`, 5_000)).toBeNull();
+    expect(checkSendAllowed("loop", "n", "+91new", 5_000)).toMatch(/hourly send limit/);
+    expect(checkSendAllowed("other", "n", "+91new", 5_000)).toBeNull(); // other workflows unaffected
   });
 });

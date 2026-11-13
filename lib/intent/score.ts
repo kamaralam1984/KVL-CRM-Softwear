@@ -41,12 +41,12 @@ async function syncLeadScore(leadId: number, score: number, band: IntentBand): P
         company: (lead?.company as string | undefined) ?? "",
         score,
       };
-      const replaced = await runCustomGraphs(
+      const skipBuiltin = await runCustomGraphs(
         "lead_score_spike",
         { ...spike, email: (lead?.email as string | undefined) ?? "", phone: (lead?.phone as string | undefined) ?? "" },
         "hot-lead-alert",
       ).catch(() => false);
-      if (!replaced) triggerLeadScoreSpike(spike);
+      if (!skipBuiltin) triggerLeadScoreSpike(spike);
     }
   } catch (err) {
     log("syncLeadScore", err);
@@ -87,12 +87,12 @@ async function addIntentPoints(visitorId: string, points: number, siteId: string
     if (link) {
       await syncLeadScore(link.lead_id as number, next, band);
     } else if (HOT_BANDS.includes(band) && !HOT_BANDS.includes(previousBand)) {
-      const replaced = await runCustomGraphs(
+      const skipBuiltin = await runCustomGraphs(
         "high_intent_visitor",
         { name: `Visitor ${visitorId}`, company: visitorId, visitorId, score: next, band, source },
         "high-intent-visitor",
       ).catch(() => false);
-      if (!replaced) triggerHighIntentVisitor({ visitorId, score: next, band, source });
+      if (!skipBuiltin) triggerHighIntentVisitor({ visitorId, score: next, band, source });
     }
   } catch (err) {
     log("addIntentPoints", err);

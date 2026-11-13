@@ -10,7 +10,7 @@ import type { GraphContext } from "@/lib/automation/graph/interpreter";
 
 const str = (v: unknown, max = 200) => String(v ?? "").slice(0, max);
 
-/** Returns true when a custom canvas replaced the built-in Lead Nurture workflow. */
+/** Returns true when the caller must NOT run the built-in Lead Nurture (a canvas replaced it, or it is switched off). */
 export async function fireLeadCreatedGraphs(
   lead: { name?: string; company?: string; email?: string; phone?: string; score?: number; owner?: string },
   accessToken?: string,

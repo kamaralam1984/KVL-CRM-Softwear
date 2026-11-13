@@ -2,9 +2,10 @@
 // When the CRM raises an event (new lead, hot visitor, score spike, deal won) the caller
 // asks runCustomGraphs() to run every ACTIVE canvas whose trigger node listens to that
 // event and that actually does something (an edge leaves the trigger). If the canvas
-// belongs to the workflow whose built-in logic would normally handle this event, the
-// function returns true so the caller skips the built-in version — one workflow, one run,
-// never a duplicate task/message. Never throws.
+// belongs to the workflow whose built-in logic would normally handle this event (or that
+// workflow is switched off), the function returns true so the caller skips the built-in
+// version — one workflow, one run, never a duplicate task/message. Canvases run in SAFE MODE
+// (log only) unless their trigger is explicitly set to "live". Never throws.
 
 import { getDb } from "@/lib/db";
 import { rateLimit } from "@/lib/security/rateLimit";
@@ -31,26 +32,32 @@ export function pickGraphs(rows: GraphRow[], active: Map<string, boolean>, kind:
 
 const PER_GRAPH_LIMIT = 30; // runs / minute — stops a canvas that re-triggers itself (e.g. via HTTP Request)
 
+/**
+ * Runs the matching canvases and returns true when the caller must NOT run the built-in
+ * workflow: a canvas replaced it, or the built-in workflow is switched off (workflows.active in
+ * the database is the single source of truth for on/off — also for server-side events).
+ */
 export async function runCustomGraphs(kind: TriggerKind, ctx: GraphContext, builtinKey?: string): Promise<boolean> {
   let picked: WorkflowGraph[] = [];
+  let builtinOff = false;
   const names = new Map<string, string>();
   try {
     const db = getDb();
-    const { data: rows, error } = await db.from("workflow_graphs").select("*");
-    if (error || !rows?.length) return false;
     const { data: wfs } = await db.from("workflows").select("key, name, active");
     const active = new Map<string, boolean>();
     for (const w of (wfs ?? []) as { key: string; name: string; active: boolean }[]) {
       active.set(w.key, w.active);
       names.set(w.key, w.name);
     }
-    picked = pickGraphs(rows as GraphRow[], active, kind);
+    builtinOff = !!builtinKey && active.get(builtinKey) === false;
+    const { data: rows, error } = await db.from("workflow_graphs").select("*");
+    if (!error && rows?.length) picked = pickGraphs(rows as GraphRow[], active, kind);
   } catch (err) {
     console.error("[automation-graph] dispatch lookup failed:", err);
     return false;
   }
 
-  const replaced = picked.some((g) => g.workflowKey === builtinKey);
+  const skipBuiltin = builtinOff || picked.some((g) => g.workflowKey === builtinKey);
   const entity = String(ctx.company ?? ctx.name ?? "record");
 
   for (const g of picked) {
@@ -59,12 +66,14 @@ export async function runCustomGraphs(kind: TriggerKind, ctx: GraphContext, buil
         console.error(`[automation-graph] "${g.workflowKey}" exceeded ${PER_GRAPH_LIMIT} runs/min — skipped (possible loop)`);
         continue;
       }
-      const steps = await runGraph(g, { ...ctx });
+      // Safe by default: only an explicit "live" on the trigger node sends for real.
+      const live = (g.nodes.find((n) => n.type === "trigger")?.data as { sendMode?: string } | undefined)?.sendMode === "live";
+      const steps = await runGraph(g, { ...ctx }, { auto: true, dryRun: !live });
       await recordWorkflowRun({
         id: `graph-auto-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
         workflowId: g.workflowKey,
         workflowName: names.get(g.workflowKey) ?? g.workflowKey,
-        trigger: `Auto · ${kind} · ${entity}`,
+        trigger: `Auto${live ? "" : " (dry run)"} · ${kind} · ${entity}`,
         entity,
         steps,
         ok: steps.every((s) => s.ok),
@@ -74,5 +83,5 @@ export async function runCustomGraphs(kind: TriggerKind, ctx: GraphContext, buil
       console.error(`[automation-graph] auto-run of "${g.workflowKey}" failed:`, err);
     }
   }
-  return replaced;
+  return skipBuiltin;
 }

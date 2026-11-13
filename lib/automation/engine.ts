@@ -209,6 +209,50 @@ export function triggerLeadScoreSpike(ctx: LeadScoreSpikeCtx): WorkflowRun | nul
   return run;
 }
 
+// Customer Health Drop → built-in Churn Alert. Fires from lib/actions/customers.ts (rule: ./health.ts).
+export type HealthDropCtx = { customerId: number; name: string; health: number; previous: number; owner?: string };
+
+export function triggerChurnAlert(ctx: HealthDropCtx): WorkflowRun | null {
+  if (!isActive("churn-alert")) return null;
+  const owner = ctx.owner || nextOwner();
+  const steps: RunStep[] = [];
+
+  steps.push({ label: "Risk detected", ok: true, detail: `${ctx.name}: health ${ctx.previous} → ${ctx.health}` });
+
+  persistTask({
+    title: `Retention call — ${ctx.name} health fell to ${ctx.health}`,
+    priority: "high",
+    due: "Today",
+    assignee: owner,
+    status: "pending",
+    tags: ["Automation", "Churn Alert"],
+    company: ctx.name,
+  } as Parameters<typeof createTask>[0]);
+  steps.push({ label: "Create retention task", ok: true, detail: `Assigned to ${owner}` });
+
+  persistActivity({
+    type: "task",
+    text: `Automation: ${ctx.name}'s health dropped to ${ctx.health} — retention task created`,
+    time: "just now",
+    icon: "trending-down",
+    color: "rose",
+  } as Parameters<typeof createActivity>[0]);
+  steps.push({ label: "Log activity", ok: true, detail: "Added to activity feed" });
+
+  const run: WorkflowRun = {
+    id: newId(),
+    workflowId: "churn-alert",
+    workflowName: "Churn Alert",
+    trigger: `Health drop: ${ctx.name}`,
+    entity: ctx.name,
+    steps,
+    ok: true,
+    at: Date.now(),
+  };
+  addRun(run);
+  return run;
+}
+
 // Generic manual/test run for any workflow (used by the "Test run" button).
 export function runWorkflowTest(def: WorkflowDef, entity = "Sample Co"): WorkflowRun {
   const steps: RunStep[] = def.steps.map((label) => ({ label, ok: true }));

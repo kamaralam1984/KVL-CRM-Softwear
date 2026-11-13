@@ -130,9 +130,10 @@ export default function Leads() {
     createLead(leadData).catch(() => {});
     // Fire the Lead Nurture automation — creates a follow-up task + activity,
     // and logs the run so it shows live on the Automation page.
-    // A canvas saved for Lead Nurture replaces the built-in run; if none (or not allowed / offline) the built-in runs.
+    // A canvas saved for Lead Nurture replaces the built-in run, and a switched-off workflow runs nothing;
+    // otherwise (or if not allowed / offline) the built-in runs.
     fireLeadCreatedGraphs(newLead, getAccessToken())
-      .then((replaced) => { if (!replaced) triggerLeadCreated(newLead); })
+      .then((skipBuiltin) => { if (!skipBuiltin) triggerLeadCreated(newLead); })
       .catch(() => triggerLeadCreated(newLead));
     setShowModal(false);
     setForm(emptyForm);

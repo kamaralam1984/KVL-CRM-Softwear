@@ -30,7 +30,8 @@ import {
 } from "@/lib/automation/graph/types";
 import { getWorkflowGraph, saveWorkflowGraph, testWorkflowGraph } from "@/lib/actions/workflowGraphs";
 import { getAccessToken } from "@/lib/security/clientSession";
-import type { WorkflowRun } from "@/lib/automation/store";
+import { isActive, toggleWorkflowActive, type WorkflowRun } from "@/lib/automation/store";
+import { getWorkflows } from "@/lib/actions/workflows";
 
 // ─── node look (icon + accent per kind) ───────────────────────────────────
 
@@ -245,6 +246,7 @@ function Builder() {
   const [pickerFor, setPickerFor] = useState<{ sourceId?: string; handle?: string } | null>(null);
   const [showSample, setShowSample] = useState(false);
   const [sample, setSample] = useState<Record<string, string>>({ name: "Test Lead", company: "Sample Co", email: "", phone: "", score: "85" });
+  const [wfActive, setWfActive] = useState<Record<string, boolean>>({});
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const loading = loadedKey !== workflowKey;
   const focusRef = useRef<{ key: string; el: HTMLInputElement | HTMLTextAreaElement } | null>(null);
@@ -261,6 +263,23 @@ function Builder() {
     getWorkflowGraph(workflowKey, getAccessToken()).then(apply).catch(() => apply(emptyGraph(workflowKey)));
     return () => { cancelled = true; };
   }, [workflowKey]);
+
+  // Database is the source of truth for on/off (falls back to this browser's cache in demo mode).
+  useEffect(() => {
+    let cancelled = false;
+    getWorkflows(getAccessToken()).then((rows) => {
+      if (cancelled || !rows.length) return;
+      setWfActive(Object.fromEntries(rows.map((w) => [w.key, w.active])));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const isOn = wfActive[workflowKey] ?? isActive(workflowKey);
+  const toggleOn = async () => {
+    const next = !isOn;
+    setWfActive((m) => ({ ...m, [workflowKey]: next }));
+    const ok = await toggleWorkflowActive(workflowKey, next, getAccessToken());
+    if (!ok) { setWfActive((m) => ({ ...m, [workflowKey]: !next })); alert("Your role isn't allowed to switch workflows on or off."); }
+  };
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setNodes((nds) => applyNodeChanges(changes, nds));
@@ -289,14 +308,16 @@ function Builder() {
   const liveInfo = useMemo(() => {
     const trig = nodes.find((n) => n.type === "trigger");
     if (!trig) return { live: false, text: "No trigger — add one" };
-    const kind = (trig.data as unknown as TriggerNodeData).kind;
-    const label = (trig.data as unknown as TriggerNodeData).label;
+    const td = trig.data as unknown as TriggerNodeData;
     const connected = edges.some((e) => e.source === trig.id);
-    if (kind === "manual") return { live: false, text: "Manual — runs on Test run only" };
-    if (!LIVE_TRIGGERS.includes(kind)) return { live: false, text: `“${label}” isn't auto-fired yet — Test run only` };
+    if (td.kind === "manual") return { live: false, text: "Manual — runs on Test run only" };
+    if (!LIVE_TRIGGERS.includes(td.kind)) return { live: false, text: `“${td.label}” isn't auto-fired — Test run only` };
     if (!connected) return { live: false, text: "Connect a node after the trigger to go live" };
-    return { live: true, text: `Live: runs on “${label}” once saved` };
-  }, [nodes, edges]);
+    if (!isOn) return { live: false, text: "Paused — switch the workflow on to run automatically" };
+    return td.sendMode === "live"
+      ? { live: true, text: `Live: runs on “${td.label}” and SENDS for real` }
+      : { live: true, text: `Live: runs on “${td.label}” in safe mode (logs only, sends nothing)` };
+  }, [nodes, edges, isOn]);
   const used = useMemo(() => new Set(edges.map((e) => `${e.source}:${e.sourceHandle ?? ""}`)), [edges]);
   const status = useMemo(() => {
     const m: Record<string, { ok: boolean; detail?: string }> = {};
@@ -375,7 +396,17 @@ function Builder() {
     edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? undefined })),
   });
 
-  const save = async (): Promise<boolean> => {
+  const save = async (confirmLive = true): Promise<boolean> => {
+    // Saving a canvas that sends for real arms it immediately — make that explicit.
+    const trig = nodes.find((n) => n.type === "trigger");
+    const td = trig?.data as unknown as TriggerNodeData | undefined;
+    if (confirmLive && td?.sendMode === "live" && LIVE_TRIGGERS.includes(td.kind) && isOn && trig && edges.some((e) => e.source === trig.id)) {
+      const outbound = nodes.filter((n) => n.type === "action" && ["send_whatsapp", "send_sms", "send_email", "http_request"].includes((n.data as unknown as ActionNodeData).kind));
+      if (outbound.length && !window.confirm(
+        `This workflow is LIVE: every time “${td.label}” happens it will automatically run ${outbound.length} sending step${outbound.length > 1 ? "s" : ""} ` +
+        `(${outbound.map((n) => String((n.data as unknown as ActionNodeData).label)).join(", ")}) for real, to real leads.\n\nSave and keep it live?`,
+      )) return false;
+    }
     setSaving("saving");
     const res = await saveWorkflowGraph(buildGraph(), getAccessToken());
     setSaving(res.ok ? "saved" : "error");
@@ -387,7 +418,7 @@ function Builder() {
     setTesting(true);
     setTestResult(null);
     try {
-      if (!(await save())) return;
+      if (!(await save(false))) return;
       const data: Record<string, string | number> = {};
       for (const [k, v] of Object.entries(sample)) if (v.trim()) data[k] = k === "score" && !isNaN(Number(v)) ? Number(v) : v.trim();
       setTestResult(await testWorkflowGraph(workflowKey, sample.company?.trim() || "Sample Co", getAccessToken(), data));
@@ -481,6 +512,16 @@ function Builder() {
             <span title="Switch the workflow on/off in the My Workflows tab" className={cn("hidden items-center gap-1 text-[10px] sm:flex", liveInfo.live ? "text-emerald-400" : "text-slate-500")}>
               <span className={cn("h-1.5 w-1.5 rounded-full", liveInfo.live ? "bg-emerald-400" : "bg-slate-500")} /> {liveInfo.text}
             </span>
+            <button
+              type="button" onClick={() => void toggleOn()} role="switch" aria-checked={isOn}
+              title="Switch this workflow on/off (same switch as in the Executions tab)"
+              className={cn("flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] transition-colors", isOn ? "border-emerald-500/40 text-emerald-400" : "border-white/10 text-slate-500")}
+            >
+              <span className={cn("relative h-3 w-6 rounded-full transition-colors", isOn ? "bg-emerald-500/60" : "bg-slate-600")}>
+                <span className={cn("absolute top-0.5 h-2 w-2 rounded-full bg-white transition-all", isOn ? "left-3.5" : "left-0.5")} />
+              </span>
+              {isOn ? "Active" : "Paused"}
+            </button>
             {dirty && <span className="flex items-center gap-1 text-[10px] text-amber-400"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Unsaved</span>}
           </div>
           <div className="relative flex items-center gap-1.5">
@@ -494,7 +535,7 @@ function Builder() {
               <FlaskConical size={11} /> {testing ? "Running…" : "Test run"}
             </button>
             <button
-              onClick={() => void save()}
+              onClick={() => void save(true)}
               className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-semibold text-black transition-all"
               style={{ background: "linear-gradient(135deg,#c9a84c,#e8c96d)" }}
             >
@@ -599,9 +640,25 @@ function Builder() {
                       {(selected.data as unknown as TriggerNodeData).kind === "manual"
                         ? "Runs only when you press Test run."
                         : LIVE_TRIGGERS.includes((selected.data as unknown as TriggerNodeData).kind)
-                          ? "Fires automatically when this happens in the CRM (while the workflow is on in My Workflows). A canvas saved for this workflow replaces its built-in steps."
-                          : "Not fired automatically yet — use Test run."}
+                          ? "Fires automatically when this happens in the CRM (while the workflow is Active). A canvas saved for this workflow replaces its built-in steps."
+                          : "Not fired automatically — use Test run."}
                     </p>
+                    {LIVE_TRIGGERS.includes((selected.data as unknown as TriggerNodeData).kind) && (
+                      <div className="mt-3">
+                        <label className="mb-1 block text-[10px] text-slate-500">Automatic runs</label>
+                        <select
+                          value={(selected.data as unknown as TriggerNodeData).sendMode === "live" ? "live" : "dry"}
+                          onChange={(e) => patchNode(selected.id, { sendMode: e.target.value })}
+                          className={inputCls}
+                        >
+                          <option value="dry">Safe mode — log what would be sent</option>
+                          <option value="live">Live — send messages for real</option>
+                        </select>
+                        <p className="mt-1 text-[9px] leading-snug text-slate-600">
+                          Safe mode still creates tasks and notes, but WhatsApp / SMS / Email / HTTP steps are only written to the Executions log as “would send…”. Check a few runs there, then switch to Live. Live also never messages the same person twice in an hour from one step, and stops after 100 messages/hour.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -6,8 +6,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WORKFLOWS as AUTO_WORKFLOWS, runWorkflowTest } from "@/lib/automation/engine";
-import { getRuns, isActive, setActive, timeAgo, AUTOMATION_EVENT, type WorkflowRun } from "@/lib/automation/store";
-import { getWorkflowRuns, getWorkflows } from "@/lib/actions/workflows";
+import { getRuns, isActive, toggleWorkflowActive, hydrateActiveFromDb, timeAgo, AUTOMATION_EVENT, type WorkflowRun } from "@/lib/automation/store";
+import { getWorkflowRuns } from "@/lib/actions/workflows";
 import { getAccessToken } from "@/lib/security/clientSession";
 import GraphBuilder from "./automation/GraphBuilder";
 import FollowUpEngine from "./automation/FollowUpEngine";
@@ -213,14 +213,8 @@ function ExecutionsView() {
         return [...local, ...dbRuns.filter((r) => !seen.has(r.id))].sort((a, b) => b.at - a.at).slice(0, 200);
       });
     }).catch(() => {});
-    getWorkflows(token).then((dbWorkflows) => {
-      if (!dbWorkflows.length) return;
-      setActiveState((m) => {
-        const next = { ...m };
-        for (const w of dbWorkflows) next[w.key] = w.active;
-        return next;
-      });
-    }).catch(() => {});
+    // Database wins: also refreshes the cache the client-side trigger gates read.
+    hydrateActiveFromDb(token).then((m) => { if (m) setActiveState((cur) => ({ ...cur, ...m })); }).catch(() => {});
 
     const onRun = () => refresh();
     window.addEventListener(AUTOMATION_EVENT, onRun);
@@ -233,10 +227,14 @@ function ExecutionsView() {
   const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
   const today = runs.filter((r) => r.at >= startOfDay.getTime()).length;
 
-  const toggleActive = (id: string) => {
+  const toggleActive = async (id: string) => {
     const next = !active[id];
-    setActive(id, next);
     setActiveState((m) => ({ ...m, [id]: next }));
+    const ok = await toggleWorkflowActive(id, next, getAccessToken());
+    if (!ok) {
+      setActiveState((m) => ({ ...m, [id]: !next }));
+      alert("Your role isn't allowed to switch workflows on or off.");
+    }
   };
   const test = (def: typeof AUTO_WORKFLOWS[number]) => { runWorkflowTest(def); refresh(); };
 

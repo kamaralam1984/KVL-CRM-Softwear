@@ -34,8 +34,9 @@ const segmentColors: Record<string, string> = {
 const inputCls  = "w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-crm-border text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-blue-500/50 transition-colors";
 const selectCls = "w-full px-3 py-2 rounded-xl bg-[#0a1628] border border-crm-border text-xs text-slate-200 outline-none focus:border-blue-500/50 transition-colors";
 
-type CustForm = { name: string; contact: string; email: string; phone: string; value: string; segment: string; status: string };
-const emptyForm: CustForm = { name: "", contact: "", email: "", phone: "", value: "", segment: "SMB", status: "active" };
+type CustForm = { name: string; contact: string; email: string; phone: string; value: string; segment: string; status: string; health: string };
+const emptyForm: CustForm = { name: "", contact: "", email: "", phone: "", value: "", segment: "SMB", status: "active", health: "75" };
+const clampHealth = (v: string) => Math.max(0, Math.min(100, Math.round(Number(v)) || 0));
 
 // ─── mock data for new tabs ────────────────────────────────────────────────────
 const journeyStages = [
@@ -759,6 +760,7 @@ export default function Customers() {
         value: parseInt(form.value) || 0,
         segment: form.segment,
         status: form.status as "active" | "at-risk" | "champion",
+        health: clampHealth(form.health),
         avatar,
       };
       setCustList((prev) => prev.map((c) => (c.id === editingId ? { ...c, ...patch } : c)));
@@ -778,7 +780,7 @@ export default function Customers() {
       phone: form.phone,
       value: parseInt(form.value) || 0,
       segment: form.segment,
-      health: 75,
+      health: clampHealth(form.health),
       since: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
       status: form.status as "active" | "at-risk" | "champion",
       avatar,
@@ -802,6 +804,7 @@ export default function Customers() {
       value: String(c.value),
       segment: c.segment,
       status: c.status,
+      health: String(c.health),
     });
     setShowModal(true);
   };
@@ -1085,6 +1088,11 @@ export default function Customers() {
                 <option value="at-risk">At Risk</option>
               </select>
             </div>
+          </div>
+          <div>
+            <label className="text-[11px] text-slate-500 mb-1 block">Health score (0–100)</label>
+            <input className={inputCls} type="number" min={0} max={100} value={form.health} onChange={set("health")} />
+            <p className="text-[10px] text-slate-600 mt-1">Dropping below 60 triggers the Churn Alert automation.</p>
           </div>
           <div className="flex gap-2 pt-2">
             <button

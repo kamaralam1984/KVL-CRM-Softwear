@@ -124,7 +124,7 @@ export const NODE_CATALOG: CatalogEntry[] = [
   { type: "trigger", kind: "high_intent_visitor", label: "High-Intent Visitor", desc: "A website visitor shows buying intent", group: "Trigger" },
   { type: "trigger", kind: "lead_score_spike", label: "Lead Score Spike", desc: "A lead's score jumps", group: "Trigger" },
   { type: "trigger", kind: "deal_won", label: "Deal Won", desc: "A deal moves to Closed Won", group: "Trigger" },
-  { type: "trigger", kind: "customer_health_drop", label: "Customer Health Drop", desc: "Not auto-fired yet — use Test run", group: "Trigger" },
+  { type: "trigger", kind: "customer_health_drop", label: "Customer Health Drop", desc: "A customer's health score drops below 60", group: "Trigger" },
   { type: "condition", kind: "if", label: "IF", desc: "Split into TRUE / FALSE paths", group: "Logic" },
   { type: "action", kind: "set_field", label: "Set Field", desc: "Create a value to use in later nodes", group: "Logic" },
   { type: "action", kind: "send_whatsapp", label: "Send WhatsApp", desc: "Message the lead on WhatsApp", group: "Messaging" },
@@ -138,6 +138,8 @@ export const NODE_CATALOG: CatalogEntry[] = [
 export interface TriggerNodeData {
   kind: TriggerKind;
   label: string;
+  /** Automatic runs only. "live" sends messages / calls URLs for real; anything else (default) logs what WOULD happen. */
+  sendMode?: "dry" | "live";
 }
 
 export interface ConditionNodeData {
@@ -193,7 +195,7 @@ export const WORKFLOW_TRIGGER: Record<string, TriggerKind> = {
 };
 
 /** Events the CRM really fires into saved canvases today. */
-export const LIVE_TRIGGERS: TriggerKind[] = ["lead_created", "high_intent_visitor", "lead_score_spike", "deal_won"];
+export const LIVE_TRIGGERS: TriggerKind[] = ["lead_created", "high_intent_visitor", "lead_score_spike", "deal_won", "customer_health_drop"];
 
 export function emptyGraph(workflowKey: string): WorkflowGraph {
   const kind = WORKFLOW_TRIGGER[workflowKey] ?? "lead_created";
