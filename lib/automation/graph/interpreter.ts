@@ -13,13 +13,20 @@ import type {
 } from "./types";
 import type { RunStep } from "../store";
 import { sendWhatsApp, sendSms, sendEmail } from "@/lib/messaging/send";
+import { isSafeWebhookUrl } from "@/lib/security/ssrfGuard";
 
 // Flat context the trigger hands the interpreter — e.g. { company, score, owner }.
 export type GraphContext = Record<string, string | number | undefined>;
 
 const MAX_STEPS = 200; // cycle/runaway-graph guard
 
-function evalCondition(cond: ConditionNodeData, ctx: GraphContext): boolean {
+// {{field}} / {{ field }} expressions → values from the running record.
+export function fillExpr(t: string, ctx: GraphContext): string {
+  return String(t ?? "").replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, k: string) => String(ctx[k] ?? ""));
+}
+
+function evalCondition(rawCond: ConditionNodeData, ctx: GraphContext): boolean {
+  const cond = { ...rawCond, value: fillExpr(rawCond.value, ctx) };
   const actual = ctx[cond.field];
   switch (cond.op) {
     case "eq": return String(actual ?? "") === cond.value;
@@ -35,47 +42,79 @@ function evalCondition(cond: ConditionNodeData, ctx: GraphContext): boolean {
 
 async function runAction(node: GraphNode, data: ActionNodeData, ctx: GraphContext): Promise<RunStep> {
   const entity = String(ctx.company ?? ctx.name ?? "record");
+  const p = (k: string) => fillExpr(data.params?.[k] ?? "", ctx).trim();
+  const step = (ok: boolean, detail: string): RunStep => ({ label: data.label, ok, detail, nodeId: node.id });
 
   try {
     if (data.kind === "send_whatsapp" || data.kind === "send_sms" || data.kind === "send_email") {
-      const fill = (t: string) => t.replace(/\{\{(\w+)\}\}/g, (_, k: string) => String(ctx[k] ?? ""));
-      const body = fill(data.params.body || data.params.text || `Hi ${ctx.name ?? "there"}, following up from our team.`);
-      const to = data.params.to || String(data.kind === "send_email" ? ctx.email ?? "" : ctx.phone ?? "");
-      if (!to) return { label: data.label, ok: false, detail: `No ${data.kind === "send_email" ? "email" : "phone"} on this record` };
+      const body = fillExpr(data.params?.body || data.params?.text || `Hi ${ctx.name ?? "there"}, following up from our team.`, ctx);
+      const to = p("to") || String(data.kind === "send_email" ? ctx.email ?? "" : ctx.phone ?? "");
+      if (!to) return step(false, `No ${data.kind === "send_email" ? "email" : "phone"} on this record`);
       const r = data.kind === "send_whatsapp" ? await sendWhatsApp(to, body)
         : data.kind === "send_sms" ? await sendSms(to, body)
-        : await sendEmail(to, fill(data.params.subject || "Following up"), body.replace(/\n/g, "<br>"));
-      return { label: data.label, ok: r.ok, detail: r.ok ? (r.mock ? "Logged (provider not configured)" : `Sent to ${to}`) : (r.detail ?? "Send failed") };
+        : await sendEmail(to, p("subject") || "Following up", body.replace(/\n/g, "<br>"));
+      return step(r.ok, r.ok ? (r.mock ? "Logged (provider not configured)" : `Sent to ${to}`) : (r.detail ?? "Send failed"));
     }
 
     if (data.kind === "create_task") {
       await createTask({
-        title: data.params.title || `Follow up with ${entity}`,
-        priority: (data.params.priority as "high" | "medium" | "low") || "medium",
-        due: data.params.due || "Today",
-        assignee: data.params.assignee || "Unassigned",
+        title: p("title") || `Follow up with ${entity}`,
+        priority: (p("priority") as "high" | "medium" | "low") || "medium",
+        due: p("due") || "Today",
+        assignee: p("assignee") || "Unassigned",
         status: "pending",
         tags: ["Automation", "Graph Builder"],
         company: entity,
       } as Parameters<typeof createTask>[0]);
-      return { label: data.label, ok: true, detail: `Task created for ${entity}` };
+      return step(true, `Task created for ${entity}`);
     }
 
     if (data.kind === "log_activity") {
       await createActivity({
         type: "task",
-        text: data.params.text || `Automation: workflow step for ${entity}`,
+        text: p("text") || `Automation: workflow step for ${entity}`,
         time: "just now",
         icon: "zap",
         color: "amber",
       } as Parameters<typeof createActivity>[0]);
-      return { label: data.label, ok: true, detail: "Added to activity feed" };
+      return step(true, "Added to activity feed");
     }
 
-    return { label: data.label, ok: false, detail: `Unknown action kind "${data.kind}"` };
+    if (data.kind === "set_field") {
+      const key = p("key");
+      if (!/^\w+$/.test(key)) return step(false, "Field name must be letters, numbers or _");
+      ctx[key] = p("value");
+      return step(true, `${key} = ${ctx[key]}`);
+    }
+
+    if (data.kind === "http_request") {
+      const url = p("url");
+      if (!url) return step(false, "No URL set");
+      if (!(await isSafeWebhookUrl(url))) return step(false, "Blocked: URL must be a public http(s) address");
+      const method = p("method") === "GET" ? "GET" : "POST";
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 8000);
+      try {
+        const res = await fetch(url, {
+          method,
+          signal: ac.signal,
+          redirect: "manual",
+          headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
+          body: method === "POST" ? (p("body") || JSON.stringify({ company: ctx.company ?? null, name: ctx.name ?? null, score: ctx.score ?? null })) : undefined,
+        });
+        const text = (await res.text()).slice(0, 2000);
+        ctx.http_status = res.status;
+        ctx.http_body = text;
+        return step(res.ok, `${method} ${res.status}${res.ok ? "" : " — request failed"}`);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    return step(false, `Unknown action kind "${data.kind}"`);
   } catch (err) {
     console.error(`[automation-graph] action "${data.kind}" failed:`, err);
-    return { label: data.label, ok: false, detail: "Action failed — see server logs" };
+    return step(false, "Action failed — see server logs");
   }
 }
 
@@ -88,7 +127,7 @@ export async function runGraph(graph: WorkflowGraph, ctx: GraphContext): Promise
 
   const steps: RunStep[] = [];
   const triggerData = trigger.data as { label: string };
-  steps.push({ label: triggerData.label, ok: true, detail: "Trigger fired" });
+  steps.push({ label: triggerData.label, ok: true, detail: "Trigger fired", nodeId: trigger.id });
 
   let current: GraphNode | undefined = trigger;
   let guard = 0;
@@ -100,7 +139,7 @@ export async function runGraph(graph: WorkflowGraph, ctx: GraphContext): Promise
     if (current.type === "condition") {
       const passed = evalCondition(current.data as ConditionNodeData, ctx);
       const edge = outgoing.find((e) => e.sourceHandle === (passed ? "true" : "false"));
-      steps.push({ label: (current.data as ConditionNodeData).label, ok: true, detail: passed ? "TRUE branch" : "FALSE branch" });
+      steps.push({ label: (current.data as ConditionNodeData).label, ok: true, detail: passed ? "TRUE branch" : "FALSE branch", nodeId: current.id });
       next = edge ? nodeById.get(edge.target) : undefined;
     } else if (current.type === "action") {
       steps.push(await runAction(current, current.data as ActionNodeData, ctx));

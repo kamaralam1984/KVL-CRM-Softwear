@@ -59,9 +59,16 @@ export async function testWorkflowGraph(
   workflowKey: string,
   sampleEntity = "Sample Co",
   accessToken?: string,
+  sample: Record<string, string | number> = {},
 ): Promise<WorkflowRun> {
   const graph = await getWorkflowGraph(workflowKey, accessToken);
-  const ctx: GraphContext = { company: sampleEntity, score: 85, owner: "Test User" };
+  // Test data typed in the builder (name / email / phone / score …). Bounded and
+  // flat so a crafted call can't smuggle anything bigger into the run context.
+  const safe: GraphContext = {};
+  for (const [k, v] of Object.entries(sample).slice(0, 20)) {
+    if (/^\w{1,40}$/.test(k)) safe[k] = typeof v === "number" ? v : String(v).slice(0, 500);
+  }
+  const ctx: GraphContext = { company: sampleEntity, score: 85, owner: "Test User", name: "Test Lead", ...safe };
   const steps = await runGraph(graph, ctx);
   const run: WorkflowRun = {
     id: `graph-run-${Date.now().toString(36)}`,

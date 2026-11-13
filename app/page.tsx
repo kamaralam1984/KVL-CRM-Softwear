@@ -133,6 +133,13 @@ function CRMAppInner() {
   const [aiOpen, setAiOpen]                 = useState(false);
   const [drawerOpen, setDrawerOpen]         = useState(false);
   const { darkMode, toggleDark } = useTheme();
+  // Mirror the theme on <html> so portalled UI (modals, native <select> lists) outside
+  // the wrapper div below is themed too.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove(darkMode ? "light" : "dark");
+    root.classList.add(darkMode ? "dark" : "light");
+  }, [darkMode]);
   const [saConfig, setSaConfig]             = useState(() => loadSAConfig());
 
   /* Restore session from localStorage on mount (theme itself is restored by

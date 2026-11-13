@@ -73,4 +73,43 @@ describe("runGraph", () => {
     const steps = await runGraph(graph, {});
     expect(steps.some((s) => s.label === "Safety limit reached")).toBe(true);
   });
+
+  it("fills {{expressions}}, carries Set Field values forward and tags steps with node ids", async () => {
+    const graph: WorkflowGraph = {
+      workflowKey: "expr-test",
+      version: 1,
+      nodes: [
+        { id: "t", type: "trigger", position: { x: 0, y: 0 }, data: { kind: "manual", label: "Manual Trigger" } },
+        { id: "s", type: "action", position: { x: 0, y: 0 }, data: { kind: "set_field", label: "Set", params: { key: "tag", value: "VIP-{{company}}" } } },
+        { id: "c", type: "condition", position: { x: 0, y: 0 }, data: { field: "tag", op: "eq", value: "VIP-{{company}}", label: "tag check" } },
+        { id: "a", type: "action", position: { x: 0, y: 0 }, data: { kind: "log_activity", label: "Log", params: { text: "{{tag}}" } } },
+      ],
+      edges: [
+        { id: "1", source: "t", target: "s" },
+        { id: "2", source: "s", target: "c" },
+        { id: "3", source: "c", target: "a", sourceHandle: "true" },
+      ],
+    };
+    const steps = await runGraph(graph, { company: "Acme" });
+    expect(steps.find((x) => x.label === "Set")?.detail).toBe("tag = VIP-Acme");
+    expect(steps.find((x) => x.label === "tag check")?.detail).toBe("TRUE branch");
+    expect(steps.map((x) => x.nodeId)).toEqual(["t", "s", "c", "a"]);
+  });
+
+  it("HTTP Request refuses private/loopback URLs and invalid Set Field names", async () => {
+    const mk = (kind: "http_request" | "set_field", params: Record<string, string>): WorkflowGraph => ({
+      workflowKey: "http-test",
+      version: 1,
+      nodes: [
+        { id: "t", type: "trigger", position: { x: 0, y: 0 }, data: { kind: "manual", label: "Manual Trigger" } },
+        { id: "a", type: "action", position: { x: 0, y: 0 }, data: { kind, label: "Node", params } },
+      ],
+      edges: [{ id: "1", source: "t", target: "a" }],
+    });
+    const blocked = await runGraph(mk("http_request", { method: "GET", url: "http://127.0.0.1:3000/admin" }), {});
+    expect(blocked[1].ok).toBe(false);
+    expect(blocked[1].detail).toMatch(/Blocked/);
+    const bad = await runGraph(mk("set_field", { key: "bad key!", value: "x" }), {});
+    expect(bad[1].ok).toBe(false);
+  });
 });

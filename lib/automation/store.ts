@@ -15,7 +15,7 @@
 
 import { recordWorkflowRun, setWorkflowActive as setWorkflowActiveRemote } from "@/lib/actions/workflows";
 
-export type RunStep = { label: string; ok: boolean; detail?: string };
+export type RunStep = { label: string; ok: boolean; detail?: string; nodeId?: string };
 export type WorkflowRun = {
   id: string;
   workflowId: string;
